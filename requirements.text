@@ -1,0 +1,5 @@
+flask
+flask-socketio
+pyserial
+pytz
+RPi.GPIO
