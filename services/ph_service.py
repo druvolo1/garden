@@ -6,34 +6,41 @@ from api.settings import load_settings
 # Globals to track the current pH device and lock
 current_ph_device = None
 ph_lock = threading.Lock()
+latest_ph_value = None
 
-def get_ph_reading():
+def listen_for_ph_readings():
     """
-    Continuously listen for pH values from the sensor.
-    This function reads lines from the serial port and returns the latest pH value.
+    Background thread to listen for pH readings and update the latest_ph_value.
     """
+    global latest_ph_value
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
     if not ph_device:
         print("No pH probe device assigned.")
-        return None  # No device assigned
+        return
 
     try:
         with serial.Serial(ph_device, 9600, timeout=1) as ser:
+            print(f"Listening on pH probe device: {ph_device}")
             while True:
-                line = ser.readline().decode('utf-8').strip()  # Read a line and decode it
+                line = ser.readline().decode('utf-8').strip()
                 if line:
                     try:
-                        ph_value = float(line)  # Convert to float
-                        print(f"Received pH value: {ph_value}")
-                        return ph_value  # Return the pH value
+                        latest_ph_value = float(line)
+                        print(f"Updated latest pH value: {latest_ph_value}")
                     except ValueError:
                         print(f"Invalid data received: {line}")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
-        return None  # Return None if the device is inaccessible
 
+def get_ph_reading():
+    """
+    Return the latest pH value received from the background thread.
+    """
+    if latest_ph_value is None:
+        print("No pH value available yet.")
+    return latest_ph_value
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""

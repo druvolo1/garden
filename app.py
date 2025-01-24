@@ -49,6 +49,7 @@ def broadcast_ph_readings():
 
 # Start the background thread
 threading.Thread(target=broadcast_ph_readings, daemon=True).start()
+threading.Thread(target=listen_for_ph_readings, daemon=True).start()
 
 # Register API blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
