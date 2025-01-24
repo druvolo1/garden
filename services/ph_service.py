@@ -2,29 +2,29 @@ import serial
 import time
 from api.settings import load_settings
 
+import serial
+from api.settings import load_settings
+
 def get_ph_reading():
     """Read the pH value from the sensor."""
     settings = load_settings()
-    ph_probe_device = settings["usb_roles"].get("ph_probe")
+    ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
-    # Check if a pH probe is assigned
-    if not ph_probe_device:
-        print("No pH probe assigned. Skipping pH reading.")
-        return None
+    if not ph_device:
+        print("No pH probe device assigned.")
+        return None  # No device assigned
 
     try:
-        # Attempt to read from the assigned device
-        with serial.Serial(ph_probe_device, 9600, timeout=1) as ser:
+        with serial.Serial(ph_device, 9600, timeout=1) as ser:
             ser.write(b'R\r')
             response = ser.readline().decode().strip()
             return float(response)
     except serial.SerialException as e:
-        print(f"Error accessing pH probe device {ph_probe_device}: {e}")
-        return None
+        print(f"Error accessing pH probe device {ph_device}: {e}")
+        return None  # Return None if the device is inaccessible
     except ValueError:
-        print(f"Invalid response received from pH probe: {response}")
-        return None
-
+        print(f"Invalid response from pH probe device {ph_device}.")
+        return None  # Handle invalid data
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
