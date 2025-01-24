@@ -8,7 +8,6 @@
     <h1>Settings</h1>
 
     <h2>Assign USB Devices</h2>
-
     <form id="ph-form">
         <label for="ph-device">pH Probe:</label>
         <select id="ph-device" name="ph-device">
@@ -25,9 +24,53 @@
         </select>
         <button type="submit">Save Relay Module</button>
     </form>
-
     <button id="rescan-usb">Rescan USB Devices</button>
     <div id="status"></div>
+
+    <h2>General Settings</h2>
+    <form id="general-settings-form">
+        <label for="ph-min">pH Range - Min:</label>
+        <input type="number" id="ph-min" name="ph-min" step="0.01"><br><br>
+
+        <label for="ph-max">pH Range - Max:</label>
+        <input type="number" id="ph-max" name="ph-max" step="0.01"><br><br>
+
+        <label for="max-dosing">Max Dosing Amount (ml):</label>
+        <input type="number" id="max-dosing" name="max-dosing" step="1"><br><br>
+
+        <label for="dosing-interval">Dosing Interval (hours):</label>
+        <input type="number" id="dosing-interval" name="dosing-interval" step="1"><br><br>
+
+        <label for="system-volume">System Volume (gallons):</label>
+        <input type="number" id="system-volume" name="system-volume" step="1"><br><br>
+
+        <label for="time-zone">Time Zone:</label>
+        <input type="text" id="time-zone" name="time-zone"><br><br>
+
+        <label for="auto-dosing">Auto-Dosing Enabled:</label>
+        <input type="checkbox" id="auto-dosing" name="auto-dosing"><br><br>
+
+        <button type="submit">Save General Settings</button>
+    </form>
+
+    <h2>Dosage Strength</h2>
+    <form id="dosage-strength-form">
+        <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
+        <input type="number" id="ph-up-strength" name="ph-up-strength" step="0.01"><br><br>
+
+        <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
+        <input type="number" id="ph-down-strength" name="ph-down-strength" step="0.01"><br><br>
+
+        <button type="submit">Save Dosage Strength</button>
+    </form>
+
+    <h2>Pump Calibration</h2>
+    <form id="pump-calibration-form">
+        <label for="pump-calibration">Pump Calibration (seconds per ml):</label>
+        <input type="number" id="pump-calibration" name="pump-calibration" step="0.01"><br><br>
+
+        <button type="submit">Save Pump Calibration</button>
+    </form>
 
     <script>
         // Dynamically get the Pi's IP address passed from the backend
@@ -37,8 +80,6 @@
         // Fetch the list of USB devices and previously saved settings
         const fetchUsbDevices = () => {
             console.log('Rescanning USB devices...');
-
-            // Fetch USB devices and settings in parallel
             Promise.all([
                 fetch(`http://${piIp}:5000/api/settings/usb_devices`).then(response => {
                     if (!response.ok) {
@@ -59,97 +100,88 @@
 
                 const phDeviceDropdown = document.getElementById('ph-device');
                 const relayDeviceDropdown = document.getElementById('relay-device');
-
-                // Get saved device assignments
                 const assignedPhProbe = settings.usb_roles?.ph_probe || "";
                 const assignedRelay = settings.usb_roles?.relay || "";
 
-                // Clear existing dropdown options
+                // Clear dropdowns and populate
                 phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
                 relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
-
                 devices.forEach(device => {
-                    console.log('Processing device:', device.device);
-
-                    // Add to pH Probe dropdown
                     const phOption = document.createElement('option');
                     phOption.value = device.device;
                     phOption.textContent = device.device;
-                    if (device.device === assignedPhProbe) {
-                        phOption.selected = true; // Preselect saved value
-                    }
+                    if (device.device === assignedPhProbe) phOption.selected = true;
                     phDeviceDropdown.appendChild(phOption);
 
-                    // Add to Relay Module dropdown
                     const relayOption = document.createElement('option');
                     relayOption.value = device.device;
                     relayOption.textContent = device.device;
-                    if (device.device === assignedRelay) {
-                        relayOption.selected = true; // Preselect saved value
-                    }
+                    if (device.device === assignedRelay) relayOption.selected = true;
                     relayDeviceDropdown.appendChild(relayOption);
                 });
+
+                // Populate other settings
+                document.getElementById('ph-min').value = settings.ph_range.min;
+                document.getElementById('ph-max').value = settings.ph_range.max;
+                document.getElementById('max-dosing').value = settings.max_dosing_amount;
+                document.getElementById('dosing-interval').value = settings.dosing_interval;
+                document.getElementById('system-volume').value = settings.system_volume;
+                document.getElementById('time-zone').value = settings.time_zone;
+                document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled;
+                document.getElementById('ph-up-strength').value = settings.dosage_strength.ph_up;
+                document.getElementById('ph-down-strength').value = settings.dosage_strength.ph_down;
+                document.getElementById('pump-calibration').value = settings.pump_calibration || 0;
             })
-            .catch(error => {
-                console.error('Error fetching USB devices or settings:', error);
-                const statusDiv = document.getElementById('status');
-                statusDiv.textContent = 'Error loading settings. Please try again.';
-            });
+            .catch(error => console.error('Error fetching USB devices or settings:', error));
         };
 
-        // Fetch USB devices and settings on page load
+        // Save settings
+        const saveSettings = (endpoint, payload, successMessage) => {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                console.log(successMessage);
+                document.getElementById('status').textContent = successMessage;
+            })
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
+        // Event listeners for saving settings
+        document.getElementById('ph-form').addEventListener('submit', event => { event.preventDefault(); });
+        document.getElementById('relay-form').addEventListener('submit', event => { event.preventDefault(); });
+        document.getElementById('general-settings-form').addEventListener('submit', event => {
+            event.preventDefault();
+            saveSettings(`http://${piIp}:5000/api/settings`, {
+                ph_range: { min: parseFloat(document.getElementById('ph-min').value), max: parseFloat(document.getElementById('ph-max').value) },
+                max_dosing_amount: parseInt(document.getElementById('max-dosing').value),
+                dosing_interval: parseInt(document.getElementById('dosing-interval').value),
+                system_volume: parseInt(document.getElementById('system-volume').value),
+                time_zone: document.getElementById('time-zone').value,
+                auto_dosing_enabled: document.getElementById('auto-dosing').checked
+            }, 'General settings saved successfully!');
+        });
+
+        document.getElementById('dosage-strength-form').addEventListener('submit', event => {
+            event.preventDefault();
+            saveSettings(`http://${piIp}:5000/api/settings`, {
+                dosage_strength: {
+                    ph_up: parseFloat(document.getElementById('ph-up-strength').value),
+                    ph_down: parseFloat(document.getElementById('ph-down-strength').value)
+                }
+            }, 'Dosage strength saved successfully!');
+        });
+
+        document.getElementById('pump-calibration-form').addEventListener('submit', event => {
+            event.preventDefault();
+            saveSettings(`http://${piIp}:5000/api/settings`, {
+                pump_calibration: parseFloat(document.getElementById('pump-calibration').value)
+            }, 'Pump calibration saved successfully!');
+        });
+
         fetchUsbDevices();
-
-        // Rescan USB devices when the button is clicked
-        document.getElementById('rescan-usb').addEventListener('click', (event) => {
-            event.preventDefault();
-            console.log('Rescan button clicked');
-            fetchUsbDevices();
-        });
-
-        // Handle pH Probe assignment
-        document.getElementById('ph-form').addEventListener('submit', (event) => {
-            event.preventDefault();
-
-            const phDevice = document.getElementById('ph-device').value;
-
-            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'ph_probe', device: phDevice })
-            })
-            .then(response => response.json())
-            .then(data => {
-                const statusDiv = document.getElementById('status');
-                if (data.status === 'success') {
-                    statusDiv.textContent = 'pH Probe assigned successfully!';
-                } else {
-                    statusDiv.textContent = `Failed to assign pH Probe: ${data.error}`;
-                }
-            });
-        });
-
-        // Handle Relay Module assignment
-        document.getElementById('relay-form').addEventListener('submit', (event) => {
-            event.preventDefault();
-
-            const relayDevice = document.getElementById('relay-device').value;
-
-            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'relay', device: relayDevice })
-            })
-            .then(response => response.json())
-            .then(data => {
-                const statusDiv = document.getElementById('status');
-                if (data.status === 'success') {
-                    statusDiv.textContent = 'Relay Module assigned successfully!';
-                } else {
-                    statusDiv.textContent = `Failed to assign Relay Module: ${data.error}`;
-                }
-            });
-        });
     </script>
 </body>
 </html>
