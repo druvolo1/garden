@@ -21,24 +21,45 @@
     <div id="status"></div>
 
     <script>
+        // Fetch the list of USB devices
         const fetchUsbDevices = () => {
             fetch('/api/settings/usb_devices')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch USB devices');
+                    }
+                    return response.json();
+                })
                 .then(devices => {
                     const phDeviceDropdown = document.getElementById('ph-device');
                     const relayDeviceDropdown = document.getElementById('relay-device');
 
-                    phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
-                    relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+                    // Create Sets to track current dropdown options
+                    const currentPhOptions = new Set([...phDeviceDropdown.options].map(option => option.value));
+                    const currentRelayOptions = new Set([...relayDeviceDropdown.options].map(option => option.value));
 
                     devices.forEach(device => {
-                        const option = document.createElement('option');
-                        option.value = device.device;
-                        option.textContent = device.device;
+                        // Add to pH Probe dropdown if not already present
+                        if (!currentPhOptions.has(device.device)) {
+                            const option = document.createElement('option');
+                            option.value = device.device;
+                            option.textContent = device.device;
+                            phDeviceDropdown.appendChild(option);
+                        }
 
-                        phDeviceDropdown.appendChild(option.cloneNode(true));
-                        relayDeviceDropdown.appendChild(option);
+                        // Add to Relay Module dropdown if not already present
+                        if (!currentRelayOptions.has(device.device)) {
+                            const option = document.createElement('option');
+                            option.value = device.device;
+                            option.textContent = device.device;
+                            relayDeviceDropdown.appendChild(option);
+                        }
                     });
+                })
+                .catch(error => {
+                    console.error('Error fetching USB devices:', error);
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.textContent = 'Error fetching USB devices. Please try again.';
                 });
         };
 
@@ -72,12 +93,4 @@
             .then(data => {
                 const statusDiv = document.getElementById('status');
                 if (data.status === 'success') {
-                    statusDiv.textContent = 'USB devices successfully assigned!';
-                } else {
-                    statusDiv.textContent = 'Failed to assign USB devices.';
-                }
-            });
-        });
-    </script>
-</body>
-</html>
+                    statusDiv.textContent = 'USB devices succe

@@ -89,23 +89,26 @@ def reset_settings():
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
     """
-    List all USB devices connected to the Raspberry Pi, excluding those already assigned.
+    List all USB devices connected to the Raspberry Pi, including previously assigned ones.
     """
     try:
         # Run the command to list USB devices
         result = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
-        devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
+        detected_devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
 
-        # Filter out devices already assigned to roles
+        # Include previously assigned devices
         settings = load_settings()
-        assigned_devices = settings.get("usb_roles", {}).values()
-        devices = [dev for dev in devices if dev["device"] not in assigned_devices]
+        assigned_devices = [{"device": device} for device in settings["usb_roles"].values() if device]
 
-        return jsonify(devices)
+        # Combine detected and assigned devices (avoid duplicates)
+        all_devices = {dev["device"]: dev for dev in detected_devices + assigned_devices}.values()
+
+        return jsonify(list(all_devices))
     except subprocess.CalledProcessError:
-        # Return an empty list if no devices are found
-        return jsonify([])
-
+        # If no devices are detected, return only previously assigned devices
+        settings = load_settings()
+        assigned_devices = [{"device": device} for device in settings["usb_roles"].values() if device]
+        return jsonify(assigned_devices)
 
 # API endpoint: Assign a USB device to a specific role
 @settings_blueprint.route('/assign_usb', methods=['POST'])
