@@ -8,6 +8,10 @@
     <h1>pH Dosing System</h1>
     <p>Welcome to the pH Dosing System!</p>
 
+    <!-- Section to display real-time pH reading -->
+    <h2>Current pH Reading</h2>
+    <div id="ph-display" style="font-size: 24px; color: blue;">Loading...</div>
+
     <script>
         // Get the Pi's IP address passed from the server
         const piIp = "{{ pi_ip }}"; // Flask renders this dynamically
@@ -21,8 +25,21 @@
             socket.emit('message', 'Hello from the client!');
         });
 
+        // Display server messages in the console
         socket.on('message', (data) => {
             console.log('Message from server:', data);
+        });
+
+        // Listen for real-time pH updates
+        socket.on('ph_update', (data) => {
+            console.log('Real-time pH update:', data);
+            const phDisplay = document.getElementById('ph-display');
+
+            if (data.ph !== undefined) {
+                phDisplay.textContent = `Current pH: ${data.ph.toFixed(2)}`;
+            } else {
+                phDisplay.textContent = 'pH data unavailable';
+            }
         });
     </script>
 </body>

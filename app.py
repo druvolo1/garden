@@ -1,12 +1,16 @@
 import socket
+import threading
+import time
 from flask import Flask, render_template
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, emit
 from api.ph import ph_blueprint
 from api.pump import pump_blueprint
 from api.relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
+from services.ph_service import get_ph_reading
+from api.settings import load_settings
 
 # Initialize Flask app and SocketIO
 app = Flask(__name__)
@@ -24,6 +28,27 @@ def get_local_ip():
     finally:
         s.close()
     return ip
+
+# Background task to broadcast pH readings
+def broadcast_ph_readings():
+    while True:
+        settings = load_settings()
+        ph_probe = settings.get("usb_roles", {}).get("ph_probe")
+
+        if ph_probe:  # Only emit readings if a pH probe is assigned
+            try:
+                ph_value = get_ph_reading()
+                if ph_value is not None:
+                    socketio.emit('ph_update', {'ph': ph_value}, broadcast=True)
+            except Exception as e:
+                print(f"Error reading pH value: {e}")
+        else:
+            print("No pH probe assigned. Skipping pH reading.")
+
+        time.sleep(1)  # Emit every second
+
+# Start the background thread
+threading.Thread(target=broadcast_ph_readings, daemon=True).start()
 
 # Register API blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
@@ -47,7 +72,7 @@ def settings():
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
-    socketio.emit('message', {'data': 'Connected to the server'})
+    emit('message', {'data': 'Connected to the server'})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
