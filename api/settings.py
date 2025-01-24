@@ -23,7 +23,8 @@ if not os.path.exists(SETTINGS_FILE):
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
             "usb_roles": {"ph_probe": None, "relay": None},
-            "pump_calibration": {"pump1": 0, "pump2": 0}  # Add defaults here
+            "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+            "ph_target": 5.8
         }, f, indent=4)
 
 
