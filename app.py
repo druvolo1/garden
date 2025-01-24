@@ -24,6 +24,10 @@ app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 def index():
     return render_template('index.html')
 
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
 # Example WebSocket event: real-time pH updates
 @socketio.on('connect')
 def handle_connect():
