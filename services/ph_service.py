@@ -2,11 +2,11 @@ import serial
 import time
 from api.settings import load_settings
 
-import serial
-from api.settings import load_settings
-
 def get_ph_reading():
-    """Read the pH value from the sensor."""
+    """
+    Continuously listen for pH values from the sensor.
+    This function reads lines from the serial port and returns the latest pH value.
+    """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
@@ -16,15 +16,19 @@ def get_ph_reading():
 
     try:
         with serial.Serial(ph_device, 9600, timeout=1) as ser:
-            ser.write(b'R\r')
-            response = ser.readline().decode().strip()
-            return float(response)
+            while True:
+                line = ser.readline().decode('utf-8').strip()  # Read a line and decode it
+                if line:
+                    try:
+                        ph_value = float(line)  # Convert to float
+                        print(f"Received pH value: {ph_value}")
+                        return ph_value  # Return the pH value
+                    except ValueError:
+                        print(f"Invalid data received: {line}")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
         return None  # Return None if the device is inaccessible
-    except ValueError:
-        print(f"Invalid response from pH probe device {ph_device}.")
-        return None  # Handle invalid data
+
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
