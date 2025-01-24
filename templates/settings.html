@@ -131,10 +131,6 @@
                     if (device.device === assignedRelay) relayOption.selected = true;
                     relayDeviceDropdown.appendChild(relayOption);
                 });
-            })
-            .catch(error => console.error('Error fetching USB devices or settings:', error));
-};
-
 
                 // Populate settings
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
@@ -163,6 +159,16 @@
         };
 
         // Save General Settings
+        const saveSettings = (endpoint, payload) => {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => console.log('Settings saved successfully'))
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
             saveSettings(`http://${piIp}:5000/api/settings`, {
@@ -174,7 +180,6 @@
             });
         });
 
-        // Save Pump Calibration
         document.getElementById('pump-calibration-form').addEventListener('submit', event => {
             event.preventDefault();
             saveSettings(`http://${piIp}:5000/api/settings`, {
