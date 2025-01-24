@@ -9,7 +9,7 @@ settings_blueprint = Blueprint('settings', __name__)
 # Path to the settings file
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
-# Ensure the settings file exists
+# Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
@@ -22,7 +22,8 @@ if not os.path.exists(SETTINGS_FILE):
             "auto_dosing_enabled": True,
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
-            "usb_roles": {"ph_probe": None, "relay": None}  # New field for USB roles
+            "usb_roles": {"ph_probe": None, "relay": None},
+            "pump_calibration": {"pump1": 0, "pump2": 0}  # Add defaults here
         }, f, indent=4)
 
 
