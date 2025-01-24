@@ -2,6 +2,10 @@ import serial
 import time
 from api.settings import load_settings
 
+# Globals to track the current pH device and lock
+current_ph_device = None
+ph_lock = threading.Lock()
+
 def get_ph_reading():
     """
     Continuously listen for pH values from the sensor.
@@ -56,20 +60,39 @@ def calibrate_ph(level):
         print(f"Error calibrating pH probe on device {ph_probe_device}: {e}")
         return False
 
+def update_ph_device(device):
+    """Update the current pH probe device."""
+    global current_ph_device
+    with ph_lock:
+        current_ph_device = device
+        print(f"Updated pH probe device: {current_ph_device}")
 
-def monitor_ph():
+def monitor_ph(callback):
     """
-    Continuously monitor pH readings.
-    This is a loop that can be called by a background service.
+    Continuously monitor the pH probe for readings.
+    If a callback is provided, it will be called with each valid pH value.
     """
+    global current_ph_device
     while True:
-        ph_value = get_ph_reading()
+        with ph_lock:
+            ph_device = current_ph_device
 
-        if ph_value is not None:
-            print(f"Current pH: {ph_value}")
-            # Handle or log the pH value here (e.g., emit via WebSocket, save to a database, etc.)
-        else:
-            print("No pH value received.")
+        if not ph_device:
+            print("No pH probe device assigned. Waiting for assignment.")
+            time.sleep(1)
+            continue
 
-        # Wait for 1 second between readings
-        time.sleep(1)
+        try:
+            with serial.Serial(ph_device, 9600, timeout=2) as ser:
+                line = ser.readline().decode('utf-8').strip()
+                if line:
+                    try:
+                        ph_value = float(line)
+                        print(f"pH value: {ph_value}")
+                        if callback:
+                            callback(ph_value)
+                    except ValueError:
+                        print(f"Invalid pH value received: {line}")
+        except serial.SerialException as e:
+            print(f"Error accessing pH probe device {ph_device}: {e}")
+        time.sleep(1)  # Small delay to prevent high CPU usage

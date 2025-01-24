@@ -88,6 +88,7 @@ def reset_settings():
     save_settings(default_settings)
     return jsonify({"status": "success", "settings": default_settings})
 
+
 # API endpoint: List USB devices
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
