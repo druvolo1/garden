@@ -89,26 +89,32 @@ def reset_settings():
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
     """
-    List all USB devices connected to the Raspberry Pi, including previously assigned ones.
+    List all USB devices connected to the Raspberry Pi, excluding disconnected devices.
     """
+    devices = []
+
+    # Check connected devices in /dev/serial/by-id
     try:
-        # Run the command to list USB devices
         result = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
-        detected_devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
-
-        # Include previously assigned devices
-        settings = load_settings()
-        assigned_devices = [{"device": device} for device in settings["usb_roles"].values() if device]
-
-        # Combine detected and assigned devices (avoid duplicates)
-        all_devices = {dev["device"]: dev for dev in detected_devices + assigned_devices}.values()
-
-        return jsonify(list(all_devices))
+        devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
     except subprocess.CalledProcessError:
-        # If no devices are detected, return only previously assigned devices
-        settings = load_settings()
-        assigned_devices = [{"device": device} for device in settings["usb_roles"].values() if device]
-        return jsonify(assigned_devices)
+        # No devices detected
+        devices = []
+
+    # Ensure settings.json only includes connected devices in usb_roles
+    settings = load_settings()
+    usb_roles = settings.get("usb_roles", {})
+
+    # Update usb_roles in settings.json to remove disconnected devices
+    for role, assigned_device in usb_roles.items():
+        if assigned_device not in [dev["device"] for dev in devices]:
+            usb_roles[role] = None  # Clear the role if the device is disconnected
+
+    settings["usb_roles"] = usb_roles
+    save_settings(settings)
+
+    return jsonify(devices)
+
 
 # API endpoint: Assign a USB device to a specific role
 @settings_blueprint.route('/assign_usb', methods=['POST'])
