@@ -1,6 +1,6 @@
 import serial
 import time
-from settings import load_settings
+from api.settings import load_settings
 
 def get_ph_reading():
     """Read the pH value from the sensor."""
