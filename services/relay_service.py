@@ -1,4 +1,6 @@
 import serial
+import json
+import os
 
 # USB Relay Commands
 RELAY_ON_COMMANDS = {
@@ -17,9 +19,28 @@ relay_status = {
     2: "off"
 }
 
-# Serial Port Configuration
-SERIAL_PORT = "/dev/ttyUSB1"  # Adjust this to your relay's actual USB port
-BAUD_RATE = 9600
+# Path to the settings file
+SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
+
+def get_relay_device_path():
+    """
+    Load the relay USB device path from settings.json.
+
+    Returns:
+        str: The relay USB device path.
+    Raises:
+        RuntimeError: If the relay device is not configured or settings cannot be loaded.
+    """
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            settings = json.load(f)
+            relay_device = settings.get("usb_roles", {}).get("relay")
+            if relay_device:
+                return relay_device
+            else:
+                raise ValueError("Relay USB device not configured in settings.")
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+        raise RuntimeError(f"Error loading relay device path: {e}")
 
 
 def turn_on_relay(relay):
@@ -36,7 +57,8 @@ def turn_on_relay(relay):
         return False
 
     try:
-        with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+        relay_device = get_relay_device_path()
+        with serial.Serial(relay_device, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_ON_COMMANDS[relay])
         relay_status[relay] = "on"
         print(f"Relay {relay} turned ON.")
@@ -60,7 +82,8 @@ def turn_off_relay(relay):
         return False
 
     try:
-        with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+        relay_device = get_relay_device_path()
+        with serial.Serial(relay_device, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_OFF_COMMANDS[relay])
         relay_status[relay] = "off"
         print(f"Relay {relay} turned OFF.")
