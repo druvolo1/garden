@@ -80,11 +80,11 @@ def reset_settings():
         "auto_dosing_enabled": True,
         "time_zone": "America/New_York",
         "daylight_savings_enabled": True,
-        "usb_roles": {"ph_probe": None, "relay": None}
+        "usb_roles": {"ph_probe": None, "relay": None},
+        "pump_calibration": {"pump1": 0, "pump2": 0}  # Include pump calibration here
     }
     save_settings(default_settings)
     return jsonify({"status": "success", "settings": default_settings})
-
 
 # API endpoint: List USB devices
 @settings_blueprint.route('/usb_devices', methods=['GET'])
@@ -126,7 +126,7 @@ def assign_usb_device():
     """
     data = request.json
     role = data.get("role")  # Either "ph_probe" or "relay"
-    device = data.get("device")
+    device = data.get("device")  # Device can be a string or None
 
     if role not in ["ph_probe", "relay"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
@@ -134,14 +134,23 @@ def assign_usb_device():
     # Load current settings
     settings = load_settings()
 
-    # Allow skipping the role by setting it to None
-    settings["usb_roles"] = settings.get("usb_roles", {})
-    settings["usb_roles"][role] = device  # Set to device or None
-    
+    # Clear the role if the device is an empty string or None
+    if not device:
+        settings["usb_roles"][role] = None
+    else:
+        # Prevent assigning the same device to multiple roles
+        for other_role, assigned_device in settings["usb_roles"].items():
+            if assigned_device == device and other_role != role:
+                return jsonify({"status": "failure", "error": f"Device already assigned to {other_role}"}), 400
+
+        # Assign the device to the role
+        settings["usb_roles"][role] = device
+
     # Save the updated settings
     save_settings(settings)
 
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
+
 
 # API endpoint: Trigger a USB scan
 @settings_blueprint.route('/scan_usb', methods=['POST'])

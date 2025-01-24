@@ -110,16 +110,19 @@
 
                 const phDeviceDropdown = document.getElementById('ph-device');
                 const relayDeviceDropdown = document.getElementById('relay-device');
-                const assignedRelay = settings.usb_roles?.relay || null;
+                const assignedPhProbe = settings.usb_roles?.ph_probe || "";
+                const assignedRelay = settings.usb_roles?.relay || "";
 
-                // Clear dropdowns and populate
+                // Clear dropdowns
                 phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
                 relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+
+                // Populate dropdowns
                 devices.forEach(device => {
                     const phOption = document.createElement('option');
                     phOption.value = device.device;
                     phOption.textContent = device.device;
-                    if (device.device === settings.usb_roles?.ph_probe) phOption.selected = true;
+                    if (device.device === assignedPhProbe) phOption.selected = true;
                     phDeviceDropdown.appendChild(phOption);
 
                     const relayOption = document.createElement('option');
@@ -128,6 +131,10 @@
                     if (device.device === assignedRelay) relayOption.selected = true;
                     relayDeviceDropdown.appendChild(relayOption);
                 });
+            })
+            .catch(error => console.error('Error fetching USB devices or settings:', error));
+};
+
 
                 // Populate settings
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
