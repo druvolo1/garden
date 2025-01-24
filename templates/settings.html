@@ -155,6 +155,18 @@
             .catch(error => console.error('Error fetching USB devices or settings:', error));
         };
 
+        // Save General Settings
+        document.getElementById('general-settings-form').addEventListener('submit', event => {
+            event.preventDefault();
+            saveSettings(`http://${piIp}:5000/api/settings`, {
+                max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
+                dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
+                system_volume: parseFloat(document.getElementById('system-volume').value),
+                time_zone: document.getElementById('time-zone').value,
+                auto_dosing_enabled: document.getElementById('auto-dosing').checked
+            });
+        });
+
         // Save Pump Calibration
         document.getElementById('pump-calibration-form').addEventListener('submit', event => {
             event.preventDefault();
