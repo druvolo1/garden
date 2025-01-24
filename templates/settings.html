@@ -158,16 +158,36 @@
             .catch(error => console.error('Error fetching USB devices or settings:', error));
         };
 
-        // Save General Settings
-        const saveSettings = (endpoint, payload) => {
-            fetch(endpoint, {
+        const saveUsbAssignment = (role, device) => {
+            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ role, device })
             })
-            .then(() => console.log('Settings saved successfully'))
-            .catch(error => console.error('Error saving settings:', error));
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`${role} assigned successfully.`);
+                    document.getElementById('status').textContent = `${role} assigned successfully.`;
+                } else {
+                    console.error(`Failed to assign ${role}:`, data.error);
+                    document.getElementById('status').textContent = `Failed to assign ${role}.`;
+                }
+            })
+            .catch(error => console.error(`Error saving ${role} assignment:`, error));
         };
+
+        document.getElementById('ph-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phDevice = document.getElementById('ph-device').value;
+            saveUsbAssignment('ph_probe', phDevice);
+        });
+
+        document.getElementById('relay-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const relayDevice = document.getElementById('relay-device').value;
+            saveUsbAssignment('relay', relayDevice);
+        });
 
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
