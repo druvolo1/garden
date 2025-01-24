@@ -1,5 +1,6 @@
 import serial
 import time
+import threading
 from api.settings import load_settings
 
 # Globals to track the current pH device and lock
