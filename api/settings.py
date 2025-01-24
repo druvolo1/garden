@@ -81,7 +81,8 @@ def reset_settings():
         "time_zone": "America/New_York",
         "daylight_savings_enabled": True,
         "usb_roles": {"ph_probe": None, "relay": None},
-        "pump_calibration": {"pump1": 0, "pump2": 0}  # Include pump calibration here
+        "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+        "ph_target": 5.8
     }
     save_settings(default_settings)
     return jsonify({"status": "success", "settings": default_settings})

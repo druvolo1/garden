@@ -31,7 +31,7 @@
         <strong>Relay module not assigned. Dosing-related settings are disabled.</strong>
     </div>
 
-    <h2>pH Range for Notifications</h2>
+    <h2>pH Min/Max Range</h2>
     <form id="ph-range-form">
         <label for="ph-min">pH Range - Min:</label>
         <input type="number" id="ph-min" name="ph-min" step="0.01"><br><br>
@@ -44,6 +44,9 @@
 
     <h2>General Settings</h2>
     <form id="general-settings-form">
+        <label for="ph-target">pH Target:</label>
+        <input type="number" id="ph-target" name="ph-target" step="0.01" value="5.8" disabled><br><br>
+
         <label for="max-dosing">Max Dosing Amount (ml):</label>
         <input type="number" id="max-dosing" name="max-dosing" step="1" disabled><br><br>
 
@@ -135,6 +138,7 @@
                 // Populate settings
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
+                document.getElementById('ph-target').value = settings.ph_target || '5.8';
                 document.getElementById('max-dosing').value = settings.max_dosing_amount || '';
                 document.getElementById('dosing-interval').value = settings.dosing_interval || '';
                 document.getElementById('system-volume').value = settings.system_volume || '';
@@ -202,6 +206,7 @@
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
             saveSettings(`http://${piIp}:5000/api/settings`, {
+                ph_target: parseFloat(document.getElementById('ph-target').value),
                 max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
                 dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
                 system_volume: parseFloat(document.getElementById('system-volume').value),
