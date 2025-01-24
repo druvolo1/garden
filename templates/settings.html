@@ -59,7 +59,7 @@
         <label for="auto-dosing">Auto-Dosing Enabled:</label>
         <input type="checkbox" id="auto-dosing" name="auto-dosing" disabled><br><br>
 
-        <button type="submit" disabled>Save General Settings</button>
+        <button type="submit" id="general-save-btn" disabled>Save General Settings</button>
     </form>
 
     <h2>Dosage Strength</h2>
@@ -70,7 +70,7 @@
         <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
         <input type="number" id="ph-down-strength" name="ph-down-strength" step="0.01" disabled><br><br>
 
-        <button type="submit" disabled>Save Dosage Strength</button>
+        <button type="submit" id="dosage-save-btn" disabled>Save Dosage Strength</button>
     </form>
 
     <h2>Pump Calibration</h2>
@@ -81,7 +81,7 @@
         <label for="pump2-calibration">Pump 2 Calibration (seconds per ml):</label>
         <input type="number" id="pump2-calibration" name="pump2-calibration" step="0.01" disabled><br><br>
 
-        <button type="submit" disabled>Save Pump Calibration</button>
+        <button type="submit" id="pump-calibration-save-btn" disabled>Save Pump Calibration</button>
     </form>
 
     <script>
@@ -129,21 +129,22 @@
                     relayDeviceDropdown.appendChild(relayOption);
                 });
 
-                // Update dosing settings based on relay assignment
-                const isRelayAssigned = Boolean(assignedRelay);
-                document.getElementById('max-dosing').disabled = !isRelayAssigned;
-                document.getElementById('dosing-interval').disabled = !isRelayAssigned;
-                document.getElementById('system-volume').disabled = !isRelayAssigned;
-                document.getElementById('time-zone').disabled = !isRelayAssigned;
-                document.getElementById('auto-dosing').disabled = !isRelayAssigned;
-                document.getElementById('ph-up-strength').disabled = !isRelayAssigned;
-                document.getElementById('ph-down-strength').disabled = !isRelayAssigned;
-                document.getElementById('pump1-calibration').disabled = !isRelayAssigned;
-                document.getElementById('pump2-calibration').disabled = !isRelayAssigned;
+                // Populate general settings fields
+                document.getElementById('max-dosing').value = settings.max_dosing_amount || '';
+                document.getElementById('dosing-interval').value = settings.dosing_interval || '';
+                document.getElementById('system-volume').value = settings.system_volume || '';
+                document.getElementById('time-zone').value = settings.time_zone || '';
+                document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
 
-                // Populate pH range settings
-                document.getElementById('ph-min').value = settings.ph_range.min;
-                document.getElementById('ph-max').value = settings.ph_range.max;
+                // Populate dosage strength fields
+                document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
+                document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+
+                // Enable/Disable fields and buttons based on relay assignment
+                const isRelayAssigned = Boolean(assignedRelay);
+                document.querySelectorAll('#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn').forEach(el => {
+                    el.disabled = !isRelayAssigned;
+                });
 
                 // Show relay warning if no relay is assigned
                 const relayWarning = document.getElementById('relay-warning');
@@ -152,19 +153,25 @@
             .catch(error => console.error('Error fetching USB devices or settings:', error));
         };
 
-        // Event listener for saving pH range settings
-        document.getElementById('ph-range-form').addEventListener('submit', event => {
-            event.preventDefault();
-            const phMin = parseFloat(document.getElementById('ph-min').value);
-            const phMax = parseFloat(document.getElementById('ph-max').value);
-
-            fetch(`http://${piIp}:5000/api/settings`, {
+        // Save settings and fetch updates
+        const saveSettings = (endpoint, payload) => {
+            fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ph_range: { min: phMin, max: phMax } })
+                body: JSON.stringify(payload)
             })
-            .then(() => console.log('pH Range saved successfully!'))
-            .catch(error => console.error('Error saving pH range:', error));
+            .then(() => fetchUsbDevices()) // Refresh settings after saving
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
+        document.getElementById('relay-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const relayDevice = document.getElementById('relay-device').value || null;
+
+            saveSettings(`http://${piIp}:5000/api/settings/assign_usb`, {
+                role: 'relay',
+                device: relayDevice
+            });
         });
 
         fetchUsbDevices();
