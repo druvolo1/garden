@@ -177,6 +177,16 @@
             .catch(error => console.error(`Error saving ${role} assignment:`, error));
         };
 
+        const saveSettings = (endpoint, payload) => {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => console.log('Settings saved successfully'))
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
         document.getElementById('ph-form').addEventListener('submit', event => {
             event.preventDefault();
             const phDevice = document.getElementById('ph-device').value;
