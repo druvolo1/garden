@@ -5,6 +5,7 @@ import time
 try:
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
 except ImportError:
     print("RPi.GPIO library not available. Using mock GPIO.")
 
