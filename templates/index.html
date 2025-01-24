@@ -1,24 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>pH Dosing System Dashboard</title>
+    <title>pH Dosing System</title>
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 </head>
 <body>
     <h1>pH Dosing System</h1>
-
-    <!-- Add navigation links -->
-    <nav>
-        <a href="/">Dashboard</a> | <!-- Link to the current page -->
-        <a href="/settings">Settings</a> <!-- Link to the settings page -->
-    </nav>
-
-    <p>Current pH: <span id="ph-value">Loading...</span></p>
+    <p>Welcome to the pH Dosing System!</p>
 
     <script>
-        const socket = io.connect('http://localhost:5000');
-        socket.on('ph_update', (data) => {
-            document.getElementById('ph-value').innerText = data.ph;
+        // Get the Pi's IP address passed from the server
+        const piIp = "{{ pi_ip }}"; // Flask renders this dynamically
+        console.log("Connecting to Socket.IO on:", piIp);
+
+        // Initialize Socket.IO with the Pi's IP
+        const socket = io.connect(`http://${piIp}:5000`);
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('message', 'Hello from the client!');
+        });
+
+        socket.on('message', (data) => {
+            console.log('Message from server:', data);
         });
     </script>
 </body>

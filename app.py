@@ -1,3 +1,4 @@
+import socket
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 from api.ph import ph_blueprint
@@ -11,6 +12,19 @@ from api.logs import log_blueprint
 app = Flask(__name__)
 socketio = SocketIO(app)
 
+# Function to get the Pi's local IP address
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Connect to an external address to determine the local IP
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"  # Fallback to localhost
+    finally:
+        s.close()
+    return ip
+
 # Register API blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(pump_blueprint, url_prefix='/api/pump')
@@ -22,18 +36,18 @@ app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 # Serve the main dashboard page
 @app.route('/')
 def index():
-    return render_template('index.html')
+    pi_ip = get_local_ip()  # Get the Pi's IP address
+    return render_template('index.html', pi_ip=pi_ip)  # Pass it to the frontend
 
 @app.route('/settings')
 def settings():
-    return render_template('settings.html')
+    pi_ip = get_local_ip()  # Get the Pi's IP address
+    return render_template('settings.html', pi_ip=pi_ip)  # Pass it to the frontend
 
-# Example WebSocket event: real-time pH updates
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
-    socketio.emit('message', {'data': 'Welcome to the pH Dosing System!'})
+    socketio.emit('message', {'data': 'Connected to the server'})
 
-# Main entry point
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000,debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

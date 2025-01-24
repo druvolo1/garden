@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <title>Settings - pH Dosing System</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 </head>
 <body>
     <h1>Settings</h1>
@@ -29,19 +30,23 @@
     <div id="status"></div>
 
     <script>
+        // Dynamically get the Pi's IP address passed from the backend
+        const piIp = "{{ pi_ip }}"; // Rendered by Flask
+        console.log("Connecting to Pi IP:", piIp);
+
         // Fetch the list of USB devices and previously saved settings
         const fetchUsbDevices = () => {
             console.log('Rescanning USB devices...');
 
             // Fetch USB devices and settings in parallel
             Promise.all([
-                fetch('/api/settings/usb_devices').then(response => {
+                fetch(`http://${piIp}:5000/api/settings/usb_devices`).then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch USB devices');
                     }
                     return response.json();
                 }),
-                fetch('/api/settings').then(response => {
+                fetch(`http://${piIp}:5000/api/settings`).then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch settings');
                     }
@@ -108,7 +113,7 @@
 
             const phDevice = document.getElementById('ph-device').value;
 
-            fetch('/api/settings/assign_usb', {
+            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: 'ph_probe', device: phDevice })
@@ -130,7 +135,7 @@
 
             const relayDevice = document.getElementById('relay-device').value;
 
-            fetch('/api/settings/assign_usb', {
+            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: 'relay', device: relayDevice })
