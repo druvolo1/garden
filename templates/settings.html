@@ -17,23 +17,39 @@
         <button type="submit">Save</button>
     </form>
 
+    <button id="rescan-usb">Rescan USB Devices</button>
     <div id="status"></div>
 
     <script>
-        // Fetch available USB devices and populate the dropdowns
-        fetch('/api/settings/usb_devices')
-            .then(response => response.json())
-            .then(devices => {
-                const phDeviceDropdown = document.getElementById('ph-device');
-                const relayDeviceDropdown = document.getElementById('relay-device');
-                devices.forEach(device => {
-                    const option = document.createElement('option');
-                    option.value = device.device;
-                    option.textContent = device.device;
-                    phDeviceDropdown.appendChild(option.cloneNode(true));
-                    relayDeviceDropdown.appendChild(option);
+        const fetchUsbDevices = () => {
+            fetch('/api/settings/usb_devices')
+                .then(response => response.json())
+                .then(devices => {
+                    const phDeviceDropdown = document.getElementById('ph-device');
+                    const relayDeviceDropdown = document.getElementById('relay-device');
+
+                    phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+                    relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+
+                    devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.device;
+                        option.textContent = device.device;
+
+                        phDeviceDropdown.appendChild(option.cloneNode(true));
+                        relayDeviceDropdown.appendChild(option);
+                    });
                 });
-            });
+        };
+
+        // Fetch USB devices on page load
+        fetchUsbDevices();
+
+        // Rescan USB devices when the button is clicked
+        document.getElementById('rescan-usb').addEventListener('click', (event) => {
+            event.preventDefault();
+            fetchUsbDevices();
+        });
 
         // Handle form submission to save USB assignments
         document.getElementById('usb-form').addEventListener('submit', (event) => {
@@ -42,7 +58,6 @@
             const phDevice = document.getElementById('ph-device').value;
             const relayDevice = document.getElementById('relay-device').value;
 
-            // Save USB assignments
             fetch('/api/settings/assign_usb', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
