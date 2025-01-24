@@ -7,18 +7,22 @@
     <h1>Settings</h1>
 
     <h2>Assign USB Devices</h2>
-    <form id="usb-form">
+
+    <form id="ph-form">
         <label for="ph-device">pH Probe:</label>
         <select id="ph-device" name="ph-device">
             <option value="">Select a device</option>
-        </select><br><br>
+        </select>
+        <button type="submit">Save pH Probe</button>
+    </form>
+    <br>
 
+    <form id="relay-form">
         <label for="relay-device">Relay Module:</label>
         <select id="relay-device" name="relay-device">
             <option value="">Select a device</option>
-        </select><br><br>
-
-        <button type="submit">Save</button>
+        </select>
+        <button type="submit">Save Relay Module</button>
     </form>
 
     <button id="rescan-usb">Rescan USB Devices</button>
@@ -80,41 +84,56 @@
                 });
         };
 
-
         // Fetch USB devices on page load
         fetchUsbDevices();
 
         // Rescan USB devices when the button is clicked
         document.getElementById('rescan-usb').addEventListener('click', (event) => {
             event.preventDefault();
-            console.log('Rescan button clicked'); // Debug log
+            console.log('Rescan button clicked');
             fetchUsbDevices();
         });
 
-        // Handle form submission to save USB assignments
-        document.getElementById('usb-form').addEventListener('submit', (event) => {
+        // Handle pH Probe assignment
+        document.getElementById('ph-form').addEventListener('submit', (event) => {
             event.preventDefault();
 
             const phDevice = document.getElementById('ph-device').value;
-            const relayDevice = document.getElementById('relay-device').value;
 
             fetch('/api/settings/assign_usb', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: 'ph_probe', device: phDevice })
             })
-            .then(() => fetch('/api/settings/assign_usb', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'relay', device: relayDevice })
-            }))
             .then(response => response.json())
             .then(data => {
                 const statusDiv = document.getElementById('status');
                 if (data.status === 'success') {
-                    statusDiv.textContent = 'USB devices successfully assigned!';
+                    statusDiv.textContent = 'pH Probe assigned successfully!';
                 } else {
-                    statusDiv.textContent = 'Failed to assign USB devices.';
+                    statusDiv.textContent = `Failed to assign pH Probe: ${data.error}`;
+                }
+            });
+        });
+
+        // Handle Relay Module assignment
+        document.getElementById('relay-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const relayDevice = document.getElementById('relay-device').value;
+
+            fetch('/api/settings/assign_usb', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: 'relay', device: relayDevice })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('status');
+                if (data.status === 'success') {
+                    statusDiv.textContent = 'Relay Module assigned successfully!';
+                } else {
+                    statusDiv.textContent = `Failed to assign Relay Module: ${data.error}`;
                 }
             });
         });

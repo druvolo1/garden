@@ -133,14 +133,9 @@ def assign_usb_device():
     # Load current settings
     settings = load_settings()
 
-    # Prevent assigning the same device to multiple roles
-    for assigned_role, assigned_device in settings["usb_roles"].items():
-        if assigned_device == device and assigned_role != role:
-            return jsonify({"status": "failure", "error": f"Device already assigned to {assigned_role}"}), 400
-
-    # Update the role assignment
+    # Allow skipping the role by setting it to None
     settings["usb_roles"] = settings.get("usb_roles", {})
-    settings["usb_roles"][role] = device
+    settings["usb_roles"][role] = device  # Set to device or None
     
     # Save the updated settings
     save_settings(settings)
