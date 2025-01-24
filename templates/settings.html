@@ -9,10 +9,14 @@
     <h2>Assign USB Devices</h2>
     <form id="usb-form">
         <label for="ph-device">pH Probe:</label>
-        <select id="ph-device" name="ph-device"></select><br><br>
+        <select id="ph-device" name="ph-device">
+            <option value="">Select a device</option>
+        </select><br><br>
 
         <label for="relay-device">Relay Module:</label>
-        <select id="relay-device" name="relay-device"></select><br><br>
+        <select id="relay-device" name="relay-device">
+            <option value="">Select a device</option>
+        </select><br><br>
 
         <button type="submit">Save</button>
     </form>
@@ -23,7 +27,8 @@
     <script>
         // Fetch the list of USB devices
         const fetchUsbDevices = () => {
-            console.log('Rescanning USB devices...');
+            console.log('Rescanning USB devices...'); // Log when rescan starts
+
             fetch('/api/settings/usb_devices')
                 .then(response => {
                     if (!response.ok) {
@@ -32,7 +37,9 @@
                     return response.json();
                 })
                 .then(devices => {
-                    console.log('Fetched devices:', devices); // Debug log
+                    console.log('Populating dropdowns...'); // Debug log
+                    console.log('Devices to add:', devices); // Log the devices array
+
                     const phDeviceDropdown = document.getElementById('ph-device');
                     const relayDeviceDropdown = document.getElementById('relay-device');
 
@@ -41,8 +48,11 @@
                     const currentRelayOptions = new Set([...relayDeviceDropdown.options].map(option => option.value));
 
                     devices.forEach(device => {
+                        console.log('Processing device:', device.device); // Debug log for each device
+
                         // Add to pH Probe dropdown if not already present
                         if (!currentPhOptions.has(device.device)) {
+                            console.log('Adding to pH dropdown:', device.device);
                             const phOption = document.createElement('option');
                             phOption.value = device.device;
                             phOption.textContent = device.device;
@@ -51,6 +61,7 @@
 
                         // Add to Relay Module dropdown if not already present
                         if (!currentRelayOptions.has(device.device)) {
+                            console.log('Adding to relay dropdown:', device.device);
                             const relayOption = document.createElement('option');
                             relayOption.value = device.device;
                             relayOption.textContent = device.device;
@@ -65,8 +76,6 @@
                 });
         };
 
-
-
         // Fetch USB devices on page load
         fetchUsbDevices();
 
@@ -76,7 +85,6 @@
             console.log('Rescan button clicked'); // Debug log
             fetchUsbDevices();
         });
-
 
         // Handle form submission to save USB assignments
         document.getElementById('usb-form').addEventListener('submit', (event) => {
@@ -99,4 +107,12 @@
             .then(data => {
                 const statusDiv = document.getElementById('status');
                 if (data.status === 'success') {
-                    statusDiv.textContent = 'USB devices succe
+                    statusDiv.textContent = 'USB devices successfully assigned!';
+                } else {
+                    statusDiv.textContent = 'Failed to assign USB devices.';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
