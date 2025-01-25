@@ -16,6 +16,7 @@ ph_reading_queue = Queue()
 def listen_for_ph_readings():
     """
     Background thread to listen for pH readings and put them in the queue.
+    Reconnects automatically if persistent errors occur.
     """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -24,9 +25,12 @@ def listen_for_ph_readings():
         print("No pH probe device assigned.")
         return
 
+    max_retries = 3  # Number of retries before reconnecting
+    retry_count = 0  # Tracks consecutive errors
+
     while True:
         try:
-            with serial_lock, serial.Serial(
+            with serial.Serial(
                 ph_device,
                 9600,
                 timeout=1,
@@ -44,15 +48,16 @@ def listen_for_ph_readings():
                     try:
                         raw_data = ser.read(100)
                         if raw_data:
+                            retry_count = 0  # Reset retries on successful read
                             buffer += raw_data
-                            print(f"Raw bytes received: {raw_data}")  # Debug raw data
+                            print(f"Raw bytes received: {raw_data}")
 
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
                                 line = line.decode('utf-8', errors='replace').strip()
                                 if line:
                                     try:
-                                        ph_value = round(float(line), 2)  # Round to 2 decimals
+                                        ph_value = round(float(line), 2)
                                         print(f"Received pH value: {ph_value}")
                                         ph_reading_queue.put(ph_value)
                                     except ValueError:
@@ -60,11 +65,17 @@ def listen_for_ph_readings():
                         else:
                             print("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
-                        print(f"Serial error detected: {e}. Reconnecting in 10 seconds...")
-                        time.sleep(10)
-                        break
+                        retry_count += 1
+                        print(f"Serial error detected: {e}. Retrying ({retry_count}/{max_retries})...")
+                        ser.flushInput()  # Flush the input buffer
+                        ser.flushOutput()  # Flush the output buffer
+                        time.sleep(1)  # Short delay before retrying
+
+                        if retry_count >= max_retries:
+                            print("Persistent serial error. Disconnecting and reconnecting...")
+                            break  # Exit the inner loop to reconnect
         except (serial.SerialException, OSError) as e:
-            print(f"Error accessing pH probe device: {e}. Retrying in 10 seconds...")
+            print(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
 
 def get_ph_reading():
