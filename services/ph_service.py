@@ -2,17 +2,20 @@ import serial
 import time
 import threading
 from api.settings import load_settings
+from queue import Queue
 
 # Globals to track the current pH device and lock
 current_ph_device = None
 ph_lock = threading.Lock()
 latest_ph_value = None
 
+# Shared queue for pH readings
+ph_reading_queue = Queue()
+
 def listen_for_ph_readings():
     """
-    Background thread to listen for pH readings and update the latest_ph_value.
+    Background thread to listen for pH readings and add them to the queue.
     """
-    global latest_ph_value
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
@@ -27,20 +30,26 @@ def listen_for_ph_readings():
                 line = ser.readline().decode('utf-8').strip()
                 if line:
                     try:
-                        latest_ph_value = float(line)
-                        print(f"Updated latest pH value: {latest_ph_value}")
+                        ph_value = float(line)
+                        print(f"Queueing pH value: {ph_value}")
+                        ph_reading_queue.put(ph_value)
                     except ValueError:
                         print(f"Invalid data received: {line}")
+                else:
+                    print("No data received from pH probe.")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
 
 def get_ph_reading():
     """
-    Return the latest pH value received from the background thread.
+    Retrieve the latest pH value from the queue.
     """
-    if latest_ph_value is None:
-        print("No pH value available yet.")
-    return latest_ph_value
+    try:
+        return ph_reading_queue.get_nowait()  # Get the latest value without blocking
+    except Queue.Empty:
+        print("No pH value available in the queue.")
+        return None
+
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
