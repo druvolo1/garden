@@ -30,41 +30,66 @@
     </main>
     <script>
         $(document).ready(function () {
-            // Connect to WebSocket
-            const socket = io();
+            const socket = io.connect('http://172.16.1.219:5000');
 
-            // Listen for pH updates from the server
-            socket.on('ph_update', function (data) {
-                if (data.ph) {
-                    $('#current-ph').text(data.ph);
-                } else {
-                    $('#current-ph').text("--");
-                }
-            });
-
-            // Append messages to the log
+            // Helper function to append messages to the log
             function appendToLog(message, isError = false) {
                 const logItem = $('<li>').text(message);
                 if (isError) logItem.css('color', 'red');
                 $('#log-list').prepend(logItem);
             }
 
-            // Handle calibration commands
+            // WebSocket connection success
+            socket.on('connect', function () {
+                console.log('WebSocket connected successfully.');
+                appendToLog('WebSocket connected successfully.');
+            });
+
+            // Receive pH updates via WebSocket
+            socket.on('ph_update', function (data) {
+                console.log('Received pH update:', data);
+
+                // Update the displayed pH value
+                if (data && data.ph !== undefined) {
+                    $('#current-ph').text(data.ph);
+                    appendToLog(`Live pH update received: ${data.ph}`);
+                } else {
+                    console.error('Invalid pH data received:', data);
+                    appendToLog('Invalid pH data received.', true);
+                }
+            });
+
+            // WebSocket connection error
+            socket.on('connect_error', function (error) {
+                console.error('WebSocket connection error:', error);
+                appendToLog('WebSocket connection error.', true);
+            });
+
+            // WebSocket disconnection
+            socket.on('disconnect', function () {
+                console.warn('WebSocket disconnected.');
+                appendToLog('WebSocket disconnected.', true);
+            });
+
+            // Send calibration commands to the server
             function sendCalibrationCommand(level) {
                 $.post(`/api/ph/calibrate/${level}`)
                     .done(function (data) {
                         if (data.status === "success") {
-                            appendToLog(data.message || `Calibration command '${level}' was successful.`);
+                            console.log(`${level} calibration successful:`, data.message);
+                            appendToLog(`Calibration (${level}) successful: ${data.message}`);
                         } else {
-                            appendToLog(data.message || `Calibration command '${level}' failed.`, true);
+                            console.error(`${level} calibration failed:`, data.message);
+                            appendToLog(`Calibration (${level}) failed: ${data.message}`, true);
                         }
                     })
                     .fail(function () {
+                        console.error(`Failed to send ${level} calibration command.`);
                         appendToLog(`Failed to send ${level} calibration command.`, true);
                     });
             }
 
-            // Button handlers
+            // Button click handlers for calibration commands
             $('#calibrate-low').click(() => sendCalibrationCommand('low'));
             $('#calibrate-mid').click(() => sendCalibrationCommand('mid'));
             $('#calibrate-high').click(() => sendCalibrationCommand('high'));
