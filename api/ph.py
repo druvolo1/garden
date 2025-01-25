@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from services.ph_service import get_ph_reading, calibrate_ph
+from services.ph_service import get_latest_ph_reading, calibrate_ph
 
 ph_blueprint = Blueprint('ph', __name__)
 
