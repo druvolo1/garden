@@ -79,7 +79,6 @@ def parse_buffer():
 
 calibration_command = None  # Shared variable to hold the calibration command
 
-
 def serial_reader():
     global calibration_command
 
@@ -116,14 +115,24 @@ def serial_reader():
 
                         raw_data = ser.read(100)
                         if raw_data:
+                            # Decode and clean incoming data
                             decoded_data = raw_data.decode('utf-8', errors='replace')
-                            with ph_lock:
-                                global buffer
-                                buffer += decoded_data
-                                if len(buffer) > MAX_BUFFER_LENGTH:
-                                    buffer = buffer[-MAX_BUFFER_LENGTH:]
+                            cleaned_data = ''.join(
+                                c if c.isprintable() or c == '\r' else ''
+                                for c in decoded_data
+                            ).strip()
 
-                                parse_buffer()
+                            if cleaned_data:
+                                with ph_lock:
+                                    global buffer
+                                    buffer += cleaned_data
+                                    log_with_timestamp(f"Cleaned data appended to buffer: '{cleaned_data}'")
+
+                                    if len(buffer) > MAX_BUFFER_LENGTH:
+                                        log_with_timestamp("Buffer exceeded maximum length. Trimming buffer.")
+                                        buffer = buffer[-MAX_BUFFER_LENGTH:]
+
+                                    parse_buffer()
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
