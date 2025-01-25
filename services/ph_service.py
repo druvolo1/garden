@@ -169,60 +169,52 @@ def get_latest_ph_reading():
         log_with_timestamp("No pH reading available.")
         return None
 
-def parse_buffer():
+def calibrate_ph(level):
     """
-    Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
-    Unexpected lines are discarded if they end with '\r'.
+    Calibrate the pH sensor at the specified level (low/mid/high/clear).
+    Waits for *OK or *ER in the buffer.
     """
-    global buffer, latest_ph_value, last_command_sent
+    valid_levels = {
+        'low': 'Cal,low,4.00',
+        'mid': 'Cal,mid,7.00',
+        'high': 'Cal,high,10.00',
+        'clear': 'Cal,clear'
+    }
 
-    log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
+    if level not in valid_levels:
+        log_with_timestamp(f"Invalid calibration level: {level}")
+        return {"status": "failure", "message": "Invalid calibration level"}
 
-    while '\r' in buffer:  # Process complete lines
-        # Split the buffer at the first '\r'
-        line, buffer = buffer.split('\r', 1)
-        line = line.strip()
+    global buffer, last_command_sent
+    command = valid_levels[level]
 
-        # Log the line being processed
-        log_with_timestamp(f"Processing line: '{line}'")
+    # Store the last command sent
+    last_command_sent = command
+    log_with_timestamp(f"Sending calibration command: {command}")  # Log to terminal
 
-        # Skip empty lines
-        if not line:
-            log_with_timestamp("Skipping empty line.")
-            continue
+    # Clear the buffer before sending the command
+    buffer = ""
 
-        # Handle calibration responses
-        if line == "*OK":
-            log_with_timestamp(f"Calibration successful. Last command: {last_command_sent}")
-            return {"status": "success", "message": "Calibration successful"}
-        elif line == "*ER":
-            log_with_timestamp(f"Calibration failed. Last command: {last_command_sent}")
-            return {"status": "failure", "message": "Calibration failed"}
+    try:
+        # Simulate sending the calibration command to the device
+        with ph_lock:
+            buffer += f"{command}\r"  # Simulate appending the command to the buffer
 
-        # Process pH values
-        try:
-            # Validate line as pH value
-            if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
-                raise ValueError(f"Unexpected response or invalid line format: {line}")
+        # Parse the buffer for a calibration response
+        response = parse_buffer()
 
-            ph_value = round(float(line), 2)
-            if not (0.0 <= ph_value <= 14.0):  # Validate pH range
-                raise ValueError(f"pH value out of range: {ph_value}")
+        if response:
+            # Log the response along with the last sent command
+            response_message = f"{response['message']} (Command: {last_command_sent})"
+            log_with_timestamp(response_message)
+            response["message"] = response_message  # Update the response message
+            return response
 
-            # Update latest pH value and add to queue
-            log_with_timestamp(f"Valid pH value identified: {ph_value}")
-            latest_ph_value = ph_value
-            if ph_reading_queue.full():
-                log_with_timestamp("Queue is full. Removing oldest value.")
-                ph_reading_queue.get_nowait()  # Remove the oldest entry
-            ph_reading_queue.put(ph_value)
-            log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
+        # If no response specific to calibration, indicate no response
+        log_with_timestamp(f"No calibration response received. Last command: {last_command_sent}")
+        return {"status": "failure", "message": "No calibration response received"}
 
-        except ValueError as e:
-            # Log unexpected or invalid lines and discard them
-            log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
-
-    # Log if buffer still contains partial data
-    if buffer:
-        log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+    except Exception as e:
+        log_with_timestamp(f"Error during calibration: {e}")
+        return {"status": "failure", "message": f"Calibration failed: {e}"}
 
