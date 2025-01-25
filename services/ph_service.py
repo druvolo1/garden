@@ -20,7 +20,7 @@ def log_with_timestamp(message):
 def parse_buffer():
     """
     Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
-    Processes complete lines (terminated by '\r') only.
+    Unexpected lines are discarded if they end with '\r'.
     """
     global buffer, latest_ph_value
     MAX_BUFFER_SIZE = 100  # Maximum allowable buffer size
@@ -35,7 +35,7 @@ def parse_buffer():
             return
 
         while '\r' in buffer:  # Process complete lines
-            log_with_timestamp(f"Buffer contains '\\r'. Splitting buffer.")
+            log_with_timestamp("Buffer contains '\\r'. Splitting buffer.")
             # Split the buffer at the first '\r'
             line, buffer = buffer.split('\r', 1)
             line = line.strip()
@@ -60,26 +60,28 @@ def parse_buffer():
             try:
                 # Validate line as pH value
                 if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
-                    raise ValueError(f"Invalid line format: {line}")
+                    raise ValueError(f"Unexpected response or invalid line format: {line}")
 
                 ph_value = round(float(line), 2)
                 if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                     raise ValueError(f"pH value out of range: {ph_value}")
 
                 # Update latest pH value and add to queue
+                log_with_timestamp(f"Valid pH value identified: {ph_value}")
                 latest_ph_value = ph_value
                 if ph_reading_queue.full():
+                    log_with_timestamp("Queue is full. Removing oldest value.")
                     ph_reading_queue.get_nowait()  # Remove the oldest entry
                 ph_reading_queue.put(ph_value)
-                log_with_timestamp(f"Valid pH value received and added to queue: {ph_value}")
+                log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
 
             except ValueError as e:
-                log_with_timestamp(f"Skipping invalid line: '{line}' ({e})")
+                # Log unexpected or invalid lines and discard them
+                log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
         # Log if buffer still contains partial data
         if buffer:
             log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
-
 
 def serial_reader():
     """
