@@ -117,7 +117,8 @@ def serial_reader():
                         raw_data = ser.read(100)  # Read up to 100 bytes
                         if raw_data:
                             # Decode raw bytes to string
-                            decoded_data = raw_data.decode('utf-8', errors='replace').strip()
+                            decoded_data = raw_data.decode('utf-8', errors='replace')
+                            log_with_timestamp(f"Raw data received: {raw_data}")
                             with ph_lock:
                                 global buffer
                                 buffer += decoded_data  # Append valid decoded data to buffer
@@ -125,8 +126,10 @@ def serial_reader():
 
                                 # Trim the buffer if it exceeds the maximum length
                                 if len(buffer) > MAX_BUFFER_LENGTH:
-                                    log_with_timestamp("Buffer exceeded maximum length. Clearing buffer.")
-                                    buffer = ""
+                                    log_with_timestamp(
+                                        f"Buffer exceeded maximum length ({len(buffer)}). Trimming excess."
+                                    )
+                                    buffer = buffer[-MAX_BUFFER_LENGTH:]  # Retain the last MAX_BUFFER_LENGTH characters
 
                                 # Parse the buffer for new data
                                 parse_buffer()
@@ -140,6 +143,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
+
 
 def start_serial_reader():
     """Start the serial reader thread."""
