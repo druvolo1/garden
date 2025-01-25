@@ -16,7 +16,7 @@ try:
                 # Debug: Print status before reading
                 print("Reading from serial port...")
                 
-                # Read raw bytes from the serial device
+                # Read raw bytes from the serial device 
                 raw_line = ser.readline()
                 
                 # Debug: Log raw bytes
