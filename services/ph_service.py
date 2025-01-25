@@ -163,7 +163,7 @@ def calibrate_ph(level):
         log_with_timestamp(f"Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
 
-    global calibration_command, last_command_sent
+    global calibration_command, last_command_sent, buffer  # Include 'buffer' here
 
     command = valid_levels[level]
     calibration_command = command  # Set the command to be sent by `serial_reader`
@@ -186,7 +186,6 @@ def calibrate_ph(level):
 
     log_with_timestamp(f"No calibration response received for command: {command}")
     return {"status": "failure", "message": "No response from pH probe"}
-
 
 def start_serial_reader():
     """Start the serial reader thread."""
