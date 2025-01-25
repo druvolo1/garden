@@ -29,43 +29,56 @@
     </main>
     <script>
         $(document).ready(function () {
-            // Update current pH value
-            function updatePhValue() {
-                $.get('/api/ph/latest-ph', function (data) {
-                    if (data.status === "success") {
-                        $('#current-ph').text(data.pH);
-                    } else {
-                        $('#current-ph').text("--");
-                    }
-                });
-            }
-
-            // Append messages to the log
+            // Function to append messages to the calibration log
             function appendToLog(message, isError = false) {
                 const logItem = $('<li>').text(message);
                 if (isError) logItem.css('color', 'red');
                 $('#log-list').prepend(logItem);
             }
 
-            // Handle calibration commands
-            function sendCalibrationCommand(level) {
-                $.post(`/api/ph/calibrate/${level}`, function (data) {
-                    if (data.status === "success") {
-                        appendToLog(data.message);
-                    } else {
-                        appendToLog(data.message, true);
-                    }
-                });
+            // Function to fetch the current pH value
+            function updatePhValue() {
+                $.get('/api/ph/latest-ph')
+                    .done(function (data) {
+                        if (data.status === "success") {
+                            $('#current-ph').text(data.ph); // Updated key to match API response format
+                        } else {
+                            $('#current-ph').text("--");
+                            appendToLog("Error fetching pH value.", true);
+                        }
+                    })
+                    .fail(function () {
+                        $('#current-ph').text("--");
+                        appendToLog("Failed to fetch pH value from server.", true);
+                    });
             }
 
-            // Button handlers
+            // Function to send calibration commands
+            function sendCalibrationCommand(level) {
+                $.post(`/api/ph/calibrate/${level}`)
+                    .done(function (data) {
+                        if (data.status === "success") {
+                            appendToLog(data.message || `Calibration command '${level}' was successful.`);
+                        } else {
+                            appendToLog(data.message || `Calibration command '${level}' failed.`, true);
+                        }
+                    })
+                    .fail(function () {
+                        appendToLog(`Failed to send ${level} calibration command.`, true);
+                    });
+            }
+
+            // Button handlers for calibration commands
             $('#calibrate-low').click(() => sendCalibrationCommand('low'));
             $('#calibrate-mid').click(() => sendCalibrationCommand('mid'));
             $('#calibrate-high').click(() => sendCalibrationCommand('high'));
             $('#clear-calibration').click(() => sendCalibrationCommand('clear'));
 
-            // Periodically update pH value
+            // Automatically update the current pH value every 5 seconds
             setInterval(updatePhValue, 5000);
+
+            // Fetch the initial pH value on page load
+            updatePhValue();
         });
     </script>
 </body>
