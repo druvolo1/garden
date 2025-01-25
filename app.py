@@ -16,6 +16,7 @@ from api.settings import load_settings
 app = Flask(__name__)
 socketio = SocketIO(app)
 stop_event = threading.Event()  # Event to stop background threads
+cleanup_called = False  # To avoid duplicate cleanup calls
 
 
 # Function to get the Pi's local IP address
@@ -66,10 +67,13 @@ def stop_threads():
 
 # Cleanup function
 def cleanup():
+    global cleanup_called
+    if cleanup_called:
+        return
+    cleanup_called = True
     print("Cleaning up resources...")
     stop_threads()
-    socketio.stop()
-    print("SocketIO server stopped.")
+    print("Background threads stopped.")
 
 
 atexit.register(cleanup)  # Register cleanup function
