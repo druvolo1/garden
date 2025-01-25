@@ -94,7 +94,7 @@ def serial_reader():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    MAX_BUFFER_LENGTH = 100  # Maximum allowable buffer size to prevent memory issues
+    MAX_BUFFER_LENGTH = 100  # Limit buffer size to prevent excessive growth
 
     while not stop_event.is_set():
         try:
@@ -113,25 +113,23 @@ def serial_reader():
 
                 while not stop_event.is_set():
                     try:
-                        log_with_timestamp("Attempting to read from serial port...")
-                        raw_data = ser.read(100)  # Read up to 100 bytes from the device
+                        raw_data = ser.read(100)  # Read up to 100 bytes
                         if raw_data:
-                            log_with_timestamp(f"Raw data received: {raw_data}")
-                            decoded_data = raw_data.decode('utf-8', errors='replace')
+                            # Decode raw bytes to string
+                            decoded_data = raw_data.decode('utf-8', errors='replace').strip()
                             with ph_lock:
                                 global buffer
-                                buffer += decoded_data  # Append incoming data to the buffer
+                                buffer += decoded_data  # Append valid decoded data to buffer
                                 log_with_timestamp(f"Decoded data appended to buffer: '{decoded_data}'")
 
                                 # Trim the buffer if it exceeds the maximum length
                                 if len(buffer) > MAX_BUFFER_LENGTH:
-                                    log_with_timestamp("Buffer exceeded maximum size. Clearing buffer.")
+                                    log_with_timestamp("Buffer exceeded maximum length. Clearing buffer.")
                                     buffer = ""
 
                                 # Parse the buffer for new data
-                                while '\r' in buffer:  # Continue parsing as long as there are lines
-                                    log_with_timestamp("Parsing buffer...")
-                                    parse_buffer()
+                                parse_buffer()
+
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
@@ -141,7 +139,6 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
-
 
 def start_serial_reader():
     """Start the serial reader thread."""
