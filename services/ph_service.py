@@ -53,7 +53,7 @@ def listen_for_ph_readings():
                             retry_count = 0  # Reset retries on successful read
                             buffer += raw_data  # Append new data to the buffer
                             # Uncomment this for debugging raw data:
-                            # print(f"Raw bytes received: {raw_data}")
+                            print(f"Raw bytes received: {raw_data}")
 
                             # Process complete lines (ending with '\r')
                             while b'\r' in buffer:
