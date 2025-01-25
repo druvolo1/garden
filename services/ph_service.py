@@ -50,7 +50,7 @@ def listen_for_ph_readings():
                         if raw_data:
                             consecutive_no_data = 0  # Reset the counter
                             buffer += raw_data
-                            print(f"Raw bytes received: {raw_data}")  # Debug raw data
+                            print(f"Raw bytes received: {raw_data}")
 
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
@@ -66,12 +66,13 @@ def listen_for_ph_readings():
                             consecutive_no_data += 1
                             if consecutive_no_data > 5:
                                 print("No data received in multiple reads.")
-                    except serial.SerialException as e:
-                        print(f"Error reading from serial: {e}")
-                        break  # Exit inner loop to retry the connection
-        except serial.SerialException as e:
-            print(f"Serial error: {e}. Retrying in 10 seconds...")
-            time.sleep(10)  # Wait before retrying
+                    except (serial.SerialException, OSError) as e:
+                        print(f"Serial error detected: {e}. Reconnecting in 10 seconds...")
+                        time.sleep(10)
+                        break  # Exit inner loop to retry connection
+        except (serial.SerialException, OSError) as e:
+            print(f"Serial connection error: {e}. Retrying in 10 seconds...")
+            time.sleep(10)
 
 
 def get_ph_reading():
@@ -79,10 +80,11 @@ def get_ph_reading():
     Retrieve the latest pH value from the queue, waiting for new data if necessary.
     """
     try:
-        # Wait for up to 2 seconds for new data in the queue
         return ph_reading_queue.get(timeout=2)
     except Empty:
-        print("No new pH value available in the queue.")
+        # Log occasionally to avoid spamming
+        if time.time() % 10 < 1:
+            print("No new pH value available in the queue.")
         return None
 
 
@@ -96,7 +98,6 @@ def calibrate_ph(level):
     settings = load_settings()
     ph_probe_device = settings["usb_roles"].get("ph_probe")
 
-    # Check if a pH probe is assigned
     if not ph_probe_device:
         print("No pH probe assigned. Skipping calibration.")
         return False
@@ -169,9 +170,10 @@ def monitor_ph(callback):
                                         print(f"Invalid pH value: {line}")
                         else:
                             print("Timeout: No data received.")
-                    except serial.SerialException as e:
-                        print(f"Error reading from serial: {e}")
+                    except (serial.SerialException, OSError) as e:
+                        print(f"Serial error detected: {e}. Reconnecting in 10 seconds...")
+                        time.sleep(10)
                         break
-        except serial.SerialException as e:
-            print(f"Error accessing pH probe device {ph_device}: {e}")
-        time.sleep(10)  # Delay before retrying
+        except (serial.SerialException, OSError) as e:
+            print(f"Error accessing pH probe device: {e}. Retrying in 10 seconds...")
+            time.sleep(10)
