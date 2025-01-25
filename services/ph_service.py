@@ -9,57 +9,52 @@ ph_reading_queue = Queue(maxsize=10)  # Limit queue size to avoid memory issues
 stop_event = threading.Event()  # Event to signal threads to stop
 ph_lock = threading.Lock()  # Lock for thread-safe operations
 
-buffer = ""  # Centralized buffer for all incoming serial data
+buffer = ""  # Centralized buffer for incoming serial data
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-def parse_buffer_for_ph_and_responses():
+def parse_buffer():
     """
-    Parse the shared buffer for pH readings or calibration responses (*OK or *ER).
+    Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
     """
     global buffer
-    while not stop_event.is_set():
-        with ph_lock:
-            # Check if there's anything to process in the buffer
-            while '\r' in buffer:
-                # Split the buffer at the first '\r'
-                line, buffer = buffer.split('\r', 1)
-                line = line.strip()
+    with ph_lock:
+        while '\r' in buffer:
+            # Split the buffer at the first '\r'
+            line, buffer = buffer.split('\r', 1)
+            line = line.strip()
 
-                # Skip invalid or corrupted lines
-                if not line:
-                    continue
+            # Skip empty or invalid lines
+            if not line:
+                continue
 
-                # Handle calibration responses
-                if line == "*OK":
-                    log_with_timestamp("Calibration successful.")
-                    return {"status": "success", "message": "Calibration successful"}
-                elif line == "*ER":
-                    log_with_timestamp("Calibration failed.")
-                    return {"status": "failure", "message": "Calibration failed"}
+            # Handle calibration responses
+            if line == "*OK":
+                log_with_timestamp("Calibration successful.")
+                return {"status": "success", "message": "Calibration successful"}
+            elif line == "*ER":
+                log_with_timestamp("Calibration failed.")
+                return {"status": "failure", "message": "Calibration failed"}
 
-                # Handle pH values
-                try:
-                    # Validate the line as a pH value
-                    if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
-                        raise ValueError(f"Line length out of bounds or invalid: {line}")
+            # Process pH values
+            try:
+                # Validate line as pH value
+                if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
+                    raise ValueError(f"Invalid line format: {line}")
 
-                    ph_value = round(float(line), 2)
-                    if not (0.0 <= ph_value <= 14.0):
-                        raise ValueError(f"pH value out of range: {ph_value}")
+                ph_value = round(float(line), 2)
+                if not (0.0 <= ph_value <= 14.0):  # Validate pH range
+                    raise ValueError(f"pH value out of range: {ph_value}")
 
-                    # Add valid pH value to the queue
-                    if ph_reading_queue.full():
-                        ph_reading_queue.get_nowait()  # Remove the oldest entry
-                    ph_reading_queue.put(ph_value)
-                    log_with_timestamp(f"Valid pH value received: {ph_value}")
-
-                except ValueError as e:
-                    log_with_timestamp(f"Invalid line: {line} ({e})")
-        time.sleep(0.1)  # Small delay to avoid excessive CPU usage
-
+                # Add valid pH value to the queue
+                if ph_reading_queue.full():
+                    ph_reading_queue.get_nowait()  # Remove the oldest entry
+                ph_reading_queue.put(ph_value)
+                log_with_timestamp(f"Valid pH value received: {ph_value}")
+            except ValueError as e:
+                log_with_timestamp(f"Skipping invalid line: {line} ({e})")
 
 def serial_reader():
     """
@@ -99,9 +94,12 @@ def serial_reader():
                                 buffer += decoded_data  # Append incoming data to the buffer
                                 log_with_timestamp(f"Decoded data appended to buffer: {decoded_data}")
 
-                            # Trim the buffer if it exceeds the maximum length
-                            if len(buffer) > MAX_BUFFER_LENGTH:
-                                buffer = buffer[-MAX_BUFFER_LENGTH:]
+                                # Trim the buffer if it exceeds the maximum length
+                                if len(buffer) > MAX_BUFFER_LENGTH:
+                                    buffer = buffer[-MAX_BUFFER_LENGTH:]
+
+                                # Parse the buffer for new data
+                                parse_buffer()
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
@@ -111,7 +109,6 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
-
 
 def start_serial_reader():
     """Start the serial reader thread."""
@@ -139,8 +136,8 @@ def get_latest_ph_reading():
 
 def calibrate_ph(level):
     """
-    Calibrate the pH sensor at the specified level (low/mid/high).
-    Reads responses from the shared buffer.
+    Calibrate the pH sensor at the specified level (low/mid/high/clear).
+    Waits for *OK or *ER in the buffer.
     """
     valid_levels = {
         'low': 'Cal,low,4.00',
@@ -153,17 +150,17 @@ def calibrate_ph(level):
         log_with_timestamp(f"Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
 
+    command = valid_levels[level]
+
     with ph_lock:
         global buffer
-        buffer = ""  # Clear the buffer to ensure clean processing
-        command = valid_levels[level]
-
-    log_with_timestamp(f"Sending calibration command: {command}")
+        buffer = ""  # Clear the buffer before sending the command
+        log_with_timestamp(f"Sending calibration command: {command}")
 
     try:
         with ph_lock:
             buffer += f"{command}\r"  # Simulate command response
-        return parse_buffer_for_ph_and_responses()
+        return parse_buffer()  # Parse for calibration response
     except Exception as e:
         log_with_timestamp(f"Error during calibration: {e}")
         return {"status": "failure", "message": f"Calibration failed: {e}"}
