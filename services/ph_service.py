@@ -13,9 +13,6 @@ latest_ph_value = None
 ph_reading_queue = Queue()
 
 def listen_for_ph_readings():
-    """
-    Background thread to listen for pH readings and put them in the queue.
-    """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
@@ -27,7 +24,7 @@ def listen_for_ph_readings():
         with serial.Serial(
             ph_device,
             9600,
-            timeout=1,
+            timeout=5,  # Adjusted timeout
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE
@@ -38,32 +35,26 @@ def listen_for_ph_readings():
             
             while True:
                 try:
-                    # Read up to 100 bytes
-                    raw_data = ser.read(100)
-                    
+                    raw_data = ser.read(100)  # Read up to 100 bytes
                     if raw_data:
                         print(f"Raw bytes received: {raw_data}")
                         try:
-                            # Decode and process the raw data
                             decoded_line = raw_data.decode('utf-8', errors='replace').strip()
                             if decoded_line:
-                                print(f"Decoded line: {decoded_line}")
-                                try:
-                                    ph_value = float(decoded_line)
-                                    print(f"Received pH value: {ph_value}")
-                                    ph_reading_queue.put(ph_value)  # Add the pH value to the queue
-                                except ValueError:
-                                    print(f"Invalid pH value: {decoded_line}")
+                                ph_value = float(decoded_line)
+                                print(f"Received pH value: {ph_value}")
+                                ph_reading_queue.put(ph_value)
                             else:
                                 print("Decoded line is empty.")
-                        except Exception as decode_error:
-                            print(f"Error decoding data: {decode_error}")
+                        except ValueError:
+                            print(f"Invalid data: {decoded_line}")
                     else:
                         print("Timeout: No data received.")
-                except Exception as read_error:
-                    print(f"Error reading from serial: {read_error}")
+                except Exception as e:
+                    print(f"Error reading from serial: {e}")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
+
 
 def get_ph_reading():
     """
