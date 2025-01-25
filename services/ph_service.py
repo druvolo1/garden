@@ -56,7 +56,7 @@ def parse_buffer():
                 log_with_timestamp("Calibration failed.")
                 return {"status": "failure", "message": "Calibration failed"}
 
-            # Process pH values
+            # Process pH values 
             try:
                 # Validate line as pH value
                 if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
