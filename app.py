@@ -11,6 +11,8 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from services.ph_service import get_ph_reading
 from api.settings import load_settings
+from services.ph_service import listen_for_ph_readings
+
 
 # Initialize Flask app and SocketIO
 app = Flask(__name__)
