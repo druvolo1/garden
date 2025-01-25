@@ -49,20 +49,25 @@ def listen_for_ph_readings():
                 ser.flushInput()
                 ser.flushOutput()
 
-                buffer = b""  # Buffer for accumulating incoming bytes
+                buffer = ""  # Initialize as a string for decoded data
 
                 while True:
                     try:
-                        raw_data = ser.read(100)  # Read up to 100 bytes
+                        # Read raw bytes from the serial port
+                        raw_data = ser.read(100)
                         if raw_data:
                             retry_count = 0  # Reset retries on successful read
-                            buffer += raw_data  # Append new data to the buffer
-                            log_with_timestamp(f"Raw bytes received: {raw_data}")
+
+                            # Decode raw bytes to string and append to buffer
+                            decoded_data = raw_data.decode('utf-8', errors='replace')
+                            buffer += decoded_data
+
+                            log_with_timestamp(f"Decoded data appended to buffer: {decoded_data}")
 
                             # Process complete lines (ending with '\r')
-                            while b'\r' in buffer:
-                                line, buffer = buffer.split(b'\r', 1)  # Split at the first '\r'
-                                line = line.decode('utf-8', errors='replace').strip()
+                            while '\r' in buffer:
+                                line, buffer = buffer.split('\r', 1)  # Split at the first '\r'
+                                line = line.strip()
 
                                 # Skip invalid or corrupted lines
                                 if not line or not line.replace('.', '', 1).isdigit():
@@ -102,6 +107,7 @@ def listen_for_ph_readings():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
+
 
 def get_ph_reading():
     """
