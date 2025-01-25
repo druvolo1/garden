@@ -1,5 +1,4 @@
 import socket
-import threading
 import time
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
@@ -41,7 +40,9 @@ def broadcast_ph_readings():
             try:
                 ph_value = get_ph_reading()
                 if ph_value is not None:
-                    socketio.emit('ph_update', {'ph': ph_value}, broadcast=True)
+                    # Emit to all connected clients
+                    socketio.emit('ph_update', {'ph': ph_value})
+                    print(f"Emitting pH update: {ph_value}")
             except Exception as e:
                 print(f"Error reading pH value: {e}")
         else:
@@ -49,9 +50,9 @@ def broadcast_ph_readings():
 
         time.sleep(1)  # Emit every second
 
-# Start the background thread
-threading.Thread(target=broadcast_ph_readings, daemon=True).start()
-threading.Thread(target=listen_for_ph_readings, daemon=True).start()
+# Start background tasks
+socketio.start_background_task(broadcast_ph_readings)
+socketio.start_background_task(listen_for_ph_readings)
 
 # Register API blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
