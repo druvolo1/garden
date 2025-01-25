@@ -1,4 +1,10 @@
 import serial
+import time
+from api.settings import load_settings
+from flask_socketio import SocketIO
+
+# Initialize a SocketIO instance for testing
+socketio = SocketIO()
 
 def listen_for_ph_readings():
     """
@@ -21,6 +27,7 @@ def listen_for_ph_readings():
                     try:
                         ph_value = float(line)  # Convert to float
                         print(f"Received pH value: {ph_value}")  # Log the received value
+                        # Emitting the pH value via WebSocket (useful if the server is running)
                         socketio.emit('ph_update', {'ph': ph_value}, broadcast=True)
                     except ValueError:
                         print(f"Invalid data received from pH probe: {line}")
@@ -29,4 +36,5 @@ def listen_for_ph_readings():
                 time.sleep(3)  # Wait for 3 seconds before the next loop
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
-
+    except Exception as e:
+        print(f"Unexpected error in listen_for_ph_readings: {e}")
