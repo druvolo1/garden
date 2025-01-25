@@ -12,6 +12,8 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader
 from api.settings import load_settings
+from flask_socketio import SocketIO, emit
+from services.ph_service import get_latest_ph_reading
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -34,15 +36,18 @@ def get_local_ip():
 
 # Background task to broadcast pH readings
 def broadcast_ph_readings():
+    """Emit the latest pH value over WebSocket whenever it changes."""
+    last_emitted_value = None
     while not stop_event.is_set():
         try:
-            ph_value = get_latest_ph_reading()  # Fetch the latest pH value from the shared buffer
-            if ph_value is not None:
-                socketio.emit('ph_update', {'ph': ph_value})
+            ph_value = get_latest_ph_reading()  # Get the latest value
+            if ph_value is not None and ph_value != last_emitted_value:
+                last_emitted_value = ph_value
+                socketio.emit('ph_update', {'ph': ph_value})  # Emit the value
                 print(f"Emitting pH update: {ph_value}")
+            time.sleep(1)  # Check for updates every second
         except Exception as e:
             print(f"Error broadcasting pH value: {e}")
-        time.sleep(1)
 
 
 # Start threads for background tasks
