@@ -28,6 +28,7 @@ def listen_for_ph_readings():
     max_retries = 5  # Allow more retries
     retry_delay = 2  # 2-second delay between retries
     retry_count = 0  # Tracks consecutive errors
+    invalid_line_count = 0  # Tracks invalid lines for debugging
 
     while True:
         try:
@@ -47,29 +48,33 @@ def listen_for_ph_readings():
 
                 while True:
                     try:
-                        raw_data = ser.read(100)
+                        raw_data = ser.read(100)  # Read up to 100 bytes
                         if raw_data:
                             retry_count = 0  # Reset retries on successful read
-                            buffer += raw_data
-                            #print(f"Raw bytes received: {raw_data}")  # Debug raw data
+                            buffer += raw_data  # Append new data to the buffer
+                            # Uncomment this for debugging raw data:
+                            # print(f"Raw bytes received: {raw_data}")
 
+                            # Process complete lines (ending with '\r')
                             while b'\r' in buffer:
-                                line, buffer = buffer.split(b'\r', 1)
+                                line, buffer = buffer.split(b'\r', 1)  # Split at the first '\r'
                                 line = line.decode('utf-8', errors='replace').strip()
 
                                 # Skip invalid or corrupted lines
-                                if not line or line.startswith('\x00'):
-                                    print(f"Skipping invalid line: {line}")
+                                if not line or not line.replace('.', '', 1).isdigit():
+                                    invalid_line_count += 1
+                                    print(f"Skipping invalid line ({invalid_line_count}): {line}")
                                     continue
 
                                 try:
+                                    # Parse and round the pH value
                                     ph_value = round(float(line), 2)
                                     print(f"Received pH value: {ph_value}")
-                                    ph_reading_queue.put(ph_value)
+                                    ph_reading_queue.put(ph_value)  # Add valid value to the queue
                                 except ValueError:
                                     print(f"Invalid pH value: {line}")
-                        #else:
-                            #print("No data received in this read.")
+                        else:
+                            print("No data received in this read.")
 
                     except (serial.SerialException, OSError) as e:
                         retry_count += 1
@@ -85,7 +90,6 @@ def listen_for_ph_readings():
         except (serial.SerialException, OSError) as e:
             print(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
-
 
 def get_ph_reading():
     """
