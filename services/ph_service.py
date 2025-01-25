@@ -2,7 +2,7 @@ import serial
 import time
 import threading
 from api.settings import load_settings
-from queue import Queue
+from queue import Empty
 
 # Globals to track the current pH device and lock
 current_ph_device = None
@@ -46,10 +46,9 @@ def get_ph_reading():
     """
     try:
         return ph_reading_queue.get_nowait()  # Get the latest value without blocking
-    except Queue.Empty:
+    except Empty:  # Use queue.Empty or just Empty as imported
         print("No pH value available in the queue.")
         return None
-
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
