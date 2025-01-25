@@ -10,16 +10,19 @@ stop_event = threading.Event()  # Event to signal threads to stop
 ph_lock = threading.Lock()  # Lock for thread-safe operations
 
 buffer = ""  # Centralized buffer for incoming serial data
+latest_ph_value = None  # Store the most recent pH reading
+
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
+
 def parse_buffer():
     """
     Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
     """
-    global buffer
+    global buffer, latest_ph_value
     with ph_lock:
         while '\r' in buffer:
             # Split the buffer at the first '\r'
@@ -48,13 +51,16 @@ def parse_buffer():
                 if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                     raise ValueError(f"pH value out of range: {ph_value}")
 
-                # Add valid pH value to the queue
+                # Update latest pH value and add to queue
+                latest_ph_value = ph_value
                 if ph_reading_queue.full():
                     ph_reading_queue.get_nowait()  # Remove the oldest entry
                 ph_reading_queue.put(ph_value)
                 log_with_timestamp(f"Valid pH value received: {ph_value}")
+
             except ValueError as e:
                 log_with_timestamp(f"Skipping invalid line: {line} ({e})")
+
 
 def serial_reader():
     """
@@ -110,12 +116,14 @@ def serial_reader():
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
 
+
 def start_serial_reader():
     """Start the serial reader thread."""
     stop_event.clear()
     thread = threading.Thread(target=serial_reader, daemon=True)
     thread.start()
     return thread
+
 
 def stop_serial_reader():
     """Stop the serial reader thread gracefully."""
@@ -124,15 +132,22 @@ def stop_serial_reader():
     time.sleep(2)  # Allow thread to exit gracefully
     log_with_timestamp("Serial reader stopped.")
 
+
 def get_latest_ph_reading():
     """
-    Get the most recent pH value from the queue.
+    Get the most recent pH value from the queue or fallback to the latest known value.
     """
+    global latest_ph_value
     try:
+        # Get the most recent value from the queue
         return ph_reading_queue.get_nowait()
     except Empty:
+        # If the queue is empty, fallback to the global latest value
+        if latest_ph_value is not None:
+            return latest_ph_value
         log_with_timestamp("No pH reading available.")
         return None
+
 
 def calibrate_ph(level):
     """
