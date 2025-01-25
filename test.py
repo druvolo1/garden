@@ -8,7 +8,7 @@ baud_rate = 9600
 try:
     print("Attempting to connect to the serial device...")
     # Open the serial connection
-    with serial.Serial(device, baud_rate, timeout=3) as ser:  # Reduced timeout to 1 second
+    with serial.Serial(device, baud_rate, timeout=1) as ser:  # Reduced timeout to 1 second
         print(f"Connected to {device} at {baud_rate} baud.")
         print("Listening for data. Press Ctrl+C to stop.")
         
