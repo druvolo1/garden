@@ -24,17 +24,44 @@ def listen_for_ph_readings():
         return
 
     try:
-        with serial.Serial(ph_device, 9600, timeout=1) as ser:
+        with serial.Serial(
+            ph_device,
+            9600,
+            timeout=1,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE
+        ) as ser:
             print(f"Listening on pH probe device: {ph_device}")
+            ser.flushInput()  # Clear input buffer
+            ser.flushOutput()  # Clear output buffer
+            
             while True:
-                line = ser.readline().decode('utf-8').strip()
-                if line:
-                    try:
-                        ph_value = float(line)
-                        print(f"Received pH value: {ph_value}")
-                        ph_reading_queue.put(ph_value)  # Add the pH value to the queue
-                    except ValueError:
-                        print(f"Invalid data received: {line}")
+                try:
+                    # Read up to 100 bytes
+                    raw_data = ser.read(100)
+                    
+                    if raw_data:
+                        print(f"Raw bytes received: {raw_data}")
+                        try:
+                            # Decode and process the raw data
+                            decoded_line = raw_data.decode('utf-8', errors='replace').strip()
+                            if decoded_line:
+                                print(f"Decoded line: {decoded_line}")
+                                try:
+                                    ph_value = float(decoded_line)
+                                    print(f"Received pH value: {ph_value}")
+                                    ph_reading_queue.put(ph_value)  # Add the pH value to the queue
+                                except ValueError:
+                                    print(f"Invalid pH value: {decoded_line}")
+                            else:
+                                print("Decoded line is empty.")
+                        except Exception as decode_error:
+                            print(f"Error decoding data: {decode_error}")
+                    else:
+                        print("Timeout: No data received.")
+                except Exception as read_error:
+                    print(f"Error reading from serial: {read_error}")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
 
@@ -97,16 +124,31 @@ def monitor_ph(callback):
             continue
 
         try:
-            with serial.Serial(ph_device, 9600, timeout=2) as ser:
-                line = ser.readline().decode('utf-8').strip()
-                if line:
-                    try:
-                        ph_value = float(line)
-                        print(f"pH value: {ph_value}")
-                        if callback:
-                            callback(ph_value)
-                    except ValueError:
-                        print(f"Invalid pH value received: {line}")
+            with serial.Serial(
+                ph_device,
+                9600,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            ) as ser:
+                ser.flushInput()
+                ser.flushOutput()
+                
+                while True:
+                    raw_data = ser.read(100)
+                    if raw_data:
+                        print(f"Raw bytes received: {raw_data}")
+                        try:
+                            decoded_line = raw_data.decode('utf-8', errors='replace').strip()
+                            ph_value = float(decoded_line)
+                            print(f"pH value: {ph_value}")
+                            if callback:
+                                callback(ph_value)
+                        except ValueError:
+                            print(f"Invalid pH value received: {decoded_line}")
+                    else:
+                        print("Timeout: No data received.")
         except serial.SerialException as e:
             print(f"Error accessing pH probe device {ph_device}: {e}")
         time.sleep(1)  # Small delay to prevent high CPU usage
