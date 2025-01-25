@@ -13,6 +13,9 @@ latest_ph_value = None
 ph_reading_queue = Queue()
 
 def listen_for_ph_readings():
+    """
+    Background thread to listen for pH readings and put them in the queue.
+    """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
@@ -24,7 +27,7 @@ def listen_for_ph_readings():
         with serial.Serial(
             ph_device,
             9600,
-            timeout=5,  # Adjusted timeout
+            timeout=1,  # Timeout for reading chunks of data
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE
@@ -33,23 +36,28 @@ def listen_for_ph_readings():
             ser.flushInput()  # Clear input buffer
             ser.flushOutput()  # Clear output buffer
             
+            buffer = b""  # Buffer to store incoming bytes until a complete line is received
+            
             while True:
                 try:
-                    raw_data = ser.read(100)  # Read up to 100 bytes
+                    # Read a small chunk of data from the serial port
+                    raw_data = ser.read(100)  # Read up to 100 bytes at a time
                     if raw_data:
-                        print(f"Raw bytes received: {raw_data}")
-                        try:
-                            decoded_line = raw_data.decode('utf-8', errors='replace').strip()
-                            if decoded_line:
-                                ph_value = float(decoded_line)
-                                print(f"Received pH value: {ph_value}")
-                                ph_reading_queue.put(ph_value)
-                            else:
-                                print("Decoded line is empty.")
-                        except ValueError:
-                            print(f"Invalid data: {decoded_line}")
+                        buffer += raw_data  # Add the received data to the buffer
+
+                        # Process complete lines ending with '\r'
+                        while b'\r' in buffer:
+                            line, buffer = buffer.split(b'\r', 1)  # Split at the first '\r'
+                            line = line.decode('utf-8', errors='replace').strip()  # Decode and strip whitespace
+                            if line:
+                                try:
+                                    ph_value = float(line)  # Attempt to parse the pH value
+                                    print(f"Received pH value: {ph_value}")
+                                    ph_reading_queue.put(ph_value)  # Add to the queue
+                                except ValueError:
+                                    print(f"Invalid pH value: {line}")
                     else:
-                        print("Timeout: No data received.")
+                        print("No data received in this read.")
                 except Exception as e:
                     print(f"Error reading from serial: {e}")
     except serial.SerialException as e:
