@@ -35,7 +35,7 @@ def parse_buffer():
             return
 
         while '\r' in buffer:  # Process complete lines
-            log_with_timestamp("Buffer contains '\\r'. Splitting buffer.")
+            log_with_timestamp(f"Buffer contains '\\r'. Splitting buffer: {buffer}")
             # Split the buffer at the first '\r'
             line, buffer = buffer.split('\r', 1)
             line = line.strip()
@@ -113,6 +113,7 @@ def serial_reader():
 
                 while not stop_event.is_set():
                     try:
+                        log_with_timestamp("Attempting to read from serial port...")
                         raw_data = ser.read(100)  # Read up to 100 bytes
                         if raw_data:
                             # Decode raw bytes to string
