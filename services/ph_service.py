@@ -60,6 +60,7 @@ def parse_buffer():
             except ValueError as e:
                 log_with_timestamp(f"Skipping invalid line: {line} ({e})")
 
+
 def serial_reader():
     """
     Centralized thread to manage the serial connection and populate the buffer.
@@ -103,7 +104,8 @@ def serial_reader():
                                     buffer = buffer[-MAX_BUFFER_LENGTH:]
 
                                 # Parse the buffer for new data
-                                parse_buffer()
+                                while '\r' in buffer:  # Continue parsing as long as there are lines
+                                    parse_buffer()
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
