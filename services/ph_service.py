@@ -24,7 +24,7 @@ def listen_for_ph_readings():
         print("No pH probe device assigned.")
         return
 
-    while True:  # Keep retrying if the serial device is disconnected
+    while True:
         try:
             with serial.Serial(
                 ph_device,
@@ -37,17 +37,14 @@ def listen_for_ph_readings():
                 print(f"Listening on pH probe device: {ph_device}")
                 ser.flushInput()
                 ser.flushOutput()
-                
+
                 buffer = b""  # Buffer for accumulating incoming bytes
-                
+
                 while True:
                     try:
-                        # Read a small chunk of data
                         raw_data = ser.read(100)
                         if raw_data:
                             buffer += raw_data
-                            
-                            # Process lines ending with '\r'
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
                                 line = line.decode('utf-8', errors='replace').strip()
@@ -60,21 +57,24 @@ def listen_for_ph_readings():
                                         print(f"Invalid pH value: {line}")
                         else:
                             print("No data received in this read.")
-                    except Exception as e:
+                    except serial.SerialException as e:
                         print(f"Error reading from serial: {e}")
-                        break  # Exit inner loop to retry the connection
+                        break
         except serial.SerialException as e:
             print(f"Serial error: {e}. Retrying in 5 seconds...")
             time.sleep(5)  # Wait before retrying the connection
 
+
 def get_ph_reading():
     """
-    Retrieve the latest pH value from the queue.
+    Retrieve the latest pH value from the queue, waiting for new data if necessary.
     """
     try:
-        return ph_reading_queue.get_nowait()  # Get the latest value without blocking
+        # Wait for up to 2 seconds for new data in the queue
+        return ph_reading_queue.get(timeout=2)
     except Empty:
-        print("No pH value available in the queue.")
+        # Reduce log frequency for empty queue checks
+        print("No new pH value available in the queue.")
         return None
 
 def calibrate_ph(level):
