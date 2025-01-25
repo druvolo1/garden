@@ -52,7 +52,6 @@ def listen_for_ph_readings():
                         if raw_data:
                             retry_count = 0  # Reset retries on successful read
                             buffer += raw_data  # Append new data to the buffer
-                            # Uncomment this for debugging raw data:
                             print(f"Raw bytes received: {raw_data}")
 
                             # Process complete lines (ending with '\r')
@@ -73,6 +72,7 @@ def listen_for_ph_readings():
                                     ph_reading_queue.put(ph_value)  # Add valid value to the queue
                                 except ValueError:
                                     print(f"Invalid pH value: {line}")
+
                         else:
                             print("No data received in this read.")
 
@@ -90,6 +90,7 @@ def listen_for_ph_readings():
         except (serial.SerialException, OSError) as e:
             print(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
+
 
 def get_ph_reading():
     """
