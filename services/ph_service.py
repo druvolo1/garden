@@ -7,6 +7,7 @@ from queue import Queue, Empty
 # Globals to track the current pH device and lock
 current_ph_device = None
 ph_lock = threading.Lock()
+serial_lock = threading.Lock()  # Prevent multiple access to the serial port
 latest_ph_value = None
 
 # Shared queue for pH readings
@@ -29,7 +30,7 @@ def listen_for_ph_readings():
 
     while True:
         try:
-            with serial.Serial(
+            with serial_lock, serial.Serial(
                 ph_device,
                 9600,
                 timeout=1,
@@ -49,6 +50,8 @@ def listen_for_ph_readings():
                         if raw_data:
                             consecutive_no_data = 0  # Reset the counter
                             buffer += raw_data
+                            print(f"Raw bytes received: {raw_data}")  # Debug raw data
+
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
                                 line = line.decode('utf-8', errors='replace').strip()
@@ -61,14 +64,14 @@ def listen_for_ph_readings():
                                         print(f"Invalid pH value: {line}")
                         else:
                             consecutive_no_data += 1
-                            if consecutive_no_data > 5:  # Log only if persistent
+                            if consecutive_no_data > 5:
                                 print("No data received in multiple reads.")
                     except serial.SerialException as e:
                         print(f"Error reading from serial: {e}")
                         break  # Exit inner loop to retry the connection
         except serial.SerialException as e:
-            print(f"Serial error: {e}. Retrying in 5 seconds...")
-            time.sleep(5)  # Wait before retrying the connection
+            print(f"Serial error: {e}. Retrying in 10 seconds...")
+            time.sleep(10)  # Wait before retrying
 
 
 def get_ph_reading():
@@ -79,7 +82,6 @@ def get_ph_reading():
         # Wait for up to 2 seconds for new data in the queue
         return ph_reading_queue.get(timeout=2)
     except Empty:
-        # Reduce log frequency for empty queue checks
         print("No new pH value available in the queue.")
         return None
 
@@ -135,7 +137,7 @@ def monitor_ph(callback):
             continue
 
         try:
-            with serial.Serial(
+            with serial_lock, serial.Serial(
                 ph_device,
                 9600,
                 timeout=1,
@@ -153,6 +155,7 @@ def monitor_ph(callback):
                         raw_data = ser.read(100)
                         if raw_data:
                             buffer += raw_data
+                            print(f"Raw bytes received: {raw_data}")
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
                                 line = line.decode('utf-8', errors='replace').strip()
@@ -171,4 +174,4 @@ def monitor_ph(callback):
                         break
         except serial.SerialException as e:
             print(f"Error accessing pH probe device {ph_device}: {e}")
-        time.sleep(1)  # Small delay to prevent high CPU usage
+        time.sleep(10)  # Delay before retrying
