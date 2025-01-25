@@ -107,13 +107,15 @@ def stop_serial_reader():
     time.sleep(2)  # Allow thread to exit gracefully
     log_with_timestamp("Serial reader stopped.")
 
+latest_ph_value = None  # Keep a global variable for the most recent value
+
 def get_latest_ph_reading():
-    """
-    Get the most recent pH value from the queue.
-    """
-    try:
-        return ph_reading_queue.get_nowait()
-    except Empty:
+    global latest_ph_value
+    with ph_lock:
+        if not ph_reading_queue.empty():
+            latest_ph_value = ph_reading_queue.get_nowait()  # Consume the next value
+        if latest_ph_value is not None:
+            return latest_ph_value
         log_with_timestamp("No pH reading available.")
         return None
 
