@@ -1,9 +1,18 @@
 import serial
 import time
+import fcntl
 
 # Specify the USB device and baud rate
 device = "/dev/serial/by-id/usb-FTDI_FT230X_Basic_UART_DK0IH05U-if00-port0"
 baud_rate = 9600
+
+with open('/tmp/serial_lock', 'w') as lock_file:
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)  # Acquire exclusive lock
+        # Proceed with serial communication
+    except IOError:
+        print("Another instance is already running. Exiting.")
+        exit(1)
 
 try:
     print("Attempting to connect to the serial device...")
