@@ -15,6 +15,7 @@ ph_reading_queue = Queue()
 def listen_for_ph_readings():
     """
     Background thread to listen for pH readings and put them in the queue.
+    Reconnects automatically if the serial device is disconnected.
     """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -23,46 +24,48 @@ def listen_for_ph_readings():
         print("No pH probe device assigned.")
         return
 
-    try:
-        with serial.Serial(
-            ph_device,
-            9600,
-            timeout=1,  # Timeout for reading chunks of data
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE
-        ) as ser:
-            print(f"Listening on pH probe device: {ph_device}")
-            ser.flushInput()  # Clear input buffer
-            ser.flushOutput()  # Clear output buffer
-            
-            buffer = b""  # Buffer to store incoming bytes until a complete line is received
-            
-            while True:
-                try:
-                    # Read a small chunk of data from the serial port
-                    raw_data = ser.read(100)  # Read up to 100 bytes at a time
-                    if raw_data:
-                        buffer += raw_data  # Add the received data to the buffer
-
-                        # Process complete lines ending with '\r'
-                        while b'\r' in buffer:
-                            line, buffer = buffer.split(b'\r', 1)  # Split at the first '\r'
-                            line = line.decode('utf-8', errors='replace').strip()  # Decode and strip whitespace
-                            if line:
-                                try:
-                                    ph_value = float(line)  # Attempt to parse the pH value
-                                    print(f"Received pH value: {ph_value}")
-                                    ph_reading_queue.put(ph_value)  # Add to the queue
-                                except ValueError:
-                                    print(f"Invalid pH value: {line}")
-                    else:
-                        print("No data received in this read.")
-                except Exception as e:
-                    print(f"Error reading from serial: {e}")
-    except serial.SerialException as e:
-        print(f"Error accessing pH probe device {ph_device}: {e}")
-
+    while True:  # Keep retrying if the serial device is disconnected
+        try:
+            with serial.Serial(
+                ph_device,
+                9600,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            ) as ser:
+                print(f"Listening on pH probe device: {ph_device}")
+                ser.flushInput()
+                ser.flushOutput()
+                
+                buffer = b""  # Buffer for accumulating incoming bytes
+                
+                while True:
+                    try:
+                        # Read a small chunk of data
+                        raw_data = ser.read(100)
+                        if raw_data:
+                            buffer += raw_data
+                            
+                            # Process lines ending with '\r'
+                            while b'\r' in buffer:
+                                line, buffer = buffer.split(b'\r', 1)
+                                line = line.decode('utf-8', errors='replace').strip()
+                                if line:
+                                    try:
+                                        ph_value = float(line)
+                                        print(f"Received pH value: {ph_value}")
+                                        ph_reading_queue.put(ph_value)
+                                    except ValueError:
+                                        print(f"Invalid pH value: {line}")
+                        else:
+                            print("No data received in this read.")
+                    except Exception as e:
+                        print(f"Error reading from serial: {e}")
+                        break  # Exit inner loop to retry the connection
+        except serial.SerialException as e:
+            print(f"Serial error: {e}. Retrying in 5 seconds...")
+            time.sleep(5)  # Wait before retrying the connection
 
 def get_ph_reading():
     """
