@@ -14,6 +14,8 @@ from services.ph_service import get_latest_ph_reading, start_serial_reader, stop
 from api.settings import load_settings
 from flask_socketio import SocketIO, emit
 from services.ph_service import get_latest_ph_reading
+from services.ph_service import latest_ph_value
+
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -105,7 +107,6 @@ def calibration():
 
 @socketio.on('connect')
 def handle_connect():
-    global latest_ph_value  # Ensure access to the global variable
     print("Client connected")
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
