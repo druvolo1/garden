@@ -35,7 +35,7 @@ def parse_buffer():
             return
 
         while '\r' in buffer:  # Process complete lines
-            log_with_timestamp(f"Buffer contains '\\r'. Splitting buffer: {buffer}")
+            log_with_timestamp(f"Buffer contains '\\r'. Splitting buffer: '{buffer}'")
             # Split the buffer at the first '\r'
             line, buffer = buffer.split('\r', 1)
             line = line.strip()
@@ -82,6 +82,7 @@ def parse_buffer():
         # Log if buffer still contains partial data
         if buffer:
             log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+
 
 def serial_reader():
     """
@@ -143,6 +144,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
+
 
 
 def start_serial_reader():
