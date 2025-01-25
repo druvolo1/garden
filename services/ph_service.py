@@ -19,28 +19,37 @@ def log_with_timestamp(message):
 
 def parse_buffer():
     """
-    Parse the queue for pH readings and calibration responses (*OK, *ER).
+    Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
     Unexpected lines are discarded if they end with '\r'.
     """
-    global latest_ph_value
+    global buffer, latest_ph_value
 
-    log_with_timestamp("Starting buffer parsing.")
-    
-    while not ph_reading_queue.empty():
+    log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
+
+    while '\r' in buffer:  # Process complete lines
+        # Split the buffer at the first '\r'
+        line, buffer = buffer.split('\r', 1)
+        line = line.strip()
+
+        # Log the line being processed
+        log_with_timestamp(f"Processing line: '{line}'")
+
+        # Skip empty lines
+        if not line:
+            log_with_timestamp("Skipping empty line.")
+            continue
+
+        # Handle calibration responses
+        if line == "*OK":
+            log_with_timestamp("Calibration successful.")
+            return {"status": "success", "message": "Calibration successful"}
+        elif line == "*ER":
+            log_with_timestamp("Calibration failed.")
+            return {"status": "failure", "message": "Calibration failed"}
+
+        # Process pH values
         try:
-            # Get the next complete line from the queue
-            line = ph_reading_queue.get_nowait().strip()
-            log_with_timestamp(f"Processing line from queue: '{line}'")
-            
-            # Handle calibration responses
-            if line == "*OK":
-                log_with_timestamp("Calibration successful.")
-                return {"status": "success", "message": "Calibration successful"}
-            elif line == "*ER":
-                log_with_timestamp("Calibration failed.")
-                return {"status": "failure", "message": "Calibration failed"}
-
-            # Process pH values
+            # Validate line as pH value
             if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
                 raise ValueError(f"Unexpected response or invalid line format: {line}")
 
@@ -48,19 +57,27 @@ def parse_buffer():
             if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                 raise ValueError(f"pH value out of range: {ph_value}")
 
-            # Update latest pH value
+            # Update latest pH value and add to queue
             log_with_timestamp(f"Valid pH value identified: {ph_value}")
             latest_ph_value = ph_value
+            if ph_reading_queue.full():
+                log_with_timestamp("Queue is full. Removing oldest value.")
+                ph_reading_queue.get_nowait()  # Remove the oldest entry
+            ph_reading_queue.put(ph_value)
+            log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
 
         except ValueError as e:
             # Log unexpected or invalid lines and discard them
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
-    log_with_timestamp("No more lines to process in the queue.")
+    # Log if buffer still contains partial data
+    if buffer:
+        log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+
 
 def serial_reader():
     """
-    Centralized thread to manage the serial connection and populate the queue.
+    Centralized thread to manage the serial connection and populate the buffer.
     """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -69,7 +86,7 @@ def serial_reader():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    MAX_LINE_LENGTH = 100  # Limit the size of individual lines
+    MAX_BUFFER_LENGTH = 100  # Limit buffer size to prevent excessive growth
 
     while not stop_event.is_set():
         try:
@@ -86,8 +103,6 @@ def serial_reader():
                 ser.flushInput()
                 ser.flushOutput()
 
-                buffer = ""  # Temporary buffer to accumulate data
-
                 while not stop_event.is_set():
                     try:
                         log_with_timestamp("Attempting to read from serial port...")
@@ -96,25 +111,19 @@ def serial_reader():
                             # Decode raw bytes to string
                             decoded_data = raw_data.decode('utf-8', errors='replace')
                             log_with_timestamp(f"Raw data received: {raw_data}")
-                            buffer += decoded_data
+                            global buffer
+                            buffer += decoded_data  # Append valid decoded data to buffer
+                            log_with_timestamp(f"Decoded data appended to buffer: '{decoded_data}'")
 
-                            # Process complete lines ending with '\r'
-                            while '\r' in buffer:
-                                line, buffer = buffer.split('\r', 1)
-                                line = line.strip()
+                            # Trim the buffer if it exceeds the maximum length
+                            if len(buffer) > MAX_BUFFER_LENGTH:
+                                log_with_timestamp(
+                                    f"Buffer exceeded maximum length ({len(buffer)}). Trimming excess."
+                                )
+                                buffer = buffer[-MAX_BUFFER_LENGTH:]  # Retain the last MAX_BUFFER_LENGTH characters
 
-                                # Skip empty lines
-                                if not line:
-                                    log_with_timestamp("Skipping empty line.")
-                                    continue
-
-                                # Add the line to the queue for processing
-                                if len(line) > MAX_LINE_LENGTH:
-                                    log_with_timestamp(f"Line exceeded max length: '{line}'. Discarding.")
-                                    continue
-
-                                log_with_timestamp(f"Adding line to queue: '{line}'")
-                                ph_reading_queue.put(line)
+                            # Parse the buffer for new data
+                            parse_buffer()
 
                         else:
                             log_with_timestamp("No data received in this read.")
