@@ -128,6 +128,11 @@ def serial_reader():
                                 buffer += decoded_data  # Append to buffer
                                 log_with_timestamp(f"Decoded data appended to buffer: '{decoded_data}'")
 
+                                # Trim the buffer if it exceeds the maximum length
+                                if len(buffer) > MAX_BUFFER_LENGTH:
+                                    log_with_timestamp("Buffer exceeded maximum length. Clearing excess.")
+                                    buffer = buffer[-MAX_BUFFER_LENGTH:]  # Retain the last MAX_BUFFER_LENGTH characters
+
                                 # Parse the buffer for new data
                                 parse_buffer()
 
@@ -158,25 +163,30 @@ def calibrate_ph(level):
         log_with_timestamp(f"Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
 
-    global calibration_command
+    global calibration_command, last_command_sent
 
     command = valid_levels[level]
-    calibration_command = command  # Set the command to be handled by `serial_reader`
+    calibration_command = command  # Set the command to be sent by `serial_reader`
+    last_command_sent = command  # Track the last command for logging and debugging
     log_with_timestamp(f"Calibration command '{command}' queued for execution.")
 
     # Wait for the response from the probe
     response_timeout = time.time() + 5  # 5-second timeout
     while time.time() < response_timeout:
-        if "*OK" in buffer:
-            log_with_timestamp(f"Calibration successful for command: {command}")
-            return {"status": "success", "message": "Calibration successful"}
-        elif "*ER" in buffer:
-            log_with_timestamp(f"Calibration failed for command: {command}")
-            return {"status": "failure", "message": "Calibration failed"}
+        with ph_lock:
+            if "*OK" in buffer:
+                log_with_timestamp(f"Calibration successful for command: {command}")
+                buffer = buffer.replace("*OK", "", 1)  # Remove processed response
+                return {"status": "success", "message": "Calibration successful"}
+            elif "*ER" in buffer:
+                log_with_timestamp(f"Calibration failed for command: {command}")
+                buffer = buffer.replace("*ER", "", 1)  # Remove processed response
+                return {"status": "failure", "message": "Calibration failed"}
         time.sleep(0.1)  # Small delay to prevent busy waiting
 
-    log_with_timestamp("No calibration response received.")
+    log_with_timestamp(f"No calibration response received for command: {command}")
     return {"status": "failure", "message": "No response from pH probe"}
+
 
 def start_serial_reader():
     """Start the serial reader thread."""
