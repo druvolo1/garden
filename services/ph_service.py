@@ -8,6 +8,7 @@ from queue import Queue, Empty
 # Shared queue for pH readings
 ph_reading_queue = Queue(maxsize=10)  # Limit queue size to avoid memory issues
 stop_event = threading.Event()  # Event to signal threads to stop
+ph_lock = threading.Lock()  # Lock for thread-safe operations
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
@@ -23,6 +24,8 @@ def serial_reader():
     if not ph_device:
         log_with_timestamp("No pH probe device assigned.")
         return
+
+    MAX_BUFFER_LENGTH = 1024  # Limit buffer size to prevent excessive growth
 
     while not stop_event.is_set():
         try:
@@ -68,13 +71,18 @@ def serial_reader():
                                         raise ValueError(f"pH value out of range: {ph_value}")
 
                                     # Add the valid value to the queue
-                                    if ph_reading_queue.full():
-                                        ph_reading_queue.get_nowait()  # Remove the oldest entry
-                                    ph_reading_queue.put(ph_value)
+                                    with ph_lock:
+                                        if ph_reading_queue.full():
+                                            ph_reading_queue.get_nowait()  # Remove the oldest entry
+                                        ph_reading_queue.put(ph_value)
                                     log_with_timestamp(f"Valid pH value received: {ph_value}")
 
                                 except ValueError as e:
                                     log_with_timestamp(f"Invalid line: {line} ({e})")
+
+                            # Trim buffer if it exceeds the maximum allowed length
+                            if len(buffer) > MAX_BUFFER_LENGTH:
+                                buffer = buffer[-MAX_BUFFER_LENGTH:]
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
@@ -103,10 +111,11 @@ def get_latest_ph_reading():
     """
     Get the most recent pH value from the queue.
     """
-    if ph_reading_queue.empty():
+    try:
+        return ph_reading_queue.get_nowait()
+    except Empty:
         log_with_timestamp("No pH reading available.")
         return None
-    return ph_reading_queue.queue[-1]  # Return the most recent value
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
