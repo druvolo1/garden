@@ -10,7 +10,7 @@ from api.relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
-from services.ph_service import get_ph_reading, listen_for_ph_readings
+from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader
 from api.settings import load_settings
 
 app = Flask(__name__)
@@ -35,32 +35,28 @@ def get_local_ip():
 # Background task to broadcast pH readings
 def broadcast_ph_readings():
     while not stop_event.is_set():
-        settings = load_settings()
-        ph_probe = settings.get("usb_roles", {}).get("ph_probe")
-
-        if ph_probe:
-            try:
-                ph_value = get_ph_reading()
-                if ph_value is not None:
-                    socketio.emit('ph_update', {'ph': ph_value})
-                    print(f"Emitting pH update: {ph_value}")
-            except Exception as e:
-                print(f"Error reading pH value: {e}")
-        else:
-            print("No pH probe assigned. Skipping pH reading.")
+        try:
+            ph_value = get_latest_ph_reading()  # Fetch the latest pH value from the shared buffer
+            if ph_value is not None:
+                socketio.emit('ph_update', {'ph': ph_value})
+                print(f"Emitting pH update: {ph_value}")
+        except Exception as e:
+            print(f"Error broadcasting pH value: {e}")
         time.sleep(1)
 
 
 # Start threads for background tasks
 def start_threads():
+    stop_event.clear()
     threading.Thread(target=broadcast_ph_readings, daemon=True).start()
-    threading.Thread(target=listen_for_ph_readings, daemon=True).start()
+    start_serial_reader()  # Start the centralized serial reader
 
 
 # Stop threads gracefully
 def stop_threads():
     print("Stopping background threads...")
     stop_event.set()
+    stop_serial_reader()  # Stop the centralized serial reader
     time.sleep(1)
     print("Background threads stopped.")
 

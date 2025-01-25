@@ -5,23 +5,17 @@ import threading
 from api.settings import load_settings
 from queue import Queue, Empty
 
-# Globals to track the current pH device and lock
-current_ph_device = None
-ph_lock = threading.Lock()
-serial_lock = threading.Lock()  # Prevent multiple access to the serial port
-latest_ph_value = None
-
 # Shared queue for pH readings
-ph_reading_queue = Queue()
+ph_reading_queue = Queue(maxsize=10)  # Limit queue size to avoid memory issues
+stop_event = threading.Event()  # Event to signal threads to stop
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-def listen_for_ph_readings():
+def serial_reader():
     """
-    Background thread to listen for pH readings and put them in the queue.
-    Reconnects automatically if persistent errors occur.
+    Centralized thread to manage the serial connection and buffer incoming data.
     """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -30,12 +24,7 @@ def listen_for_ph_readings():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    max_retries = 5  # Allow more retries
-    retry_delay = 2  # 2-second delay between retries
-    retry_count = 0  # Tracks consecutive errors
-    invalid_line_count = 0  # Tracks invalid lines for debugging
-
-    while True:
+    while not stop_event.is_set():
         try:
             with serial.Serial(
                 ph_device,
@@ -45,34 +34,28 @@ def listen_for_ph_readings():
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE
             ) as ser:
-                log_with_timestamp(f"Listening on pH probe device: {ph_device}")
+                log_with_timestamp(f"Connected to pH probe device: {ph_device}")
                 ser.flushInput()
                 ser.flushOutput()
 
-                buffer = ""  # Initialize as a string for decoded data
+                buffer = ""  # Buffer for accumulating incoming data
 
-                while True:
+                while not stop_event.is_set():
                     try:
-                        # Read raw bytes from the serial port
                         raw_data = ser.read(100)
                         if raw_data:
-                            retry_count = 0  # Reset retries on successful read
-
-                            # Decode raw bytes to string and append to buffer
                             decoded_data = raw_data.decode('utf-8', errors='replace')
                             buffer += decoded_data
-
                             log_with_timestamp(f"Decoded data appended to buffer: {decoded_data}")
 
                             # Process complete lines (ending with '\r')
                             while '\r' in buffer:
-                                line, buffer = buffer.split('\r', 1)  # Split at the first '\r'
+                                line, buffer = buffer.split('\r', 1)
                                 line = line.strip()
 
                                 # Skip invalid or corrupted lines
                                 if not line or not line.replace('.', '', 1).isdigit():
-                                    invalid_line_count += 1
-                                    log_with_timestamp(f"Skipping invalid line ({invalid_line_count}): {line}")
+                                    log_with_timestamp(f"Skipping invalid line: {line}")
                                     continue
 
                                 try:
@@ -84,43 +67,46 @@ def listen_for_ph_readings():
                                     if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                                         raise ValueError(f"pH value out of range: {ph_value}")
 
-                                    log_with_timestamp(f"Received pH value: {ph_value}")
-                                    ph_reading_queue.put(ph_value)  # Add valid value to the queue
-                                except ValueError as ve:
-                                    invalid_line_count += 1
-                                    log_with_timestamp(f"Invalid pH value ({invalid_line_count}): {line} ({ve})")
+                                    # Add the valid value to the queue
+                                    if ph_reading_queue.full():
+                                        ph_reading_queue.get_nowait()  # Remove the oldest entry
+                                    ph_reading_queue.put(ph_value)
+                                    log_with_timestamp(f"Valid pH value received: {ph_value}")
 
+                                except ValueError as e:
+                                    log_with_timestamp(f"Invalid line: {line} ({e})")
                         else:
                             log_with_timestamp("No data received in this read.")
-
                     except (serial.SerialException, OSError) as e:
-                        retry_count += 1
-                        log_with_timestamp(f"Serial error detected: {e}. Retrying ({retry_count}/{max_retries})...")
-                        ser.flushInput()
-                        ser.flushOutput()
-                        time.sleep(retry_delay)
-
-                        if retry_count >= max_retries:
-                            log_with_timestamp("Persistent serial error. Disconnecting and reconnecting...")
-                            time.sleep(3)  # Cooldown before reconnecting
-                            break  # Exit loop to reconnect
+                        log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
+                        time.sleep(5)
+                        break  # Exit inner loop to reconnect
         except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
+            log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
 
+def start_serial_reader():
+    """Start the serial reader thread."""
+    stop_event.clear()
+    thread = threading.Thread(target=serial_reader, daemon=True)
+    thread.start()
+    return thread
 
-def get_ph_reading():
+def stop_serial_reader():
+    """Stop the serial reader thread gracefully."""
+    log_with_timestamp("Stopping serial reader...")
+    stop_event.set()
+    time.sleep(2)  # Allow thread to exit gracefully
+    log_with_timestamp("Serial reader stopped.")
+
+def get_latest_ph_reading():
     """
-    Retrieve the latest pH value from the queue, waiting for new data if necessary.
+    Get the most recent pH value from the queue.
     """
-    try:
-        return ph_reading_queue.get(timeout=2)
-    except Empty:
-        # Log occasionally to avoid spamming
-        if time.time() % 10 < 1:
-            log_with_timestamp("No new pH value available in the queue.")
+    if ph_reading_queue.empty():
+        log_with_timestamp("No pH reading available.")
         return None
-
+    return ph_reading_queue.queue[-1]  # Return the most recent value
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
@@ -147,67 +133,9 @@ def calibrate_ph(level):
         log_with_timestamp(f"Error calibrating pH probe on device {ph_probe_device}: {e}")
         return False
 
-
 def update_ph_device(device):
     """Update the current pH probe device."""
     global current_ph_device
     with ph_lock:
         current_ph_device = device
         log_with_timestamp(f"Updated pH probe device: {current_ph_device}")
-
-
-def monitor_ph(callback):
-    """
-    Continuously monitor the pH probe for readings.
-    If a callback is provided, it will be called with each valid pH value.
-    """
-    global current_ph_device
-    while True:
-        with ph_lock:
-            ph_device = current_ph_device
-
-        if not ph_device:
-            log_with_timestamp("No pH probe device assigned. Waiting for assignment.")
-            time.sleep(1)
-            continue
-
-        try:
-            with serial_lock, serial.Serial(
-                ph_device,
-                9600,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            ) as ser:
-                ser.flushInput()
-                ser.flushOutput()
-
-                buffer = b""  # Buffer for accumulating incoming bytes
-
-                while True:
-                    try:
-                        raw_data = ser.read(100)
-                        if raw_data:
-                            buffer += raw_data
-                            log_with_timestamp(f"Raw bytes received: {raw_data}")
-                            while b'\r' in buffer:
-                                line, buffer = buffer.split(b'\r', 1)
-                                line = line.decode('utf-8', errors='replace').strip()
-                                if line:
-                                    try:
-                                        ph_value = float(line)
-                                        log_with_timestamp(f"pH value: {ph_value}")
-                                        if callback:
-                                            callback(ph_value)
-                                    except ValueError:
-                                        log_with_timestamp(f"Invalid pH value: {line}")
-                        else:
-                            log_with_timestamp("Timeout: No data received.")
-                    except (serial.SerialException, OSError) as e:
-                        log_with_timestamp(f"Serial error detected: {e}. Reconnecting in 10 seconds...")
-                        time.sleep(10)
-                        break
-        except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Error accessing pH probe device: {e}. Retrying in 10 seconds...")
-            time.sleep(10)
