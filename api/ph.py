@@ -45,19 +45,11 @@ def ph_calibration(level):
         "message": f"Calibration '{level}' failed. Ensure the pH probe is connected and working."
     }), 500
 
-@ph_blueprint.route('/latest-ph', methods=['GET'])
-def get_latest_ph():
-    """
-    Get the latest pH value from the buffer.
-    """
+@ph_blueprint.route('/latest', methods=['GET'])
+def latest_ph():
+    """API endpoint to get the latest pH value."""
     ph_value = get_latest_ph_reading()
     if ph_value is not None:
-        return jsonify({
-            "status": "success",
-            "ph": ph_value
-        })
-    else:
-        return jsonify({
-            "status": "error",
-            "message": "No pH reading available."
-        }), 404
+        return jsonify({'ph': ph_value}), 200
+    return jsonify({'error': 'No pH reading available'}), 404
+

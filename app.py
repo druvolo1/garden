@@ -105,9 +105,10 @@ def calibration():
 
 @socketio.on('connect')
 def handle_connect():
+    global latest_ph_value  # Ensure access to the global variable
     print("Client connected")
-    emit('message', {'data': 'Connected to the server'})
-
+    if latest_ph_value is not None:
+        socketio.emit('ph_update', {'ph': latest_ph_value})
 
 if __name__ == '__main__':
     try:
