@@ -11,6 +11,8 @@ ph_lock = threading.Lock()  # Lock for thread-safe operations
 
 buffer = ""  # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
+last_command_sent = None  # Track the last command sent to the probe
+
 
 
 def log_with_timestamp(message):
@@ -167,44 +169,60 @@ def get_latest_ph_reading():
         log_with_timestamp("No pH reading available.")
         return None
 
-
-def calibrate_ph(level):
+def parse_buffer():
     """
-    Calibrate the pH sensor at the specified level (low/mid/high/clear).
-    Waits for *OK or *ER in the buffer.
+    Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
+    Unexpected lines are discarded if they end with '\r'.
     """
-    valid_levels = {
-        'low': 'Cal,low,4.00',
-        'mid': 'Cal,mid,7.00',
-        'high': 'Cal,high,10.00',
-        'clear': 'Cal,clear'
-    }
+    global buffer, latest_ph_value, last_command_sent
 
-    if level not in valid_levels:
-        log_with_timestamp(f"Invalid calibration level: {level}")
-        return {"status": "failure", "message": "Invalid calibration level"}
+    log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
 
-    command = valid_levels[level]
+    while '\r' in buffer:  # Process complete lines
+        # Split the buffer at the first '\r'
+        line, buffer = buffer.split('\r', 1)
+        line = line.strip()
 
-    with ph_lock:
-        global buffer
-        buffer = ""  # Clear the buffer before sending the command
-        log_with_timestamp(f"Sending calibration command: {command}")
+        # Log the line being processed
+        log_with_timestamp(f"Processing line: '{line}'")
 
-    try:
-        # Simulate sending the calibration command to the device
-        with ph_lock:
-            buffer += f"{command}\r"  # Simulate the device's response
-        response = parse_buffer()  # Parse for calibration response
+        # Skip empty lines
+        if not line:
+            log_with_timestamp("Skipping empty line.")
+            continue
 
-        # Return response if calibration-specific result was found
-        if response:
-            return response
+        # Handle calibration responses
+        if line == "*OK":
+            log_with_timestamp(f"Calibration successful. Last command: {last_command_sent}")
+            return {"status": "success", "message": "Calibration successful"}
+        elif line == "*ER":
+            log_with_timestamp(f"Calibration failed. Last command: {last_command_sent}")
+            return {"status": "failure", "message": "Calibration failed"}
 
-        # If no response specific to calibration, indicate no response
-        log_with_timestamp("No calibration response received.")
-        return {"status": "failure", "message": "No calibration response received"}
+        # Process pH values
+        try:
+            # Validate line as pH value
+            if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
+                raise ValueError(f"Unexpected response or invalid line format: {line}")
 
-    except Exception as e:
-        log_with_timestamp(f"Error during calibration: {e}")
-        return {"status": "failure", "message": f"Calibration failed: {e}"}
+            ph_value = round(float(line), 2)
+            if not (0.0 <= ph_value <= 14.0):  # Validate pH range
+                raise ValueError(f"pH value out of range: {ph_value}")
+
+            # Update latest pH value and add to queue
+            log_with_timestamp(f"Valid pH value identified: {ph_value}")
+            latest_ph_value = ph_value
+            if ph_reading_queue.full():
+                log_with_timestamp("Queue is full. Removing oldest value.")
+                ph_reading_queue.get_nowait()  # Remove the oldest entry
+            ph_reading_queue.put(ph_value)
+            log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
+
+        except ValueError as e:
+            # Log unexpected or invalid lines and discard them
+            log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
+
+    # Log if buffer still contains partial data
+    if buffer:
+        log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+
