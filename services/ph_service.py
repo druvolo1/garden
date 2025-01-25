@@ -12,6 +12,7 @@ latest_ph_value = None
 # Shared queue for pH readings
 ph_reading_queue = Queue()
 
+
 def listen_for_ph_readings():
     """
     Background thread to listen for pH readings and put them in the queue.
@@ -23,6 +24,8 @@ def listen_for_ph_readings():
     if not ph_device:
         print("No pH probe device assigned.")
         return
+
+    consecutive_no_data = 0  # Track consecutive empty reads
 
     while True:
         try:
@@ -44,6 +47,7 @@ def listen_for_ph_readings():
                     try:
                         raw_data = ser.read(100)
                         if raw_data:
+                            consecutive_no_data = 0  # Reset the counter
                             buffer += raw_data
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
@@ -56,10 +60,12 @@ def listen_for_ph_readings():
                                     except ValueError:
                                         print(f"Invalid pH value: {line}")
                         else:
-                            print("No data received in this read.")
+                            consecutive_no_data += 1
+                            if consecutive_no_data > 5:  # Log only if persistent
+                                print("No data received in multiple reads.")
                     except serial.SerialException as e:
                         print(f"Error reading from serial: {e}")
-                        break
+                        break  # Exit inner loop to retry the connection
         except serial.SerialException as e:
             print(f"Serial error: {e}. Retrying in 5 seconds...")
             time.sleep(5)  # Wait before retrying the connection
@@ -76,6 +82,7 @@ def get_ph_reading():
         # Reduce log frequency for empty queue checks
         print("No new pH value available in the queue.")
         return None
+
 
 def calibrate_ph(level):
     """Calibrate the pH sensor at the specified level (low/mid/high)."""
@@ -103,12 +110,14 @@ def calibrate_ph(level):
         print(f"Error calibrating pH probe on device {ph_probe_device}: {e}")
         return False
 
+
 def update_ph_device(device):
     """Update the current pH probe device."""
     global current_ph_device
     with ph_lock:
         current_ph_device = device
         print(f"Updated pH probe device: {current_ph_device}")
+
 
 def monitor_ph(callback):
     """
@@ -136,21 +145,30 @@ def monitor_ph(callback):
             ) as ser:
                 ser.flushInput()
                 ser.flushOutput()
-                
+
+                buffer = b""  # Buffer for accumulating incoming bytes
+
                 while True:
-                    raw_data = ser.read(100)
-                    if raw_data:
-                        print(f"Raw bytes received: {raw_data}")
-                        try:
-                            decoded_line = raw_data.decode('utf-8', errors='replace').strip()
-                            ph_value = float(decoded_line)
-                            print(f"pH value: {ph_value}")
-                            if callback:
-                                callback(ph_value)
-                        except ValueError:
-                            print(f"Invalid pH value received: {decoded_line}")
-                    else:
-                        print("Timeout: No data received.")
+                    try:
+                        raw_data = ser.read(100)
+                        if raw_data:
+                            buffer += raw_data
+                            while b'\r' in buffer:
+                                line, buffer = buffer.split(b'\r', 1)
+                                line = line.decode('utf-8', errors='replace').strip()
+                                if line:
+                                    try:
+                                        ph_value = float(line)
+                                        print(f"pH value: {ph_value}")
+                                        if callback:
+                                            callback(ph_value)
+                                    except ValueError:
+                                        print(f"Invalid pH value: {line}")
+                        else:
+                            print("Timeout: No data received.")
+                    except serial.SerialException as e:
+                        print(f"Error reading from serial: {e}")
+                        break
         except serial.SerialException as e:
             print(f"Error accessing pH probe device {ph_device}: {e}")
         time.sleep(1)  # Small delay to prevent high CPU usage
