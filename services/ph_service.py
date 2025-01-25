@@ -66,12 +66,19 @@ def listen_for_ph_readings():
                                     continue
 
                                 try:
-                                    # Parse and round the pH value
+                                    # Validate length and value range
+                                    if len(line) < 3 or len(line) > 6:
+                                        raise ValueError(f"Line length out of bounds: {line}")
+
                                     ph_value = round(float(line), 2)
+                                    if not (0.0 <= ph_value <= 14.0):  # Validate pH range
+                                        raise ValueError(f"pH value out of range: {ph_value}")
+
                                     print(f"Received pH value: {ph_value}")
                                     ph_reading_queue.put(ph_value)  # Add valid value to the queue
-                                except ValueError:
-                                    print(f"Invalid pH value: {line}")
+                                except ValueError as ve:
+                                    invalid_line_count += 1
+                                    print(f"Invalid pH value ({invalid_line_count}): {line} ({ve})")
 
                         else:
                             print("No data received in this read.")
@@ -90,7 +97,6 @@ def listen_for_ph_readings():
         except (serial.SerialException, OSError) as e:
             print(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
-
 
 def get_ph_reading():
     """
