@@ -28,6 +28,7 @@ def parse_buffer():
     log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
 
     while '\r' in buffer:  # Process complete lines
+        # Split the buffer at the first '\r'
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
@@ -77,6 +78,7 @@ def parse_buffer():
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
+
 calibration_command = None  # Shared variable to hold the calibration command
 
 def serial_reader():
@@ -115,24 +117,15 @@ def serial_reader():
 
                         raw_data = ser.read(100)
                         if raw_data:
-                            # Decode and clean incoming data
+                            # Clean incoming data and append to buffer
                             decoded_data = raw_data.decode('utf-8', errors='replace')
-                            cleaned_data = ''.join(
-                                c if c.isprintable() or c == '\r' else ''
-                                for c in decoded_data
-                            ).strip()
-
-                            if cleaned_data:
-                                with ph_lock:
-                                    global buffer
-                                    buffer += cleaned_data
-                                    log_with_timestamp(f"Cleaned data appended to buffer: '{cleaned_data}'")
-
-                                    if len(buffer) > MAX_BUFFER_LENGTH:
-                                        log_with_timestamp("Buffer exceeded maximum length. Trimming buffer.")
-                                        buffer = buffer[-MAX_BUFFER_LENGTH:]
-
-                                    parse_buffer()
+                            cleaned_data = ''.join(c if 32 <= ord(c) <= 126 or c == '\r' else '' for c in decoded_data)
+                            with ph_lock:
+                                global buffer
+                                buffer += cleaned_data
+                                if len(buffer) > MAX_BUFFER_LENGTH:
+                                    buffer = buffer[-MAX_BUFFER_LENGTH:]  # Retain last MAX_BUFFER_LENGTH chars
+                                parse_buffer()
                         else:
                             log_with_timestamp("No data received in this read.")
                     except (serial.SerialException, OSError) as e:
