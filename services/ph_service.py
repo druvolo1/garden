@@ -2,7 +2,7 @@ import serial
 import time
 import threading
 from api.settings import load_settings
-from queue import Empty
+from queue import Queue, Empty
 
 # Globals to track the current pH device and lock
 current_ph_device = None
@@ -14,7 +14,7 @@ ph_reading_queue = Queue()
 
 def listen_for_ph_readings():
     """
-    Background thread to listen for pH readings and add them to the queue.
+    Background thread to listen for pH readings and put them in the queue.
     """
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -31,12 +31,10 @@ def listen_for_ph_readings():
                 if line:
                     try:
                         ph_value = float(line)
-                        print(f"Queueing pH value: {ph_value}")
-                        ph_reading_queue.put(ph_value)
+                        print(f"Received pH value: {ph_value}")
+                        ph_reading_queue.put(ph_value)  # Add the pH value to the queue
                     except ValueError:
                         print(f"Invalid data received: {line}")
-                else:
-                    print("No data received from pH probe.")
     except serial.SerialException as e:
         print(f"Error accessing pH probe device {ph_device}: {e}")
 
@@ -46,7 +44,7 @@ def get_ph_reading():
     """
     try:
         return ph_reading_queue.get_nowait()  # Get the latest value without blocking
-    except Empty:  # Use queue.Empty or just Empty as imported
+    except Empty:
         print("No pH value available in the queue.")
         return None
 
