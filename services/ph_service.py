@@ -51,7 +51,7 @@ def listen_for_ph_readings():
                         if raw_data:
                             retry_count = 0  # Reset retries on successful read
                             buffer += raw_data
-                            print(f"Raw bytes received: {raw_data}")  # Debug raw data
+                            #print(f"Raw bytes received: {raw_data}")  # Debug raw data
 
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
@@ -68,8 +68,8 @@ def listen_for_ph_readings():
                                     ph_reading_queue.put(ph_value)
                                 except ValueError:
                                     print(f"Invalid pH value: {line}")
-                        else:
-                            print("No data received in this read.")
+                        #else:
+                            #print("No data received in this read.")
 
                     except (serial.SerialException, OSError) as e:
                         retry_count += 1
