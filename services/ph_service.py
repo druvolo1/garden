@@ -17,7 +17,6 @@ def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-
 def parse_buffer():
     """
     Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
@@ -29,34 +28,37 @@ def parse_buffer():
             line, buffer = buffer.split('\r', 1)
             line = line.strip()
 
+            # Skip empty lines
             if not line:
-                continue  # Skip empty lines
+                continue
 
             # Handle calibration responses
             if line == "*OK":
                 log_with_timestamp("Calibration successful.")
-                continue  # Keep parsing the buffer
+                return {"status": "success", "message": "Calibration successful"}
             elif line == "*ER":
                 log_with_timestamp("Calibration failed.")
-                continue  # Keep parsing the buffer
+                return {"status": "failure", "message": "Calibration failed"}
 
-            # Handle pH readings
+            # Process pH values
             try:
-                if line.replace('.', '', 1).isdigit():  # Check if line is a numeric value
-                    ph_value = round(float(line), 2)
-                    if 0.0 <= ph_value <= 14.0:  # Validate pH range
-                        latest_ph_value = ph_value  # Update the global latest value
-                        if ph_reading_queue.full():
-                            ph_reading_queue.get_nowait()  # Remove the oldest entry
-                        ph_reading_queue.put(ph_value)  # Add to the queue
-                        log_with_timestamp(f"Valid pH value received: {ph_value}")
-                    else:
-                        log_with_timestamp(f"Invalid pH value out of range: {ph_value}")
-                else:
-                    log_with_timestamp(f"Invalid line format: {line}")
-            except ValueError as e:
-                log_with_timestamp(f"Error parsing line: {line} ({e})")
+                # Validate line as pH value
+                if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
+                    raise ValueError(f"Invalid line format: {line}")
 
+                ph_value = round(float(line), 2)
+                if not (0.0 <= ph_value <= 14.0):  # Validate pH range
+                    raise ValueError(f"pH value out of range: {ph_value}")
+
+                # Update latest pH value and add to queue
+                latest_ph_value = ph_value
+                if ph_reading_queue.full():
+                    ph_reading_queue.get_nowait()  # Remove the oldest entry
+                ph_reading_queue.put(ph_value)
+                log_with_timestamp(f"Valid pH value received: {ph_value}")
+
+            except ValueError as e:
+                log_with_timestamp(f"Skipping invalid line: {line} ({e})")
 
 def serial_reader():
     """
@@ -143,3 +145,45 @@ def get_latest_ph_reading():
             return latest_ph_value
         log_with_timestamp("No pH reading available.")
         return None
+
+
+def calibrate_ph(level):
+    """
+    Calibrate the pH sensor at the specified level (low/mid/high/clear).
+    Waits for *OK or *ER in the buffer.
+    """
+    valid_levels = {
+        'low': 'Cal,low,4.00',
+        'mid': 'Cal,mid,7.00',
+        'high': 'Cal,high,10.00',
+        'clear': 'Cal,clear'
+    }
+
+    if level not in valid_levels:
+        log_with_timestamp(f"Invalid calibration level: {level}")
+        return {"status": "failure", "message": "Invalid calibration level"}
+
+    command = valid_levels[level]
+
+    with ph_lock:
+        global buffer
+        buffer = ""  # Clear the buffer before sending the command
+        log_with_timestamp(f"Sending calibration command: {command}")
+
+    try:
+        # Simulate sending the calibration command to the device
+        with ph_lock:
+            buffer += f"{command}\r"  # Simulate the device's response
+        response = parse_buffer()  # Parse for calibration response
+
+        # Return response if calibration-specific result was found
+        if response:
+            return response
+
+        # If no response specific to calibration, indicate no response
+        log_with_timestamp("No calibration response received.")
+        return {"status": "failure", "message": "No calibration response received"}
+
+    except Exception as e:
+        log_with_timestamp(f"Error during calibration: {e}")
+        return {"status": "failure", "message": f"Calibration failed: {e}"}
