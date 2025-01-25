@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibration</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>pH Probe Calibration</h1>
+    </header>
+    <main>
+        <div id="ph-display">
+            <h2>Current pH Value: <span id="current-ph">--</span></h2>
+        </div>
+        <div id="calibration-controls">
+            <h3>Calibration Controls</h3>
+            <button id="calibrate-low">Calibrate Low (4.00)</button>
+            <button id="calibrate-mid">Calibrate Mid (7.00)</button>
+            <button id="calibrate-high">Calibrate High (10.00)</button>
+            <button id="clear-calibration">Clear Calibration</button>
+        </div>
+        <div id="calibration-log">
+            <h3>Calibration Log</h3>
+            <ul id="log-list"></ul>
+        </div>
+    </main>
+    <script>
+        $(document).ready(function () {
+            // Update current pH value
+            function updatePhValue() {
+                $.get('/api/ph/latest-ph', function (data) {
+                    if (data.status === "success") {
+                        $('#current-ph').text(data.pH);
+                    } else {
+                        $('#current-ph').text("--");
+                    }
+                });
+            }
+
+            // Append messages to the log
+            function appendToLog(message, isError = false) {
+                const logItem = $('<li>').text(message);
+                if (isError) logItem.css('color', 'red');
+                $('#log-list').prepend(logItem);
+            }
+
+            // Handle calibration commands
+            function sendCalibrationCommand(level) {
+                $.post(`/api/ph/calibrate/${level}`, function (data) {
+                    if (data.status === "success") {
+                        appendToLog(data.message);
+                    } else {
+                        appendToLog(data.message, true);
+                    }
+                });
+            }
+
+            // Button handlers
+            $('#calibrate-low').click(() => sendCalibrationCommand('low'));
+            $('#calibrate-mid').click(() => sendCalibrationCommand('mid'));
+            $('#calibrate-high').click(() => sendCalibrationCommand('high'));
+            $('#clear-calibration').click(() => sendCalibrationCommand('clear'));
+
+            // Periodically update pH value
+            setInterval(updatePhValue, 5000);
+        });
+    </script>
+</body>
+</html>

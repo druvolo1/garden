@@ -94,6 +94,9 @@ def settings():
     pi_ip = get_local_ip()
     return render_template('settings.html', pi_ip=pi_ip)
 
+@app.route('/calibration')
+def calibration():
+    return render_template('calibration.html')
 
 @socketio.on('connect')
 def handle_connect():

@@ -5,15 +5,16 @@ ph_blueprint = Blueprint('ph', __name__)
 
 @ph_blueprint.route('/', methods=['GET'])
 def ph_reading():
-    """Get the current pH value."""
-    ph_value = get_ph_reading()
+    """
+    Get the current pH value.
+    """
+    ph_value = get_latest_ph_reading()
 
     if ph_value is None:
-        # Handle cases where no device is assigned or there's an error
         return jsonify({
             "status": "error",
-            "error": "No pH reading available. Check if a pH probe is assigned and connected."
-        }), 400
+            "message": "No pH reading available. Check if a pH probe is assigned and connected."
+        }), 404
 
     return jsonify({
         "status": "success",
@@ -22,13 +23,41 @@ def ph_reading():
 
 @ph_blueprint.route('/calibrate/<level>', methods=['POST'])
 def ph_calibration(level):
-    """Calibrate the pH sensor at a specific level (low/mid/high)."""
-    success = calibrate_ph(level)
+    """
+    Calibrate the pH sensor at a specific level (low, mid, high, or clear).
+    """
+    valid_levels = ['low', 'mid', 'high', 'clear']
+    if level not in valid_levels:
+        return jsonify({
+            "status": "error",
+            "message": f"Invalid calibration level: {level}. Must be one of {valid_levels}."
+        }), 400
 
+    success = calibrate_ph(level)
     if success:
-        return jsonify({"status": "success"})
-    
+        return jsonify({
+            "status": "success",
+            "message": f"Calibration '{level}' completed successfully."
+        })
+
     return jsonify({
-        "status": "failure",
-        "error": "Invalid level or no pH probe assigned."
-    }), 400
+        "status": "error",
+        "message": f"Calibration '{level}' failed. Ensure the pH probe is connected and working."
+    }), 500
+
+@ph_blueprint.route('/latest-ph', methods=['GET'])
+def get_latest_ph():
+    """
+    Get the latest pH value from the buffer.
+    """
+    ph_value = get_latest_ph_reading()
+    if ph_value is not None:
+        return jsonify({
+            "status": "success",
+            "ph": ph_value
+        })
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "No pH reading available."
+        }), 404
