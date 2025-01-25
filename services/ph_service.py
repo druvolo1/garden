@@ -25,7 +25,8 @@ def listen_for_ph_readings():
         print("No pH probe device assigned.")
         return
 
-    max_retries = 3  # Number of retries before reconnecting
+    max_retries = 5  # Allow more retries
+    retry_delay = 2  # 2-second delay between retries
     retry_count = 0  # Tracks consecutive errors
 
     while True:
@@ -50,33 +51,41 @@ def listen_for_ph_readings():
                         if raw_data:
                             retry_count = 0  # Reset retries on successful read
                             buffer += raw_data
-                            print(f"Raw bytes received: {raw_data}")
+                            print(f"Raw bytes received: {raw_data}")  # Debug raw data
 
                             while b'\r' in buffer:
                                 line, buffer = buffer.split(b'\r', 1)
                                 line = line.decode('utf-8', errors='replace').strip()
-                                if line:
-                                    try:
-                                        ph_value = round(float(line), 2)
-                                        print(f"Received pH value: {ph_value}")
-                                        ph_reading_queue.put(ph_value)
-                                    except ValueError:
-                                        print(f"Invalid pH value: {line}")
+
+                                # Skip invalid or corrupted lines
+                                if not line or line.startswith('\x00'):
+                                    print(f"Skipping invalid line: {line}")
+                                    continue
+
+                                try:
+                                    ph_value = round(float(line), 2)
+                                    print(f"Received pH value: {ph_value}")
+                                    ph_reading_queue.put(ph_value)
+                                except ValueError:
+                                    print(f"Invalid pH value: {line}")
                         else:
                             print("No data received in this read.")
+
                     except (serial.SerialException, OSError) as e:
                         retry_count += 1
                         print(f"Serial error detected: {e}. Retrying ({retry_count}/{max_retries})...")
-                        ser.flushInput()  # Flush the input buffer
-                        ser.flushOutput()  # Flush the output buffer
-                        time.sleep(1)  # Short delay before retrying
+                        ser.flushInput()
+                        ser.flushOutput()
+                        time.sleep(retry_delay)
 
                         if retry_count >= max_retries:
                             print("Persistent serial error. Disconnecting and reconnecting...")
-                            break  # Exit the inner loop to reconnect
+                            time.sleep(3)  # Cooldown before reconnecting
+                            break  # Exit loop to reconnect
         except (serial.SerialException, OSError) as e:
             print(f"Error accessing pH probe device: {e}. Reconnecting in 10 seconds...")
             time.sleep(10)
+
 
 def get_ph_reading():
     """
