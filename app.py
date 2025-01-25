@@ -15,6 +15,7 @@ from api.settings import load_settings
 from flask_socketio import SocketIO, emit
 from services.ph_service import get_latest_ph_reading
 from services.ph_service import latest_ph_value
+from flask import jsonify
 
 
 app = Flask(__name__)
@@ -119,3 +120,14 @@ if __name__ == '__main__':
         print("Application interrupted. Exiting...")
     finally:
         cleanup()
+
+@app.route('/api/ph/latest', methods=['GET'])
+def get_latest_ph():
+    """
+    API endpoint to fetch the latest pH reading.
+    """
+    ph_value = get_latest_ph_reading()
+    if ph_value is not None:
+        return jsonify({"status": "success", "ph": ph_value}), 200
+    else:
+        return jsonify({"status": "failure", "message": "No pH reading available."}), 404

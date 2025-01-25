@@ -28,7 +28,6 @@ def parse_buffer():
     log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
 
     while '\r' in buffer:  # Process complete lines
-        # Split the buffer at the first '\r'
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
@@ -43,10 +42,12 @@ def parse_buffer():
         # Handle calibration responses
         if line == "*OK":
             log_with_timestamp("Calibration successful.")
-            return {"status": "success", "message": "Calibration successful"}
+            buffer = buffer.replace("*OK", "", 1)  # Remove processed response
+            continue
         elif line == "*ER":
             log_with_timestamp("Calibration failed.")
-            return {"status": "failure", "message": "Calibration failed"}
+            buffer = buffer.replace("*ER", "", 1)  # Remove processed response
+            continue
 
         # Process pH values
         try:
@@ -75,7 +76,6 @@ def parse_buffer():
     # Log if buffer still contains partial data
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
-
 
 calibration_command = None  # Shared variable to hold the calibration command
 
@@ -143,8 +143,12 @@ def serial_reader():
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
 
-
 def calibrate_ph(level):
+    """
+    Calibrate the pH sensor at the specified level (low/mid/high/clear).
+    Sends the calibration command through the existing serial connection
+    and waits for a response (*OK or *ER).
+    """
     valid_levels = {
         'low': 'Cal,low,4.00',
         'mid': 'Cal,mid,7.00',
@@ -163,17 +167,20 @@ def calibrate_ph(level):
     last_command_sent = command
     log_with_timestamp(f"Calibration command '{command}' queued for execution.")
 
-    response_timeout = time.time() + 5
+    response_timeout = time.time() + 5  # Wait for a maximum of 5 seconds
     while time.time() < response_timeout:
         with ph_lock:
             if "*OK" in buffer:
-                buffer = buffer.replace("*OK", "", 1)
+                log_with_timestamp(f"Calibration successful for command: {command}")
+                buffer = buffer.replace("*OK", "", 1)  # Remove the processed response
                 return {"status": "success", "message": "Calibration successful"}
             elif "*ER" in buffer:
-                buffer = buffer.replace("*ER", "", 1)
+                log_with_timestamp(f"Calibration failed for command: {command}")
+                buffer = buffer.replace("*ER", "", 1)  # Remove the processed response
                 return {"status": "failure", "message": "Calibration failed"}
-        time.sleep(0.1)
+        time.sleep(0.1)  # Avoid busy waiting
 
+    log_with_timestamp(f"No calibration response received for command: {command}")
     return {"status": "failure", "message": "No response from pH probe"}
 
 
