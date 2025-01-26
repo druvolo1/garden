@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from services.ph_service import get_latest_ph_reading, calibrate_ph
+from services.ph_service import get_latest_ph_reading, calibrate_ph, get_serial_connection
 
 ph_blueprint = Blueprint('ph', __name__)
 
@@ -33,7 +33,17 @@ def ph_calibration(level):
             "message": f"Invalid calibration level: {level}. Must be one of {valid_levels}."
         }), 400
 
-    success = calibrate_ph(level)
+    # Get the serial connection
+    ser = get_serial_connection()  # Retrieve the serial connection object
+    
+    if ser is None:
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve the serial connection. Ensure the pH probe is properly configured and connected."
+        }), 500
+
+    # Pass the serial connection to calibrate_ph
+    success = calibrate_ph(ser, level)
     if success:
         return jsonify({
             "status": "success",
@@ -52,4 +62,3 @@ def latest_ph():
     if ph_value is not None:
         return jsonify({'ph': ph_value}), 200
     return jsonify({'error': 'No pH reading available'}), 404
-
