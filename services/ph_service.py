@@ -128,8 +128,8 @@ def serial_reader():
                                     log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
                                     buffer = ""  # Empty the buffer
                             parse_buffer(ser)
-                        else:
-                            log_with_timestamp("No data received in this read.")
+                        #else:
+                        #    log_with_timestamp("No data received in this read.")
 
                     except (serial.SerialException, OSError) as e:
                         log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
