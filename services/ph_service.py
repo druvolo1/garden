@@ -1,6 +1,7 @@
 from datetime import datetime
 import time
 import threading
+import eventlet
 from api.settings import load_settings
 from queue import Queue, Empty
 
@@ -190,7 +191,7 @@ def start_serial_reader():
 def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
     stop_event.set()
-    time.sleep(2)
+    eventlet.sleep(2)
     log_with_timestamp("Serial reader stopped.")
 
 
