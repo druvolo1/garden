@@ -142,6 +142,7 @@ def serial_reader():
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)
 
+
 def calibrate_ph(level):
     """
     Calibrate the pH sensor at the specified level (low/mid/high/clear).
