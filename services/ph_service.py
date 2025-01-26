@@ -27,7 +27,7 @@ def send_configuration_commands(ser):
     """
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
-        command = "C,2"
+        command = "C,5"
         ser.write((command + "\r").encode())  # Send the command as bytes
         command_queue.put({"command": command, "type": "configuration"})  # Track the command
         log_with_timestamp(f"Configuration command sent: {command}")
