@@ -71,7 +71,7 @@ def parse_buffer(ser):
                 raise ValueError(f"pH value out of range: {ph_value}")
 
             # Update the latest pH value (thread-safe)
-            log_with_timestamp(f"Valid pH value identified: {ph_value}")
+            #log_with_timestamp(f"Valid pH value identified: {ph_value}")
             with ph_lock:
                 latest_ph_value = ph_value  # Overwrite the current value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
