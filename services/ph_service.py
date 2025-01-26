@@ -78,7 +78,7 @@ def serial_reader():
     Centralized thread to manage the serial connection and populate the buffer.
     Handles both pH readings and calibration commands.
     """
-    global calibration_command
+    global calibration_command, buffer  # Explicitly declare 'buffer' as global
 
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -117,13 +117,15 @@ def serial_reader():
                         if raw_data:
                             decoded_data = raw_data.decode('utf-8', errors='replace')
                             log_with_timestamp(f"Raw data received: '{decoded_data}'")
+
+                            # Append data to the global buffer with the lock
                             with ph_lock:
                                 buffer += decoded_data  # Append to buffer
                                 if len(buffer) > MAX_BUFFER_LENGTH:
                                     log_with_timestamp("Buffer exceeded maximum length. Trimming.")
                                     buffer = buffer[-MAX_BUFFER_LENGTH:]
 
-                            # Process the buffer outside of the lock
+                            # Process the buffer
                             parse_buffer()
 
                         else:
@@ -136,6 +138,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
+
 
 def calibrate_ph(level):
     """
