@@ -116,7 +116,7 @@ def serial_reader():
             with serial.Serial(
                 ph_device,
                 9600,
-                timeout=1,
+                timeout=5,
                 bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE
