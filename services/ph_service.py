@@ -1,4 +1,3 @@
-from datetime import datetime
 import time
 import threading
 import eventlet
@@ -16,20 +15,37 @@ ph_lock = threading.Lock()  # Lock for thread-safe operations
 buffer = ""  # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
 last_sent_command = None  # Store the most recent command sent
-
-
+COMMAND_TIMEOUT = 10  # Timeout in seconds
+MAX_RETRIES = 5  # Maximum number of reconnection attempts
+RETRY_DELAY = 5  # Delay between retries in seconds
+last_command_time = None  # Global variable to track when the last command was sent
+MAX_BUFFER_LENGTH = 100  # Prevent excessive buffer growth
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-def send_configuration_commands(ser):
+def enqueue_command(command, command_type="general"):
+    """Enqueue a command to be sent to the serial device."""
+    command_queue.put({"command": command, "type": command_type})
+
+def send_command_to_probe(ser, command):
+    global last_sent_command, last_command_time
     try:
-        log_with_timestamp("Sending configuration commands to the pH probe...")
-        command = "C,2"
-        send_command_to_probe(ser, command)  # Directly send the command
+        log_with_timestamp(f"Sending command to probe: {command}")
+        ser.write((command + '\r').encode())
+        last_sent_command = command
+        last_command_time = datetime.now()
     except Exception as e:
-        log_with_timestamp(f"Error sending configuration commands: {e}")
+        log_with_timestamp(f"Error sending command '{command}': {e}")
+
+def check_command_timeout():
+    global last_sent_command, last_command_time
+    if last_sent_command and last_command_time:
+        if (datetime.now() - last_command_time).total_seconds() > COMMAND_TIMEOUT:
+            log_with_timestamp(f"Command '{last_sent_command}' timed out. Clearing it.")
+            last_sent_command = None
+            last_command_time = None
 
 def parse_buffer(ser):
     """
@@ -83,8 +99,6 @@ def parse_buffer(ser):
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 
-COMMAND_TIMEOUT = 10  # Timeout in seconds
-
 def serial_reader():
     global buffer, last_sent_command
 
@@ -95,7 +109,7 @@ def serial_reader():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    MAX_BUFFER_LENGTH = 100  # Prevent excessive buffer growth
+   
 
     while not stop_event.is_set():
         try:
@@ -142,6 +156,14 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)
+
+def send_configuration_commands(ser):
+    try:
+        log_with_timestamp("Sending configuration commands to the pH probe...")
+        command = "C,2"
+        send_command_to_probe(ser, command)  # Directly send the command
+    except Exception as e:
+        log_with_timestamp(f"Error sending configuration commands: {e}")
 
 def calibrate_ph(ser, level):
     valid_levels = {
@@ -192,25 +214,7 @@ def enqueue_calibration(level):
         "message": f"Calibration command '{command}' enqueued."
     }
 
-last_command_time = None  # Global variable to track when the last command was sent
 
-def send_command_to_probe(ser, command):
-    global last_sent_command, last_command_time
-    try:
-        log_with_timestamp(f"Sending command to probe: {command}")
-        ser.write((command + '\r').encode())
-        last_sent_command = command
-        last_command_time = datetime.now()
-    except Exception as e:
-        log_with_timestamp(f"Error sending command '{command}': {e}")
-
-def check_command_timeout():
-    global last_sent_command, last_command_time
-    if last_sent_command and last_command_time:
-        if (datetime.now() - last_command_time).total_seconds() > COMMAND_TIMEOUT:
-            log_with_timestamp(f"Command '{last_sent_command}' timed out. Clearing it.")
-            last_sent_command = None
-            last_command_time = None
 
 def get_last_sent_command():
     """
@@ -220,28 +224,6 @@ def get_last_sent_command():
     if last_sent_command:
         return last_sent_command
     return "No command has been sent yet."
-
-def get_serial_connection():
-    settings = load_settings()
-    ph_device = settings.get("usb_roles", {}).get("ph_probe")
-    if not ph_device:
-        log_with_timestamp("No pH probe device configured in settings.")
-        return None
-
-    try:
-        ser = serial.Serial(
-            ph_device,
-            9600,
-            timeout=1,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE
-        )
-        log_with_timestamp(f"Connected to pH probe device: {ph_device}")
-        return ser
-    except serial.SerialException as e:
-        log_with_timestamp(f"Failed to connect to pH probe device: {e}")
-        return None
 
 def start_serial_reader():
     stop_event.clear()
