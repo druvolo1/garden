@@ -180,7 +180,6 @@ def calibrate_ph(level):
     log_with_timestamp(f"No calibration response received for command: {command}")
     return {"status": "failure", "message": "No response from pH probe"}
 
-
 def start_serial_reader():
     stop_event.clear()
     thread = threading.Thread(target=serial_reader, daemon=True)
