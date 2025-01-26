@@ -14,33 +14,27 @@ ph_lock = threading.Lock()  # Lock for thread-safe operations
 
 buffer = ""  # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
+last_sent_command = None  # Store the most recent command sent
+
 
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-
 def send_configuration_commands(ser):
-    """
-    Send configuration commands to the pH probe and enqueue them for tracking.
-    Example: Set the polling interval to 2 seconds with the command 'C,2\r'.
-    """
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
         command = "C,5"
-        ser.write((command + "\r").encode())  # Send the command as bytes
-        command_queue.put({"command": command, "type": "configuration"})  # Track the command
-        log_with_timestamp(f"Configuration command sent: {command}")
+        send_command_to_probe(ser, command)  # Directly send the command
     except Exception as e:
         log_with_timestamp(f"Error sending configuration commands: {e}")
 
-
-def parse_buffer():
+def parse_buffer(ser):
     """
     Parse the shared buffer for responses and identify the context (e.g., configuration, calibration).
     """
-    global buffer, latest_ph_value
+    global buffer, latest_ph_value, last_sent_command
 
     while '\r' in buffer:  # Process complete lines
         # Split the buffer at the first '\r'
@@ -54,14 +48,20 @@ def parse_buffer():
 
         # Handle responses (*OK, *ER)
         if line in ("*OK", "*ER"):
-            if not command_queue.empty():
-                sent_command = command_queue.get()  # Dequeue the oldest command
-                if line == "*OK":
-                    log_with_timestamp(f"{sent_command['type'].capitalize()} command '{sent_command['command']}' acknowledged successfully.")
-                elif line == "*ER":
-                    log_with_timestamp(f"{sent_command['type'].capitalize()} command '{sent_command['command']}' failed.")
+            if last_sent_command:
+                log_with_timestamp(f"Response received for command: {last_sent_command}")
+                last_sent_command = None  # Reset after a valid response
+                # Optionally, you can expose this to the calibration page
             else:
-                log_with_timestamp(f"Unexpected response: {line} (no outstanding command)")
+                log_with_timestamp(f"Unexpected response: {line} (no command was sent)")
+
+            # Send the next command if the queue is not empty
+            if not command_queue.empty():
+                next_command = command_queue.get()
+                last_sent_command = next_command["command"]  # Update the last command sent
+                log_with_timestamp(f"Sending next command: {last_sent_command}")
+                send_command_to_probe(ser, next_command["command"])
+
             continue
 
         # Process pH values
@@ -83,11 +83,10 @@ def parse_buffer():
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 
-
 COMMAND_TIMEOUT = 10  # Timeout in seconds
 
 def serial_reader():
-    global buffer
+    global buffer, last_sent_command
 
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
@@ -115,29 +114,7 @@ def serial_reader():
 
                 while not stop_event.is_set():
                     try:
-                        # Check and remove stale commands from the queue
-                        if not command_queue.empty():
-                            current_time = datetime.now()
-                            stale_commands = []
-                            
-                            for _ in range(command_queue.qsize()):
-                                command_data = command_queue.get()
-                                if "timestamp" in command_data:
-                                    if (current_time - command_data["timestamp"]).total_seconds() > COMMAND_TIMEOUT:
-                                        log_with_timestamp(f"Removing stale {command_data['type']} command: {command_data['command']}")
-                                        continue  # Skip adding stale command back to the queue
-                                command_queue.put(command_data)  # Put it back if not stale
-
-                        # Send any new queued commands
-                        if not command_queue.empty():
-                            command_data = command_queue.get()  # Dequeue the next command
-                            command = command_data["command"]
-                            if "timestamp" not in command_data:
-                                command_data["timestamp"] = datetime.now()  # Add a timestamp
-                            command_queue.put(command_data)  # Requeue with updated timestamp
-                            log_with_timestamp(f"Sending {command_data['type']} command: {command}")
-                            ser.write((command + '\r').encode())  # Send the command
-
+                        check_command_timeout()  # Periodically check for timeouts
                         # Read data from the serial port
                         raw_data = ser.read(100)
                         if raw_data:
@@ -147,25 +124,20 @@ def serial_reader():
                                 if len(buffer) > MAX_BUFFER_LENGTH:
                                     log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
                                     buffer = ""  # Empty the buffer
-                            parse_buffer()
+                            parse_buffer(ser)
                         else:
                             log_with_timestamp("No data received in this read.")
 
                     except (serial.SerialException, OSError) as e:
                         log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
+                        last_sent_command = None
                         eventlet.sleep(5)
                         break  # Exit the loop to reconnect
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)
 
-
-def calibrate_ph(level):
-    """
-    Calibrate the pH sensor at the specified level (low/mid/high/clear).
-    Sends the calibration command through the existing serial connection
-    and waits for a response (*OK or *ER).
-    """
+def calibrate_ph(ser, level):
     valid_levels = {
         'low': 'Cal,low,4.00',
         'mid': 'Cal,mid,7.00',
@@ -177,13 +149,47 @@ def calibrate_ph(level):
         log_with_timestamp(f"Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
 
-    global command_queue
+    global last_sent_command
 
-    command = valid_levels[level]
-    command_queue.put({"command": command, "type": "calibration", "response_received": False})  # Track the command
-    log_with_timestamp(f"Calibration command '{command}' queued for execution.")
-    return {"status": "success", "message": f"Calibration command '{command}' queued"}
+    with ph_lock:  # Protect access to last_sent_command
+        command = valid_levels[level]
+        if last_sent_command is None:  # Send directly if no pending command
+            send_command_to_probe(ser, command)
+            last_sent_command = command
+            log_with_timestamp(f"Calibration command '{command}' sent.")
+            return {"status": "success", "message": f"Calibration command '{command}' sent"}
+        else:
+            log_with_timestamp(f"Cannot send calibration command '{command}' while waiting for a response.")
+            return {"status": "failure", "message": "A command is already in progress"}
 
+last_command_time = None  # Global variable to track when the last command was sent
+
+def send_command_to_probe(ser, command):
+    global last_sent_command, last_command_time
+    try:
+        log_with_timestamp(f"Sending command to probe: {command}")
+        ser.write((command + '\r').encode())
+        last_sent_command = command
+        last_command_time = datetime.now()
+    except Exception as e:
+        log_with_timestamp(f"Error sending command '{command}': {e}")
+
+def check_command_timeout():
+    global last_sent_command, last_command_time
+    if last_sent_command and last_command_time:
+        if (datetime.now() - last_command_time).total_seconds() > COMMAND_TIMEOUT:
+            log_with_timestamp(f"Command '{last_sent_command}' timed out. Clearing it.")
+            last_sent_command = None
+            last_command_time = None
+
+def get_last_sent_command():
+    """
+    Retrieve the last command sent to the probe.
+    """
+    global last_sent_command
+    if last_sent_command:
+        return last_sent_command
+    return "No command has been sent yet."
 
 def start_serial_reader():
     stop_event.clear()
@@ -218,6 +224,7 @@ def graceful_exit(signum, frame):
         # Perform cleanup operations directly
         stop_serial_reader()  # Stop the serial reader gracefully
         stop_event.set()      # Signal other threads to stop
+        last_sent_command = None  # Clear the last command before exit
     except Exception as e:
         log_with_timestamp(f"Error during cleanup: {e}")
     log_with_timestamp("Cleanup complete. Exiting application.")
