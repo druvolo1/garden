@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify
-from services.ph_service import get_latest_ph_reading, calibrate_ph, get_serial_connection
+from services.ph_service import enqueue_calibration, get_latest_ph_reading
 
+# Create a Blueprint for the pH API
 ph_blueprint = Blueprint('ph', __name__)
 
 @ph_blueprint.route('/', methods=['GET'])
@@ -26,34 +27,10 @@ def ph_calibration(level):
     """
     Calibrate the pH sensor at a specific level (low, mid, high, or clear).
     """
-    valid_levels = ['low', 'mid', 'high', 'clear']
-    if level not in valid_levels:
-        return jsonify({
-            "status": "error",
-            "message": f"Invalid calibration level: {level}. Must be one of {valid_levels}."
-        }), 400
-
-    # Get the serial connection
-    ser = get_serial_connection()  # Retrieve the serial connection object
-    
-    if ser is None:
-        return jsonify({
-            "status": "error",
-            "message": "Unable to retrieve the serial connection. Ensure the pH probe is properly configured and connected."
-        }), 500
-
-    # Pass the serial connection to calibrate_ph
-    success = calibrate_ph(ser, level)
-    if success:
-        return jsonify({
-            "status": "success",
-            "message": f"Calibration '{level}' completed successfully."
-        })
-
-    return jsonify({
-        "status": "error",
-        "message": f"Calibration '{level}' failed. Ensure the pH probe is connected and working."
-    }), 500
+    response = enqueue_calibration(level)
+    if response["status"] == "success":
+        return jsonify(response)
+    return jsonify(response), 400
 
 @ph_blueprint.route('/latest', methods=['GET'])
 def latest_ph():

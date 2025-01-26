@@ -95,11 +95,10 @@ def serial_reader():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    MAX_BUFFER_LENGTH = 100  # Limit buffer size to prevent excessive growth
+    MAX_BUFFER_LENGTH = 100  # Prevent excessive buffer growth
 
     while not stop_event.is_set():
         try:
-            import serial  # Only load serial in the reader thread
             with serial.Serial(
                 ph_device,
                 9600,
@@ -112,30 +111,34 @@ def serial_reader():
                 ser.flushInput()
                 ser.flushOutput()
 
-                # Call the send_configuration_commands function here. Add any configuration commands to that function
-                #send_configuration_commands(ser)
-
                 while not stop_event.is_set():
                     try:
-                        check_command_timeout()  # Periodically check for timeouts
+                        # Check for timeout on the last command
+                        check_command_timeout()
+
+                        # Process commands from the queue
+                        if not command_queue.empty():
+                            next_command = command_queue.get()
+                            send_command_to_probe(ser, next_command["command"])
+                            last_sent_command = next_command["command"]
+
                         # Read data from the serial port
                         raw_data = ser.read(100)
                         if raw_data:
                             decoded_data = raw_data.decode('utf-8', errors='replace')
                             with ph_lock:
-                                buffer += decoded_data  # Append to buffer
+                                buffer += decoded_data
                                 if len(buffer) > MAX_BUFFER_LENGTH:
                                     log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
-                                    buffer = ""  # Empty the buffer
+                                    buffer = ""
                             parse_buffer(ser)
-                        #else:
-                        #    log_with_timestamp("No data received in this read.")
 
                     except (serial.SerialException, OSError) as e:
                         log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
                         last_sent_command = None
                         eventlet.sleep(5)
-                        break  # Exit the loop to reconnect
+                        break
+
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)
