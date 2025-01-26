@@ -2,6 +2,7 @@ from datetime import datetime
 import time
 import threading
 import eventlet
+import signal
 from api.settings import load_settings
 from queue import Queue, Empty
 
@@ -134,11 +135,11 @@ def serial_reader():
 
                     except (serial.SerialException, OSError) as e:
                         log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
-                        time.sleep(5)
+                        eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
                         break  # Exit the loop to reconnect
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
-            time.sleep(10)
+            eventlet.sleep(10)  # Use eventlet.sleep instead of time.sleep
 
 
 def calibrate_ph(level):
@@ -176,24 +177,26 @@ def calibrate_ph(level):
                 log_with_timestamp(f"Calibration failed for command: {command}")
                 buffer = buffer.replace("*ER", "", 1)  # Remove the processed response
                 return {"status": "failure", "message": "Calibration failed"}
-        time.sleep(0.1)  # Avoid busy waiting
+        eventlet.sleep(0.1)  # Use eventlet.sleep instead of time.sleep
 
     log_with_timestamp(f"No calibration response received for command: {command}")
     return {"status": "failure", "message": "No response from pH probe"}
 
 def start_serial_reader():
     stop_event.clear()
-    thread = threading.Thread(target=serial_reader, daemon=True)
-    thread.start()
-    return thread
-
+    eventlet.spawn(serial_reader)
+    log_with_timestamp("Serial reader started with eventlet.")
 
 def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
     stop_event.set()
-    eventlet.sleep(2)
+    try:
+        eventlet.sleep(2)  # Or time.sleep(2) if using native threads
+    except SystemExit:
+        log_with_timestamp("SystemExit occurred during serial reader stop.")
+    except Exception as e:
+        log_with_timestamp(f"Error stopping serial reader: {e}")
     log_with_timestamp("Serial reader stopped.")
-
 
 def get_latest_ph_reading():
     global latest_ph_value
@@ -205,3 +208,18 @@ def get_latest_ph_reading():
                 return latest_ph_value
         log_with_timestamp("No pH reading available.")
         return None
+
+def graceful_exit(signum, frame):
+    log_with_timestamp(f"Received signal {signum}. Cleaning up...")
+    try:
+        # Perform cleanup operations directly
+        stop_serial_reader()  # Stop the serial reader gracefully
+        stop_event.set()      # Signal other threads to stop
+    except Exception as e:
+        log_with_timestamp(f"Error during cleanup: {e}")
+    log_with_timestamp("Cleanup complete. Exiting application.")
+    raise SystemExit()
+
+
+signal.signal(signal.SIGINT, graceful_exit)
+signal.signal(signal.SIGTERM, graceful_exit)
