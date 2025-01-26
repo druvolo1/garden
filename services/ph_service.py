@@ -20,12 +20,28 @@ def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
+def send_configuration_commands(ser):
+    """
+    Send configuration commands to the pH probe and track them.
+    Example: Set the polling interval to 2 seconds with the command 'C,2\r'.
+    """
+    global last_command_sent
+    try:
+        log_with_timestamp("Sending configuration commands to the pH probe...")
+        # Example command to set the polling interval to 2 seconds
+        command = "C,2"
+        ser.write((command + "\r").encode())  # Send the command as bytes
+        last_command_sent = command  # Track the command
+        log_with_timestamp("Polling interval set to 2 seconds.")
+        # Add more configuration commands here as needed, updating `last_command_sent` for each
+    except Exception as e:
+        log_with_timestamp(f"Error sending configuration commands: {e}")
+
 def parse_buffer():
     """
-    Parse the shared buffer for pH readings and calibration responses (*OK, *ER).
-    Unexpected lines are discarded if they end with '\r'.
+    Parse the shared buffer for responses and identify the context (e.g., configuration, calibration).
     """
-    global buffer, latest_ph_value
+    global buffer, latest_ph_value, last_command_sent
 
     while '\r' in buffer:  # Process complete lines
         # Split the buffer at the first '\r'
@@ -37,14 +53,24 @@ def parse_buffer():
             log_with_timestamp("Skipping empty line.")
             continue
 
-        # Handle calibration responses
+        # Handle responses based on the last command sent
         if line == "*OK":
-            log_with_timestamp("Calibration successful.")
-            buffer = buffer.replace("*OK", "", 1)  # Remove processed response
+            if last_command_sent == "C,2":
+                log_with_timestamp("Configuration command (polling interval) acknowledged successfully.")
+            elif last_command_sent and last_command_sent.startswith("Cal"):
+                log_with_timestamp(f"Calibration successful for command: {last_command_sent}")
+            else:
+                log_with_timestamp("Unexpected *OK response received.")
+            last_command_sent = None  # Clear the last command
             continue
         elif line == "*ER":
-            log_with_timestamp("Calibration failed.")
-            buffer = buffer.replace("*ER", "", 1)  # Remove processed response
+            if last_command_sent == "C,2":
+                log_with_timestamp("Configuration command (polling interval) failed.")
+            elif last_command_sent and last_command_sent.startswith("Cal"):
+                log_with_timestamp(f"Calibration failed for command: {last_command_sent}")
+            else:
+                log_with_timestamp("Unexpected *ER response received.")
+            last_command_sent = None  # Clear the last command
             continue
 
         # Process pH values
@@ -64,6 +90,7 @@ def parse_buffer():
 
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+
 
 
 calibration_command = None  # Shared variable to hold the calibration command
@@ -99,6 +126,9 @@ def serial_reader():
                 ser.flushInput()
                 ser.flushOutput()
 
+                # Call the configuration function after connection
+                send_configuration_commands(ser)
+
                 while not stop_event.is_set():
                     try:
                         # Handle calibration commands
@@ -117,8 +147,8 @@ def serial_reader():
                             with ph_lock:
                                 buffer += decoded_data  # Append to buffer
                                 if len(buffer) > MAX_BUFFER_LENGTH:
-                                    log_with_timestamp("Buffer exceeded maximum length. Trimming.")
-                                    buffer = buffer[-MAX_BUFFER_LENGTH:]
+                                    log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
+                                    buffer = "" #empty the buffer
 
                             # Process the buffer
                             parse_buffer()
@@ -133,6 +163,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)  # Use eventlet.sleep instead of time.sleep
+
 
 
 def calibrate_ph(level):
