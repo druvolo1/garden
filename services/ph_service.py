@@ -27,14 +27,14 @@ def parse_buffer():
     """
     global buffer, latest_ph_value
 
-    log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
+    #log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
 
     while '\r' in buffer:  # Process complete lines
         # Split the buffer at the first '\r'
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
-        log_with_timestamp(f"Processing line: '{line}'")
+        #log_with_timestamp(f"Processing line: '{line}'")
 
         # Skip empty lines
         if not line:
@@ -118,7 +118,7 @@ def serial_reader():
                         raw_data = ser.read(100)
                         if raw_data:
                             decoded_data = raw_data.decode('utf-8', errors='replace')
-                            log_with_timestamp(f"Raw data received: '{decoded_data}'")
+                            #log_with_timestamp(f"Raw data received: '{decoded_data}'")
 
                             # Append data to the global buffer with the lock
                             with ph_lock:
