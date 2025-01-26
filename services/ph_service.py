@@ -3,6 +3,7 @@ import time
 import threading
 import eventlet
 import signal
+import serial
 from api.settings import load_settings
 from queue import Queue
 from datetime import datetime, timedelta
@@ -190,6 +191,28 @@ def get_last_sent_command():
     if last_sent_command:
         return last_sent_command
     return "No command has been sent yet."
+
+def get_serial_connection():
+    settings = load_settings()
+    ph_device = settings.get("usb_roles", {}).get("ph_probe")
+    if not ph_device:
+        log_with_timestamp("No pH probe device configured in settings.")
+        return None
+
+    try:
+        ser = serial.Serial(
+            ph_device,
+            9600,
+            timeout=1,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE
+        )
+        log_with_timestamp(f"Connected to pH probe device: {ph_device}")
+        return ser
+    except serial.SerialException as e:
+        log_with_timestamp(f"Failed to connect to pH probe device: {e}")
+        return None
 
 def start_serial_reader():
     stop_event.clear()
