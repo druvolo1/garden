@@ -205,6 +205,12 @@ def graceful_exit(signum, frame):
     log_with_timestamp("Cleanup complete. Exiting application.")
     raise SystemExit()
 
+def handle_stop_signal(signum, frame):
+    log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
+    graceful_exit(signum, frame)  # Reuse the existing graceful exit logic
 
-signal.signal(signal.SIGINT, graceful_exit)
-signal.signal(signal.SIGTERM, graceful_exit)
+
+signal.signal(signal.SIGINT, graceful_exit)  # Handle CTRL-C
+signal.signal(signal.SIGTERM, graceful_exit)  # Handle termination signals
+signal.signal(signal.SIGTSTP, handle_stop_signal)  # Handle CTRL-Z
+
