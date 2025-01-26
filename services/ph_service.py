@@ -50,9 +50,8 @@ def parse_buffer(ser):
         # Handle responses (*OK, *ER)
         if line in ("*OK", "*ER"):
             if last_sent_command:
-                log_with_timestamp(f"Response received for command: {last_sent_command}")
+                log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
                 last_sent_command = None  # Reset after a valid response
-                # Optionally, you can expose this to the calibration page
             else:
                 log_with_timestamp(f"Unexpected response: {line} (no command was sent)")
 
