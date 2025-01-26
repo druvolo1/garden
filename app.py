@@ -2,7 +2,7 @@ import socket
 import time
 import threading
 import atexit
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO, emit
 from api.ph import ph_blueprint
 from api.pump import pump_blueprint
@@ -11,12 +11,7 @@ from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader
-from api.settings import load_settings
-from flask_socketio import SocketIO, emit
-from services.ph_service import get_latest_ph_reading
 from services.ph_service import latest_ph_value
-from flask import jsonify
-
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -47,10 +42,13 @@ def broadcast_ph_readings():
             if ph_value is not None and ph_value != last_emitted_value:
                 last_emitted_value = ph_value
                 socketio.emit('ph_update', {'ph': ph_value})  # Emit the value
-                print(f"Emitting pH update: {ph_value}")
+                print(f"[Broadcast] Emitting pH update: {ph_value}")
+            else:
+                print("[Broadcast] No new pH value to emit.")
             time.sleep(1)  # Check for updates every second
         except Exception as e:
-            print(f"Error broadcasting pH value: {e}")
+            print(f"[Broadcast] Error broadcasting pH value: {e}")
+
 
 
 # Start threads for background tasks
@@ -102,9 +100,11 @@ def settings():
     pi_ip = get_local_ip()
     return render_template('settings.html', pi_ip=pi_ip)
 
+
 @app.route('/calibration')
 def calibration():
     return render_template('calibration.html')
+
 
 @socketio.on('connect')
 def handle_connect():
@@ -112,14 +112,6 @@ def handle_connect():
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
 
-if __name__ == '__main__':
-    try:
-        start_threads()  # Start background tasks
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-    except KeyboardInterrupt:
-        print("Application interrupted. Exiting...")
-    finally:
-        cleanup()
 
 @app.route('/api/ph/latest', methods=['GET'])
 def get_latest_ph():
@@ -131,3 +123,14 @@ def get_latest_ph():
         return jsonify({"status": "success", "ph": ph_value}), 200
     else:
         return jsonify({"status": "failure", "message": "No pH reading available."}), 404
+
+
+# Run the application for development purposes
+if __name__ == '__main__':
+    try:
+        start_threads()  # Start background tasks
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True)  # For local development
+    except KeyboardInterrupt:
+        print("Application interrupted. Exiting...")
+    finally:
+        cleanup()
