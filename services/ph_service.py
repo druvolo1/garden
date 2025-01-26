@@ -26,7 +26,7 @@ def log_with_timestamp(message):
 def send_configuration_commands(ser):
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
-        command = "C,5"
+        command = "C,2"
         send_command_to_probe(ser, command)  # Directly send the command
     except Exception as e:
         log_with_timestamp(f"Error sending configuration commands: {e}")
@@ -113,7 +113,7 @@ def serial_reader():
                 ser.flushOutput()
 
                 # Call the send_configuration_commands function here. Add any configuration commands to that function
-                #send_configuration_commands(ser)
+                send_configuration_commands(ser)
 
                 while not stop_event.is_set():
                     try:
