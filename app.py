@@ -12,11 +12,18 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader
 from services.ph_service import latest_ph_value
+from datetime import datetime
+
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode="eventlet")  # or "gevent" if you switch to gevent
 stop_event = threading.Event()  # Event to stop background threads
 cleanup_called = False  # To avoid duplicate cleanup calls
+serial_reader_thread = None  # Global variable for tracking the serial reader thread
+
+def log_with_timestamp(message):
+    """Log messages with a timestamp."""
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
 
 # Function to get the Pi's local IP address
@@ -49,23 +56,22 @@ def broadcast_ph_readings():
         except Exception as e:
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
-
-
 # Start threads for background tasks
 def start_threads():
+    if stop_event.is_set():
+        log_with_timestamp("Background threads already stopped. Starting again.")
+    else:
+        log_with_timestamp("Background threads are running. Skipping redundant start.")
     stop_event.clear()
     threading.Thread(target=broadcast_ph_readings, daemon=True).start()
-    start_serial_reader()  # Start the centralized serial reader
+    start_serial_reader()
 
-
-# Stop threads gracefully
 def stop_threads():
+    """Stop all background threads."""
     print("Stopping background threads...")
-    stop_event.set()
-    stop_serial_reader()  # Stop the centralized serial reader
-    time.sleep(1)
+    stop_event.set()  # Signal threads to stop
+    stop_serial_reader()  # Properly stop the serial reader
     print("Background threads stopped.")
-
 
 # Cleanup function
 def cleanup():
@@ -105,22 +111,18 @@ def settings():
 def calibration():
     return render_template('calibration.html')
 
-
 @socketio.on('connect')
 def handle_connect():
+    """Handle new client connections."""
     print("Client connected")
     if not stop_event.is_set():
         print("Starting background threads...")
-        start_threads()  # Start background threads dynamically
+        start_threads()
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
 
-
 @app.route('/api/ph/latest', methods=['GET'])
 def get_latest_ph():
-    """
-    API endpoint to fetch the latest pH reading.
-    """
     ph_value = get_latest_ph_reading()
     if ph_value is not None:
         return jsonify({"status": "success", "ph": ph_value}), 200
