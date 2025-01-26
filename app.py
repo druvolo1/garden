@@ -14,7 +14,7 @@ from services.ph_service import get_latest_ph_reading, start_serial_reader, stop
 from services.ph_service import latest_ph_value
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode="eventlet")  # or "gevent" if you switch to gevent
 stop_event = threading.Event()  # Event to stop background threads
 cleanup_called = False  # To avoid duplicate cleanup calls
 
@@ -109,6 +109,9 @@ def calibration():
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
+    if not stop_event.is_set():
+        print("Starting background threads...")
+        start_threads()  # Start background threads dynamically
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
 
