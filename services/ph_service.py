@@ -5,6 +5,7 @@ import eventlet
 import signal
 from api.settings import load_settings
 from queue import Queue
+from datetime import datetime, timedelta
 
 # Shared queue for commands sent to the probe
 command_queue = Queue()  # Tracks sent commands and their types
@@ -81,11 +82,11 @@ def parse_buffer():
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
+
+
+COMMAND_TIMEOUT = 10  # Timeout in seconds
+
 def serial_reader():
-    """
-    Centralized thread to manage the serial connection, send commands, and populate the buffer.
-    Handles both pH readings and calibration/configuration commands.
-    """
     global buffer
 
     settings = load_settings()
@@ -114,10 +115,26 @@ def serial_reader():
 
                 while not stop_event.is_set():
                     try:
-                        # Send any queued commands
+                        # Check and remove stale commands from the queue
+                        if not command_queue.empty():
+                            current_time = datetime.now()
+                            stale_commands = []
+                            
+                            for _ in range(command_queue.qsize()):
+                                command_data = command_queue.get()
+                                if "timestamp" in command_data:
+                                    if (current_time - command_data["timestamp"]).total_seconds() > COMMAND_TIMEOUT:
+                                        log_with_timestamp(f"Removing stale {command_data['type']} command: {command_data['command']}")
+                                        continue  # Skip adding stale command back to the queue
+                                command_queue.put(command_data)  # Put it back if not stale
+
+                        # Send any new queued commands
                         if not command_queue.empty():
                             command_data = command_queue.get()  # Dequeue the next command
                             command = command_data["command"]
+                            if "timestamp" not in command_data:
+                                command_data["timestamp"] = datetime.now()  # Add a timestamp
+                            command_queue.put(command_data)  # Requeue with updated timestamp
                             log_with_timestamp(f"Sending {command_data['type']} command: {command}")
                             ser.write((command + '\r').encode())  # Send the command
 
@@ -163,9 +180,10 @@ def calibrate_ph(level):
     global command_queue
 
     command = valid_levels[level]
-    command_queue.put({"command": command, "type": "calibration"})  # Track the command
+    command_queue.put({"command": command, "type": "calibration", "response_received": False})  # Track the command
     log_with_timestamp(f"Calibration command '{command}' queued for execution.")
     return {"status": "success", "message": f"Calibration command '{command}' queued"}
+
 
 def start_serial_reader():
     stop_event.clear()
