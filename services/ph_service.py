@@ -32,7 +32,6 @@ def parse_buffer():
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
-        # Log the line being processed
         log_with_timestamp(f"Processing line: '{line}'")
 
         # Skip empty lines
@@ -52,29 +51,22 @@ def parse_buffer():
 
         # Process pH values
         try:
-            # Validate line as pH value
-            if len(line) < 3 or len(line) > 6 or not line.replace('.', '', 1).isdigit():
-                raise ValueError(f"Unexpected response or invalid line format: {line}")
-
             ph_value = round(float(line), 2)
             if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                 raise ValueError(f"pH value out of range: {ph_value}")
 
             # Update the latest pH value and add to the queue
+            log_with_timestamp(f"Valid pH value identified: {ph_value}")
             with ph_lock:
-                log_with_timestamp(f"Valid pH value identified: {ph_value}")
                 latest_ph_value = ph_value
                 if ph_reading_queue.full():
-                    log_with_timestamp("Queue is full. Removing oldest value.")
                     ph_reading_queue.get_nowait()  # Remove the oldest entry
                 ph_reading_queue.put(ph_value)
                 log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
 
         except ValueError as e:
-            # Log unexpected or invalid lines and discard them
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
-    # Log if buffer still contains partial data
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
@@ -82,6 +74,10 @@ def parse_buffer():
 calibration_command = None  # Shared variable to hold the calibration command
 
 def serial_reader():
+    """
+    Centralized thread to manage the serial connection and populate the buffer.
+    Handles both pH readings and calibration commands.
+    """
     global calibration_command
 
     settings = load_settings()
@@ -91,7 +87,7 @@ def serial_reader():
         log_with_timestamp("No pH probe device assigned.")
         return
 
-    MAX_BUFFER_LENGTH = 100
+    MAX_BUFFER_LENGTH = 100  # Limit buffer size to prevent excessive growth
 
     while not stop_event.is_set():
         try:
@@ -110,28 +106,33 @@ def serial_reader():
 
                 while not stop_event.is_set():
                     try:
+                        # Handle calibration commands
                         if calibration_command:
                             log_with_timestamp(f"Sending calibration command: {calibration_command}")
                             ser.write((calibration_command + '\r').encode())
-                            calibration_command = None
+                            calibration_command = None  # Clear the command after sending
 
+                        # Read data from the serial port
                         raw_data = ser.read(100)
                         if raw_data:
-                            # Clean incoming data and append to buffer
                             decoded_data = raw_data.decode('utf-8', errors='replace')
-                            cleaned_data = ''.join(c if 32 <= ord(c) <= 126 or c == '\r' else '' for c in decoded_data)
+                            log_with_timestamp(f"Raw data received: '{decoded_data}'")
                             with ph_lock:
-                                global buffer
-                                buffer += cleaned_data
+                                buffer += decoded_data  # Append to buffer
                                 if len(buffer) > MAX_BUFFER_LENGTH:
-                                    buffer = buffer[-MAX_BUFFER_LENGTH:]  # Retain last MAX_BUFFER_LENGTH chars
-                                parse_buffer()
+                                    log_with_timestamp("Buffer exceeded maximum length. Trimming.")
+                                    buffer = buffer[-MAX_BUFFER_LENGTH:]
+
+                            # Process the buffer outside of the lock
+                            parse_buffer()
+
                         else:
                             log_with_timestamp("No data received in this read.")
+
                     except (serial.SerialException, OSError) as e:
                         log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
                         time.sleep(5)
-                        break
+                        break  # Exit the loop to reconnect
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             time.sleep(10)
