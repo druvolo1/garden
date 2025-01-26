@@ -43,8 +43,8 @@ def broadcast_ph_readings():
                 last_emitted_value = ph_value
                 socketio.emit('ph_update', {'ph': ph_value})  # Emit the value
                 print(f"[Broadcast] Emitting pH update: {ph_value}")
-            else:
-                print("[Broadcast] No new pH value to emit.")
+            #else:
+            #    print("[Broadcast] No new pH value to emit.")
             time.sleep(1)  # Check for updates every second
         except Exception as e:
             print(f"[Broadcast] Error broadcasting pH value: {e}")

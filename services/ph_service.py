@@ -27,14 +27,10 @@ def parse_buffer():
     """
     global buffer, latest_ph_value
 
-    #log_with_timestamp(f"Starting buffer parsing. Current buffer: '{buffer}'")
-
     while '\r' in buffer:  # Process complete lines
         # Split the buffer at the first '\r'
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
-
-        #log_with_timestamp(f"Processing line: '{line}'")
 
         # Skip empty lines
         if not line:
@@ -57,14 +53,11 @@ def parse_buffer():
             if not (0.0 <= ph_value <= 14.0):  # Validate pH range
                 raise ValueError(f"pH value out of range: {ph_value}")
 
-            # Update the latest pH value and add to the queue
+            # Update the latest pH value (thread-safe)
             log_with_timestamp(f"Valid pH value identified: {ph_value}")
             with ph_lock:
-                latest_ph_value = ph_value
-                if ph_reading_queue.full():
-                    ph_reading_queue.get_nowait()  # Remove the oldest entry
-                ph_reading_queue.put(ph_value)
-                log_with_timestamp(f"pH value {ph_value} added to queue. Queue size: {ph_reading_queue.qsize()}")
+                latest_ph_value = ph_value  # Overwrite the current value
+                log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
 
         except ValueError as e:
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
@@ -199,15 +192,15 @@ def stop_serial_reader():
     log_with_timestamp("Serial reader stopped.")
 
 def get_latest_ph_reading():
+    """
+    Retrieve the most recent pH value.
+    """
     global latest_ph_value
-    try:
-        return ph_reading_queue.get_nowait()
-    except Empty:
-        with ph_lock:
-            if latest_ph_value is not None:
-                return latest_ph_value
-        log_with_timestamp("No pH reading available.")
-        return None
+    with ph_lock:
+        if latest_ph_value is not None:
+            return latest_ph_value
+    log_with_timestamp("No pH reading available.")
+    return None
 
 def graceful_exit(signum, frame):
     log_with_timestamp(f"Received signal {signum}. Cleaning up...")
