@@ -116,7 +116,7 @@ def serial_reader():
             with serial.Serial(
                 ph_device,
                 9600,
-                timeout=5,
+                timeout=1,
                 bytesize=serial.EIGHTBITS,
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE
@@ -225,10 +225,18 @@ def get_last_sent_command():
         return last_sent_command
     return "No command has been sent yet."
 
+serial_reader_thread = None  # Add this global variable
+
 def start_serial_reader():
+    global serial_reader_thread
+    if serial_reader_thread is not None and serial_reader_thread.is_alive():
+        log_with_timestamp("Serial reader is already running.")
+        return
     stop_event.clear()
-    eventlet.spawn(serial_reader)
-    log_with_timestamp("Serial reader started with eventlet.")
+    serial_reader_thread = threading.Thread(target=serial_reader, daemon=True)
+    serial_reader_thread.start()
+    log_with_timestamp("Serial reader started.")
+
 
 def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
