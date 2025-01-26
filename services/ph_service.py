@@ -14,6 +14,9 @@ ph_lock = threading.Lock()  # Lock for thread-safe operations
 buffer = ""  # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
 
+if __name__ == "__main__":
+    start_serial_reader()  # Start the serial reader explicitly
+    app.run(host="0.0.0.0", port=5000)
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
