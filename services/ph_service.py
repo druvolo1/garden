@@ -81,11 +81,10 @@ def parse_buffer():
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
-
 def serial_reader():
     """
-    Centralized thread to manage the serial connection and populate the buffer.
-    Handles both pH readings and calibration commands.
+    Centralized thread to manage the serial connection, send commands, and populate the buffer.
+    Handles both pH readings and calibration/configuration commands.
     """
     global buffer
 
@@ -113,11 +112,15 @@ def serial_reader():
                 ser.flushInput()
                 ser.flushOutput()
 
-                # Call the configuration function after connection
-                #send_configuration_commands(ser)
-
                 while not stop_event.is_set():
                     try:
+                        # Send any queued commands
+                        if not command_queue.empty():
+                            command_data = command_queue.get()  # Dequeue the next command
+                            command = command_data["command"]
+                            log_with_timestamp(f"Sending {command_data['type']} command: {command}")
+                            ser.write((command + '\r').encode())  # Send the command
+
                         # Read data from the serial port
                         raw_data = ser.read(100)
                         if raw_data:
@@ -138,7 +141,6 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
             eventlet.sleep(10)
-
 
 def calibrate_ph(level):
     """
