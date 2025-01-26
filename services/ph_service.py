@@ -113,7 +113,7 @@ def serial_reader():
                 ser.flushOutput()
 
                 # Call the send_configuration_commands function here. Add any configuration commands to that function
-                send_configuration_commands(ser)
+                #send_configuration_commands(ser)
 
                 while not stop_event.is_set():
                     try:
