@@ -168,6 +168,30 @@ def calibrate_ph(ser, level):
             log_with_timestamp(f"Cannot send calibration command '{command}' while waiting for a response.")
             return {"status": "failure", "message": "A command is already in progress"}
 
+def enqueue_calibration(level):
+    """
+    Add a calibration command to the command queue.
+    """
+    valid_levels = {
+        'low': 'Cal,low,4.00',
+        'mid': 'Cal,mid,7.00',
+        'high': 'Cal,high,10.00',
+        'clear': 'Cal,clear'
+    }
+    
+    if level not in valid_levels:
+        return {
+            "status": "failure",
+            "message": f"Invalid calibration level: {level}. Must be one of {list(valid_levels.keys())}."
+        }
+    
+    command = valid_levels[level]
+    command_queue.put({"command": command, "type": "calibration"})
+    return {
+        "status": "success",
+        "message": f"Calibration command '{command}' enqueued."
+    }
+
 last_command_time = None  # Global variable to track when the last command was sent
 
 def send_command_to_probe(ser, command):
