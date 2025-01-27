@@ -46,6 +46,7 @@ def broadcast_ph_readings():
     while not stop_event.is_set():
         try:
             ph_value = get_latest_ph_reading()  # Get the latest value
+            ph_value = round(ph_value, 2)  # Round to 2 decimal places
             if ph_value is not None and ph_value != last_emitted_value:
                 last_emitted_value = ph_value
                 socketio.emit('ph_update', {'ph': ph_value})  # Emit the value
