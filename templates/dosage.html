@@ -1,0 +1,27 @@
+<!-- File: templates/dosage.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dosage Info</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navigation (optional) -->
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/calibration">Calibration</a></li>
+            <li><a href="/settings">Settings</a></li>
+            <li><a href="/dosage">Dosage</a></li>
+        </ul>
+    </nav>
+
+    <h1>Dosage Status</h1>
+    <p><strong>Current pH:</strong> {{ dosage_data.current_ph }}</p>
+    <p><strong>System Volume:</strong> {{ dosage_data.system_volume }}</p>
+    <p><strong>Auto Dosing Enabled:</strong> {{ dosage_data.auto_dosing_enabled }}</p>
+    <p><strong>pH Target:</strong> {{ dosage_data.ph_target }}</p>
+
+</body>
+</html>

@@ -18,6 +18,7 @@ from services.device_config import (
     get_hostname, set_hostname, get_ip_config, set_ip_config, get_timezone, set_timezone,
     is_daylight_savings, get_ntp_server, set_ntp_server, get_wifi_config, set_wifi_config
 )
+from services.dosage_service import get_dosage_info
 
 
 app = Flask(__name__)
@@ -139,6 +140,14 @@ def get_latest_ph():
         return jsonify({"status": "success", "ph": ph_value}), 200
     else:
         return jsonify({"status": "failure", "message": "No pH reading available."}), 404
+
+@app.route('/dosage')
+def dosage_page():
+    """
+    Render a page that shows the current pH, system volume, auto-dosing status, and target pH.
+    """
+    dosage_data = get_dosage_info()
+    return render_template('dosage.html', dosage_data=dosage_data)
 
 @app.route('/api/device/config', methods=['GET', 'POST'])
 def device_config():
