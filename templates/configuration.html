@@ -67,7 +67,7 @@
     </section>
     
     <script>
-        $(document).ready(function () {
+       $(document).ready(function () {
             // Fetch initial configuration
             $.get('/api/device/config', function (data) {
                 if (data.status === 'success') {
@@ -88,7 +88,7 @@
             // Save Hostname
             $('#save-hostname').click(function () {
                 const hostname = $('#hostname').val();
-                $.post('/api/device/config', { hostname });
+                $.post('/api/device/config', JSON.stringify({ hostname }), 'json');
             });
 
             // Save Network Settings
@@ -98,7 +98,7 @@
                 const subnet_mask = $('#subnet-mask').val();
                 const gateway = $('#gateway').val();
                 const dns_server = $('#dns-server').val();
-                $.post('/api/device/config', { dhcp, ip_address, subnet_mask, gateway, dns_server });
+                $.post('/api/device/config', JSON.stringify({ dhcp, ip_address, subnet_mask, gateway, dns_server }), 'json');
             });
 
             // Save Time Settings
@@ -106,14 +106,14 @@
                 const timezone = $('#timezone').val();
                 const daylight_savings = $('#daylight-savings').is(':checked');
                 const ntp_server = $('#ntp-server').val();
-                $.post('/api/device/config', { timezone, daylight_savings, ntp_server });
+                $.post('/api/device/config', JSON.stringify({ timezone, daylight_savings, ntp_server }), 'json');
             });
 
             // Save WiFi Settings
             $('#save-wifi').click(function () {
                 const wifi_ssid = $('#wifi-ssid').val();
                 const wifi_password = $('#wifi-password').val();
-                $.post('/api/device/config', { wifi_ssid, wifi_password });
+                $.post('/api/device/config', JSON.stringify({ wifi_ssid, wifi_password }), 'json');
             });
 
             // Toggle DHCP
@@ -122,6 +122,7 @@
                 $('#ip-address, #subnet-mask, #gateway, #dns-server').prop('disabled', use_dhcp);
             });
         });
+      
     </script>
 </body>
 </html>
