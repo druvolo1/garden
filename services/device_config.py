@@ -40,6 +40,7 @@ def get_ip_config(interface):
 
         # Parse the output
         config = {"dhcp": dhcp}
+        dns_servers = []
         for line in ip_output.splitlines():
             key, value = line.split(":", 1)
             if "IP4.ADDRESS" in key:
@@ -47,10 +48,11 @@ def get_ip_config(interface):
             elif "IP4.GATEWAY" in key:
                 config["gateway"] = value.strip()
             elif "IP4.DNS" in key:
-                config["dns_server"] = config.get("dns_server", "") + value.strip() + "\n"
+                dns_servers.append(value.strip())
 
-        # Remove trailing newlines in DNS server
-        config["dns_server"] = config["dns_server"].strip()
+        # Assign individual DNS entries
+        config["dns1"] = dns_servers[0] if len(dns_servers) > 0 else None
+        config["dns2"] = dns_servers[1] if len(dns_servers) > 1 else None
 
         # Add a default subnet mask if none is provided
         config["subnet_mask"] = "255.255.255.0"  # Placeholder; customize if necessary
@@ -59,7 +61,7 @@ def get_ip_config(interface):
     except Exception as e:
         raise RuntimeError(f"Error retrieving configuration for {interface}: {e}")
 
-def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns_server=None):
+def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns1=None, dns2=None):
     """
     Set the IP configuration for a specific interface (e.g., eth0, wlan0).
     """
@@ -74,18 +76,18 @@ iface {interface} inet dhcp
 """)
             else:
                 # Configure Static IP
+                dns_servers = f"{dns1} {dns2}".strip()
                 file.write(f"""
 auto {interface}
 iface {interface} inet static
     address {ip_address}
     netmask {subnet_mask}
     gateway {gateway}
-    dns-nameservers {dns_server}
+    dns-nameservers {dns_servers}
 """)
         subprocess.run(["systemctl", "restart", "networking"], check=True)
     except Exception as e:
         raise RuntimeError(f"Failed to set IP configuration for {interface}: {e}")
-
 
 def get_timezone():
     """Retrieve the current timezone."""
@@ -138,6 +140,7 @@ network={{
 }}
 """)
     subprocess.run(["wpa_cli", "-i", "wlan0", "reconfigure"], check=True)
+
 
 # Utility functions
 def extract_ip_address(ip_output):
