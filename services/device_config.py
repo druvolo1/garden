@@ -65,27 +65,29 @@ def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=No
     """
     Set the IP configuration for a specific interface (e.g., eth0, wlan0).
     """
-    interface_file = f"/etc/network/interfaces.d/{interface}"
     try:
-        with open(interface_file, "w") as file:
-            if dhcp:
-                # Configure DHCP
-                file.write(f"""
-auto {interface}
-iface {interface} inet dhcp
-""")
-            else:
-                # Configure Static IP
-                dns_servers = f"{dns1} {dns2}".strip()
-                file.write(f"""
-auto {interface}
-iface {interface} inet static
-    address {ip_address}
-    netmask {subnet_mask}
-    gateway {gateway}
-    dns-nameservers {dns_servers}
-""")
-        subprocess.run(["systemctl", "restart", "networking"], check=True)
+        if dhcp:
+            # Configure DHCP
+            subprocess.run(
+                ["nmcli", "con", "mod", interface, "ipv4.method", "auto"],
+                check=True,
+            )
+        else:
+            # Configure Static IP
+            dns_servers = ",".join(filter(None, [dns1, dns2]))
+            subprocess.run(
+                [
+                    "nmcli", "con", "mod", interface,
+                    "ipv4.addresses", f"{ip_address}/{subnet_mask}",
+                    "ipv4.gateway", gateway,
+                    "ipv4.dns", dns_servers,
+                    "ipv4.method", "manual"
+                ],
+                check=True,
+            )
+        # Apply the changes
+        subprocess.run(["nmcli", "con", "up", interface], check=True)
+
     except Exception as e:
         raise RuntimeError(f"Failed to set IP configuration for {interface}: {e}")
 
@@ -95,6 +97,13 @@ def get_timezone():
 
 def set_timezone(timezone):
     """Set the system timezone."""
+    valid_timezones = subprocess.check_output(
+        ["timedatectl", "list-timezones"]
+    ).decode().splitlines()
+
+    if timezone not in valid_timezones:
+        raise ValueError(f"Invalid timezone: {timezone}")
+
     subprocess.run(["timedatectl", "set-timezone", timezone], check=True)
 
 def is_daylight_savings():
