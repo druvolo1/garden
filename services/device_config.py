@@ -9,6 +9,10 @@ def set_hostname(hostname):
     """Set a new hostname."""
     subprocess.run(["hostnamectl", "set-hostname", hostname], check=True)
 
+def clean_nmcli_field(value):
+    """Remove any array-like field identifiers (e.g., IP4.ADDRESS[1])."""
+    return value.split(":")[-1].strip()
+
 def get_ip_config(interface="wlan0"):
     """
     Retrieve the IP configuration for the specified interface, inferring DHCP status from other fields.
@@ -20,7 +24,7 @@ def get_ip_config(interface="wlan0"):
             ip_output = subprocess.check_output(
                 ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", interface]
             ).decode().strip()
-            ip_address = ip_output.split("/")[0] if ip_output else "Not available"
+            ip_address = clean_nmcli_field(ip_output) if ip_output else "Not available"
         except subprocess.CalledProcessError:
             ip_address = "Not available"
 
@@ -30,7 +34,7 @@ def get_ip_config(interface="wlan0"):
             gateway_output = subprocess.check_output(
                 ["nmcli", "-t", "-f", "IP4.GATEWAY", "device", "show", interface]
             ).decode().strip()
-            gateway = gateway_output if gateway_output else "Not available"
+            gateway = clean_nmcli_field(gateway_output) if gateway_output else "Not available"
         except subprocess.CalledProcessError:
             gateway = "Not available"
 
@@ -40,7 +44,7 @@ def get_ip_config(interface="wlan0"):
             dns_output = subprocess.check_output(
                 ["nmcli", "-t", "-f", "IP4.DNS", "device", "show", interface]
             ).decode().strip()
-            dns_server = dns_output if dns_output else "Not available"
+            dns_server = "\n".join([clean_nmcli_field(line) for line in dns_output.splitlines()])
         except subprocess.CalledProcessError:
             dns_server = "Not available"
 

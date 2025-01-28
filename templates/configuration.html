@@ -81,111 +81,91 @@
                     $('#hostname').val(config.hostname);
 
                     // Ethernet config
-                    const eth0 = config.eth0;
-                    $('#eth0-dhcp').prop('checked', eth0.dhcp);
+                    const eth0 = config.eth0 || {};
+                    $('#eth0-dhcp').prop('checked', eth0.dhcp || false);
                     if (eth0.dhcp) {
                         $('#eth0-static-config').hide();
                     } else {
-                        $('#eth0-ip').val(eth0.ip_address);
-                        $('#eth0-subnet').val(eth0.subnet_mask);
-                        $('#eth0-gateway').val(eth0.gateway);
-                        $('#eth0-dns').val(eth0.dns_server);
+                        $('#eth0-ip').val(eth0.ip_address || '');
+                        $('#eth0-subnet').val(eth0.subnet_mask || '');
+                        $('#eth0-gateway').val(eth0.gateway || '');
+                        $('#eth0-dns').val(eth0.dns_server || '');
                     }
 
                     // Wi-Fi config
-                    const wlan0 = config.wlan0;
-                    $('#wlan0-dhcp').prop('checked', wlan0.dhcp);
+                    const wlan0 = config.wlan0 || {};
+                    $('#wlan0-dhcp').prop('checked', wlan0.dhcp || false);
                     if (wlan0.dhcp) {
                         $('#wlan0-static-config').hide();
                     } else {
-                        $('#wlan0-ip').val(wlan0.ip_address);
-                        $('#wlan0-subnet').val(wlan0.subnet_mask);
-                        $('#wlan0-gateway').val(wlan0.gateway);
-                        $('#wlan0-dns').val(wlan0.dns_server);
+                        $('#wlan0-ip').val(wlan0.ip_address || '');
+                        $('#wlan0-subnet').val(wlan0.subnet_mask || '');
+                        $('#wlan0-gateway').val(wlan0.gateway || '');
+                        $('#wlan0-dns').val(wlan0.dns_server || '');
                     }
-                    $('#wifi-ssid').val(wlan0.ssid);
+                    $('#wifi-ssid').val(wlan0.ssid || '');
 
                     // Time config
-                    $('#timezone').val(config.timezone);
-                    $('#daylight-savings').prop('checked', config.daylight_savings);
-                    $('#ntp-server').val(config.ntp_server);
+                    $('#timezone').val(config.timezone || '');
+                    $('#daylight-savings').prop('checked', config.daylight_savings || false);
+                    $('#ntp-server').val(config.ntp_server || '');
                 }
             });
 
             // Toggle visibility of static IP fields based on DHCP checkbox
             $('#eth0-dhcp').change(function () {
-                if ($(this).is(':checked')) {
-                    $('#eth0-static-config').hide();
-                } else {
-                    $('#eth0-static-config').show();
-                }
+                $('#eth0-static-config').toggle(!$(this).is(':checked'));
             });
 
             $('#wlan0-dhcp').change(function () {
-                if ($(this).is(':checked')) {
-                    $('#wlan0-static-config').hide();
-                } else {
-                    $('#wlan0-static-config').show();
-                }
+                $('#wlan0-static-config').toggle(!$(this).is(':checked'));
             });
 
             // Save button actions
             $('#save-hostname').click(function () {
                 const hostname = $('#hostname').val();
-                $.post('/api/device/config', { hostname: hostname }, function (data) {
+                $.post('/api/device/config', { hostname }, function (data) {
                     alert(data.message);
                 });
             });
 
             $('#save-eth0').click(function () {
-                const dhcp = $('#eth0-dhcp').is(':checked');
-                const ip_address = $('#eth0-ip').val();
-                const subnet_mask = $('#eth0-subnet').val();
-                const gateway = $('#eth0-gateway').val();
-                const dns_server = $('#eth0-dns').val();
-                $.post('/api/device/config', {
+                const payload = {
                     interface: 'eth0',
-                    dhcp: dhcp,
-                    ip_address: ip_address,
-                    subnet_mask: subnet_mask,
-                    gateway: gateway,
-                    dns_server: dns_server
-                }, function (data) {
+                    dhcp: $('#eth0-dhcp').is(':checked'),
+                    ip_address: $('#eth0-ip').val(),
+                    subnet_mask: $('#eth0-subnet').val(),
+                    gateway: $('#eth0-gateway').val(),
+                    dns_server: $('#eth0-dns').val(),
+                };
+                $.post('/api/device/config', payload, function (data) {
                     alert(data.message);
                 });
             });
 
             $('#save-wlan0').click(function () {
-                const dhcp = $('#wlan0-dhcp').is(':checked');
-                const ip_address = $('#wlan0-ip').val();
-                const subnet_mask = $('#wlan0-subnet').val();
-                const gateway = $('#wlan0-gateway').val();
-                const dns_server = $('#wlan0-dns').val();
-                const ssid = $('#wifi-ssid').val();
-                const password = $('#wifi-password').val();
-                $.post('/api/device/config', {
+                const payload = {
                     interface: 'wlan0',
-                    dhcp: dhcp,
-                    ip_address: ip_address,
-                    subnet_mask: subnet_mask,
-                    gateway: gateway,
-                    dns_server: dns_server,
-                    wifi_ssid: ssid,
-                    wifi_password: password
-                }, function (data) {
+                    dhcp: $('#wlan0-dhcp').is(':checked'),
+                    ip_address: $('#wlan0-ip').val(),
+                    subnet_mask: $('#wlan0-subnet').val(),
+                    gateway: $('#wlan0-gateway').val(),
+                    dns_server: $('#wlan0-dns').val(),
+                    wifi_ssid: $('#wifi-ssid').val(),
+                    wifi_password: $('#wifi-password').val(),
+                };
+                $.post('/api/device/config', payload, function (data) {
                     alert(data.message);
                 });
             });
 
             $('#save-time').click(function () {
-                const timezone = $('#timezone').val();
-                const daylight_savings = $('#daylight-savings').is(':checked');
-                const ntp_server = $('#ntp-server').val();
-                $.post('/api/device/config', {
-                    timezone: timezone,
-                    daylight_savings: daylight_savings,
-                    ntp_server: ntp_server
-                }, function (data) {
+                const payload = {
+                    timezone: $('#timezone').val(),
+                    daylight_savings: $('#daylight-savings').is(':checked'),
+                    ntp_server: $('#ntp-server').val(),
+                };
+                $.post('/api/device/config', payload, function (data) {
                     alert(data.message);
                 });
             });
