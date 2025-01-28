@@ -13,58 +13,51 @@ def clean_nmcli_field(value):
     """Remove any array-like field identifiers (e.g., IP4.ADDRESS[1])."""
     return value.split(":")[-1].strip()
 
-def get_ip_config(interface="wlan0"):
+def get_ip_config(interface):
     """
-    Retrieve the IP configuration for the specified interface, inferring DHCP status from other fields.
+    Retrieve the IP address, subnet mask, gateway, and DNS server for the specified interface.
     """
     try:
-        # Extract IP address
-        ip_address = None
-        try:
-            ip_output = subprocess.check_output(
-                ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", interface]
-            ).decode().strip()
-            ip_address = clean_nmcli_field(ip_output) if ip_output else "Not available"
-        except subprocess.CalledProcessError:
-            ip_address = "Not available"
+        # Check if the interface is active
+        active_status = subprocess.run(
+            ["nmcli", "-t", "-f", "GENERAL.STATE", "device", "show", interface],
+            capture_output=True, text=True
+        )
+        if "connected" not in active_status.stdout.lower():
+            return {"status": "inactive", "dhcp": False, "ip_address": "Not connected"}
 
-        # Extract gateway
-        gateway = None
-        try:
-            gateway_output = subprocess.check_output(
-                ["nmcli", "-t", "-f", "IP4.GATEWAY", "device", "show", interface]
-            ).decode().strip()
-            gateway = clean_nmcli_field(gateway_output) if gateway_output else "Not available"
-        except subprocess.CalledProcessError:
-            gateway = "Not available"
+        # Check DHCP status
+        dhcp_status = subprocess.run(
+            ["nmcli", "-t", "-f", "IP4.METHOD", "device", "show", interface],
+            capture_output=True, text=True
+        )
+        dhcp = "auto" in dhcp_status.stdout.lower()
 
-        # Extract DNS servers
-        dns_server = None
-        try:
-            dns_output = subprocess.check_output(
-                ["nmcli", "-t", "-f", "IP4.DNS", "device", "show", interface]
-            ).decode().strip()
-            dns_server = "\n".join([clean_nmcli_field(line) for line in dns_output.splitlines()])
-        except subprocess.CalledProcessError:
-            dns_server = "Not available"
+        # Get network details
+        ip_output = subprocess.check_output(
+            ["nmcli", "-t", "-f", "IP4.ADDRESS,IP4.GATEWAY,IP4.DNS", "device", "show", interface]
+        ).decode()
 
-        # Infer DHCP status
-        dhcp_enabled = False
-        if gateway == "Not available" and dns_server == "Not available":
-            dhcp_enabled = True  # If no gateway or DNS is configured, assume DHCP
+        # Parse the output
+        config = {"dhcp": dhcp}
+        for line in ip_output.splitlines():
+            key, value = line.split(":", 1)
+            if "IP4.ADDRESS" in key:
+                config["ip_address"] = value.strip()
+            elif "IP4.GATEWAY" in key:
+                config["gateway"] = value.strip()
+            elif "IP4.DNS" in key:
+                config["dns_server"] = config.get("dns_server", "") + value.strip() + "\n"
 
-        # Set a default subnet mask if not explicitly provided
-        subnet_mask = "255.255.255.0"  # Simplified for demonstration
+        # Remove trailing newlines in DNS server
+        config["dns_server"] = config["dns_server"].strip()
 
-        return {
-            "dhcp": dhcp_enabled,
-            "ip_address": ip_address,
-            "subnet_mask": subnet_mask,
-            "gateway": gateway,
-            "dns_server": dns_server
-        }
+        # Add a default subnet mask if none is provided
+        config["subnet_mask"] = "255.255.255.0"  # Placeholder; customize if necessary
+
+        return config
     except Exception as e:
-        raise RuntimeError(f"Error retrieving IP configuration for {interface}: {str(e)}")
+        raise RuntimeError(f"Error retrieving configuration for {interface}: {e}")
 
 def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns_server=None):
     """

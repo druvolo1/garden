@@ -80,35 +80,45 @@
                     // Hostname
                     $('#hostname').val(config.hostname);
 
-                    // Ethernet config
-                    const eth0 = config.eth0 || {};
-                    $('#eth0-dhcp').prop('checked', eth0.dhcp || false);
-                    if (eth0.dhcp) {
+                    // Ethernet (eth0) config
+                    const eth0 = config.eth0;
+                    if (eth0.status === "inactive") {
+                        $('#eth0-dhcp').prop('checked', false);
                         $('#eth0-static-config').hide();
                     } else {
-                        $('#eth0-ip').val(eth0.ip_address || '');
-                        $('#eth0-subnet').val(eth0.subnet_mask || '');
-                        $('#eth0-gateway').val(eth0.gateway || '');
-                        $('#eth0-dns').val(eth0.dns_server || '');
+                        $('#eth0-dhcp').prop('checked', eth0.dhcp);
+                        if (eth0.dhcp) {
+                            $('#eth0-static-config').hide();
+                        } else {
+                            $('#eth0-ip').val(eth0.ip_address);
+                            $('#eth0-subnet').val(eth0.subnet_mask);
+                            $('#eth0-gateway').val(eth0.gateway);
+                            $('#eth0-dns').val(eth0.dns_server);
+                        }
                     }
 
-                    // Wi-Fi config
-                    const wlan0 = config.wlan0 || {};
-                    $('#wlan0-dhcp').prop('checked', wlan0.dhcp || false);
-                    if (wlan0.dhcp) {
+                    // Wi-Fi (wlan0) config
+                    const wlan0 = config.wlan0;
+                    if (wlan0.status === "inactive") {
+                        $('#wlan0-dhcp').prop('checked', false);
                         $('#wlan0-static-config').hide();
                     } else {
-                        $('#wlan0-ip').val(wlan0.ip_address || '');
-                        $('#wlan0-subnet').val(wlan0.subnet_mask || '');
-                        $('#wlan0-gateway').val(wlan0.gateway || '');
-                        $('#wlan0-dns').val(wlan0.dns_server || '');
+                        $('#wlan0-dhcp').prop('checked', wlan0.dhcp);
+                        if (wlan0.dhcp) {
+                            $('#wlan0-static-config').hide();
+                        } else {
+                            $('#wlan0-ip').val(wlan0.ip_address);
+                            $('#wlan0-subnet').val(wlan0.subnet_mask);
+                            $('#wlan0-gateway').val(wlan0.gateway);
+                            $('#wlan0-dns').val(wlan0.dns_server);
+                        }
                     }
-                    $('#wifi-ssid').val(wlan0.ssid || '');
+                    $('#wifi-ssid').val(wlan0.ssid);
 
-                    // Time config
-                    $('#timezone').val(config.timezone || '');
-                    $('#daylight-savings').prop('checked', config.daylight_savings || false);
-                    $('#ntp-server').val(config.ntp_server || '');
+                    // Time configuration
+                    $('#timezone').val(config.timezone);
+                    $('#daylight-savings').prop('checked', config.daylight_savings);
+                    $('#ntp-server').val(config.ntp_server);
                 }
             });
 

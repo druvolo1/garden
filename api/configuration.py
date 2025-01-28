@@ -12,18 +12,21 @@ def device_config():
     """
     if request.method == 'GET':
         try:
-            # Fetch settings from the OS
-            ip_address, subnet_mask, gateway, dns_server = get_ip_config()
+            # Ethernet (eth0) configuration
+            eth0_config = get_ip_config(interface="eth0")
+
+            # Wi-Fi (wlan0) configuration
+            wlan0_config = get_ip_config(interface="wlan0")
+            wlan0_config["ssid"] = get_wifi_config()
+
+            # Organize response
             config = {
                 "hostname": get_hostname(),
-                "ip_address": ip_address,
-                "subnet_mask": subnet_mask,
-                "gateway": gateway,
-                "dns_server": dns_server,
+                "eth0": eth0_config,
+                "wlan0": wlan0_config,
                 "timezone": get_timezone(),
                 "daylight_savings": is_daylight_savings(),
-                "ntp_server": get_ntp_server(),
-                "wifi_ssid": get_wifi_config()  # WiFi SSID only (exclude password for security)
+                "ntp_server": get_ntp_server()
             }
             return jsonify({"status": "success", "config": config}), 200
         except Exception as e:
