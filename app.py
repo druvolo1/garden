@@ -2,7 +2,8 @@ import socket
 import time
 import threading
 import atexit
-from flask import Flask, render_template, jsonify
+import json
+from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from api.ph import ph_blueprint
 from api.pump import pump_blueprint
@@ -111,6 +112,11 @@ def settings():
 @app.route('/calibration')
 def calibration():
     return render_template('calibration.html')
+
+@app.route('/configuration')
+def configuration():
+    """Render the device configuration page."""
+    return render_template('configuration.html')
 
 @socketio.on('connect')
 def handle_connect():
