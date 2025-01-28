@@ -32,8 +32,10 @@
                 <input type="text" id="eth0-subnet" name="eth0-subnet">
                 <label for="eth0-gateway">Gateway:</label>
                 <input type="text" id="eth0-gateway" name="eth0-gateway">
-                <label for="eth0-dns">DNS Server:</label>
-                <input type="text" id="eth0-dns" name="eth0-dns">
+                <label for="eth0-dns1">DNS Server 1:</label>
+                <input type="text" id="eth0-dns1" name="eth0-dns1">
+                <label for="eth0-dns2">DNS Server 2:</label>
+                <input type="text" id="eth0-dns2" name="eth0-dns2">
             </div>
             <button id="save-eth0">Save</button>
 
@@ -48,8 +50,10 @@
                 <input type="text" id="wlan0-subnet" name="wlan0-subnet">
                 <label for="wlan0-gateway">Gateway:</label>
                 <input type="text" id="wlan0-gateway" name="wlan0-gateway">
-                <label for="wlan0-dns">DNS Server:</label>
-                <input type="text" id="wlan0-dns" name="wlan0-dns">
+                <label for="wlan0-dns1">DNS Server 1:</label>
+                <input type="text" id="wlan0-dns1" name="wlan0-dns1">
+                <label for="wlan0-dns2">DNS Server 2:</label>
+                <input type="text" id="wlan0-dns2" name="wlan0-dns2">
             </div>
             <label for="wifi-ssid">SSID:</label>
             <input type="text" id="wifi-ssid" name="wifi-ssid">
@@ -93,7 +97,8 @@
                             $('#eth0-ip').val(eth0.ip_address);
                             $('#eth0-subnet').val(eth0.subnet_mask);
                             $('#eth0-gateway').val(eth0.gateway);
-                            $('#eth0-dns').val(eth0.dns_server);
+                            $('#eth0-dns1').val(eth0.dns1 || '');
+                            $('#eth0-dns2').val(eth0.dns2 || '');
                         }
                     }
 
@@ -110,7 +115,8 @@
                             $('#wlan0-ip').val(wlan0.ip_address);
                             $('#wlan0-subnet').val(wlan0.subnet_mask);
                             $('#wlan0-gateway').val(wlan0.gateway);
-                            $('#wlan0-dns').val(wlan0.dns_server);
+                            $('#wlan0-dns1').val(wlan0.dns1 || '');
+                            $('#wlan0-dns2').val(wlan0.dns2 || '');
                         }
                     }
                     $('#wifi-ssid').val(wlan0.ssid);
@@ -146,7 +152,8 @@
                     ip_address: $('#eth0-ip').val(),
                     subnet_mask: $('#eth0-subnet').val(),
                     gateway: $('#eth0-gateway').val(),
-                    dns_server: $('#eth0-dns').val(),
+                    dns1: $('#eth0-dns1').val(),
+                    dns2: $('#eth0-dns2').val(),
                 };
                 $.post('/api/device/config', payload, function (data) {
                     alert(data.message);
@@ -160,7 +167,8 @@
                     ip_address: $('#wlan0-ip').val(),
                     subnet_mask: $('#wlan0-subnet').val(),
                     gateway: $('#wlan0-gateway').val(),
-                    dns_server: $('#wlan0-dns').val(),
+                    dns1: $('#wlan0-dns1').val(),
+                    dns2: $('#wlan0-dns2').val(),
                     wifi_ssid: $('#wifi-ssid').val(),
                     wifi_password: $('#wifi-password').val(),
                 };
