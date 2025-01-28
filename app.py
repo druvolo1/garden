@@ -147,15 +147,23 @@ def device_config():
     """
     if request.method == 'GET':
         try:
-            # Fetch settings from the OS
-            config = get_ip_config()
-            config.update({
+            # Fetch configuration for Ethernet (eth0)
+            eth0_config = get_ip_config(interface="eth0")
+
+            # Fetch configuration for Wi-Fi (wlan0)
+            wlan0_config = get_ip_config(interface="wlan0")
+            wlan0_config["ssid"] = get_wifi_config()
+
+            # Construct the response
+            config = {
                 "hostname": get_hostname(),
+                "eth0": eth0_config,
+                "wlan0": wlan0_config,
                 "timezone": get_timezone(),
                 "daylight_savings": is_daylight_savings(),
-                "ntp_server": get_ntp_server(),
-                "wifi_ssid": get_wifi_config()  # WiFi SSID only (exclude password for security)
-            })
+                "ntp_server": get_ntp_server()
+            }
+
             return jsonify({"status": "success", "config": config}), 200
         except Exception as e:
             return jsonify({"status": "failure", "message": str(e)}), 500
@@ -168,16 +176,15 @@ def device_config():
             if "hostname" in data:
                 set_hostname(data["hostname"])
 
-            # Update network configuration
-            if "dhcp" in data or any(
-                key in data for key in ["ip_address", "subnet_mask", "gateway", "dns_server"]
-            ):
+            # Update network configuration for specified interface
+            if "interface" in data:
                 set_ip_config(
+                    interface=data["interface"],
+                    dhcp=data.get("dhcp", False),
                     ip_address=data.get("ip_address"),
                     subnet_mask=data.get("subnet_mask"),
                     gateway=data.get("gateway"),
-                    dns_server=data.get("dns_server"),
-                    dhcp=data.get("dhcp", False),
+                    dns_server=data.get("dns_server")
                 )
 
             # Update timezone and NTP if provided
@@ -186,7 +193,7 @@ def device_config():
             if "ntp_server" in data:
                 set_ntp_server(data["ntp_server"])
 
-            # Update WiFi configuration only if SSID or password is provided
+            # Update Wi-Fi configuration only if SSID or password is provided
             if "wifi_ssid" in data:
                 set_wifi_config(data["wifi_ssid"], data.get("wifi_password"))
 
