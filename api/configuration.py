@@ -12,14 +12,14 @@ def device_config():
     """
     if request.method == 'GET':
         try:
-            # Ethernet (eth0) configuration
+            # Fetch configuration for Ethernet (eth0)
             eth0_config = get_ip_config(interface="eth0")
 
-            # Wi-Fi (wlan0) configuration
+            # Fetch configuration for Wi-Fi (wlan0)
             wlan0_config = get_ip_config(interface="wlan0")
             wlan0_config["ssid"] = get_wifi_config()
 
-            # Organize response
+            # Construct the response
             config = {
                 "hostname": get_hostname(),
                 "eth0": eth0_config,
@@ -28,6 +28,7 @@ def device_config():
                 "daylight_savings": is_daylight_savings(),
                 "ntp_server": get_ntp_server()
             }
+
             return jsonify({"status": "success", "config": config}), 200
         except Exception as e:
             return jsonify({"status": "failure", "message": str(e)}), 500
