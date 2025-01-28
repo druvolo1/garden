@@ -11,35 +11,46 @@ def set_hostname(hostname):
 
 def get_ip_config(interface="wlan0"):
     """
-    Retrieve the IP configuration for the specified interface.
+    Retrieve the IP configuration for the specified interface, inferring DHCP status from other fields.
     """
     try:
-        # Check if DHCP is enabled
-        dhcp_method = subprocess.check_output(
-            ["nmcli", "-t", "-f", "IP4.METHOD", "device", "show", interface]
-        ).decode().strip()
-        dhcp_enabled = dhcp_method == "auto"
-
-        # Extract IPv4 address
-        ip_output = subprocess.check_output(
-            ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", interface]
-        ).decode().strip()
-        ip_address = ip_output.split("/")[0] if ip_output else "Not available"
+        # Extract IP address
+        ip_address = None
+        try:
+            ip_output = subprocess.check_output(
+                ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", interface]
+            ).decode().strip()
+            ip_address = ip_output.split("/")[0] if ip_output else "Not available"
+        except subprocess.CalledProcessError:
+            ip_address = "Not available"
 
         # Extract gateway
-        gateway_output = subprocess.check_output(
-            ["nmcli", "-t", "-f", "IP4.GATEWAY", "device", "show", interface]
-        ).decode().strip()
-        gateway = gateway_output if gateway_output else "Not available"
+        gateway = None
+        try:
+            gateway_output = subprocess.check_output(
+                ["nmcli", "-t", "-f", "IP4.GATEWAY", "device", "show", interface]
+            ).decode().strip()
+            gateway = gateway_output if gateway_output else "Not available"
+        except subprocess.CalledProcessError:
+            gateway = "Not available"
 
         # Extract DNS servers
-        dns_output = subprocess.check_output(
-            ["nmcli", "-t", "-f", "IP4.DNS", "device", "show", interface]
-        ).decode().strip()
-        dns_server = dns_output if dns_output else "Not available"
+        dns_server = None
+        try:
+            dns_output = subprocess.check_output(
+                ["nmcli", "-t", "-f", "IP4.DNS", "device", "show", interface]
+            ).decode().strip()
+            dns_server = dns_output if dns_output else "Not available"
+        except subprocess.CalledProcessError:
+            dns_server = "Not available"
+
+        # Infer DHCP status
+        dhcp_enabled = False
+        if gateway == "Not available" and dns_server == "Not available":
+            dhcp_enabled = True  # If no gateway or DNS is configured, assume DHCP
 
         # Set a default subnet mask if not explicitly provided
-        subnet_mask = "255.255.255.0"  # Modify if dynamic subnet mask extraction is required
+        subnet_mask = "255.255.255.0"  # Simplified for demonstration
 
         return {
             "dhcp": dhcp_enabled,
@@ -48,7 +59,7 @@ def get_ip_config(interface="wlan0"):
             "gateway": gateway,
             "dns_server": dns_server
         }
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         raise RuntimeError(f"Error retrieving IP configuration for {interface}: {str(e)}")
 
 def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns_server=None):
