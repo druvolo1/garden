@@ -4,123 +4,122 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Device Configuration</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <nav>
-        <ul>
-            <li><a href="/">Home</a></li>
-            <li><a href="/calibration">Calibration</a></li>
-            <li><a href="/settings">Settings</a></li>
-        </ul>
-    </nav>
-
-    <header>
-        <h1>Device Configuration</h1>
-    </header>
-    <main>
-        <form id="config-form">
-            <div>
-                <label for="hostname">Hostname:</label>
-                <input type="text" id="hostname" name="hostname" required>
-            </div>
-            <div>
-                <label for="ip-address">IP Address:</label>
-                <input type="text" id="ip-address" name="ip_address" required>
-            </div>
-            <div>
-                <label for="subnet-mask">Subnet Mask:</label>
-                <input type="text" id="subnet-mask" name="subnet_mask" required>
-            </div>
-            <div>
-                <label for="gateway">Gateway:</label>
-                <input type="text" id="gateway" name="gateway" required>
-            </div>
-            <div>
-                <label for="dns-server">DNS Server:</label>
-                <input type="text" id="dns-server" name="dns_server" required>
-            </div>
-            <div>
-                <label for="timezone">Time Zone:</label>
-                <select id="timezone" name="timezone" required>
-                    <option value="UTC">UTC</option>
-                    <option value="EST">EST</option>
-                    <option value="PST">PST</option>
-                    <option value="CET">CET</option>
-                    <option value="IST">IST</option>
-                    <!-- Add more time zones as needed -->
-                </select>
-            </div>
-            <div>
-                <label for="daylight-savings">Daylight Savings:</label>
-                <input type="checkbox" id="daylight-savings" name="daylight_savings">
-            </div>
-            <div>
-                <label for="ntp-server">NTP Server:</label>
-                <input type="text" id="ntp-server" name="ntp_server" required>
-            </div>
-            <div>
-                <label for="wifi-ssid">WiFi SSID:</label>
-                <input type="text" id="wifi-ssid" name="wifi_ssid" required>
-            </div>
-            <div>
-                <label for="wifi-password">WiFi Password:</label>
-                <input type="password" id="wifi-password" name="wifi_password" required>
-            </div>
-            <button type="submit">Save Configuration</button>
-        </form>
-        <div id="config-status"></div>
-    </main>
+    <h1>Device Configuration</h1>
+    
+    <!-- Hostname Configuration -->
+    <section>
+        <h2>Hostname</h2>
+        <label for="hostname">Hostname:</label>
+        <input type="text" id="hostname">
+        <button id="save-hostname">Save Hostname</button>
+    </section>
+    
+    <!-- Network Configuration -->
+    <section>
+        <h2>Network Configuration</h2>
+        <label for="dhcp-toggle">Use DHCP:</label>
+        <input type="checkbox" id="dhcp-toggle">
+        <br>
+        <label for="ip-address">IP Address:</label>
+        <input type="text" id="ip-address" disabled>
+        <br>
+        <label for="subnet-mask">Subnet Mask:</label>
+        <input type="text" id="subnet-mask" disabled>
+        <br>
+        <label for="gateway">Gateway:</label>
+        <input type="text" id="gateway" disabled>
+        <br>
+        <label for="dns-server">DNS Server:</label>
+        <input type="text" id="dns-server" disabled>
+        <br>
+        <button id="save-network">Save Network Settings</button>
+    </section>
+    
+    <!-- Time Configuration -->
+    <section>
+        <h2>Time Configuration</h2>
+        <label for="timezone">Time Zone:</label>
+        <input type="text" id="timezone">
+        <br>
+        <label for="daylight-savings">Daylight Savings:</label>
+        <input type="checkbox" id="daylight-savings">
+        <br>
+        <label for="ntp-server">NTP Server:</label>
+        <input type="text" id="ntp-server">
+        <br>
+        <button id="save-time">Save Time Settings</button>
+    </section>
+    
+    <!-- WiFi Configuration -->
+    <section>
+        <h2>WiFi Configuration</h2>
+        <label for="wifi-ssid">WiFi SSID:</label>
+        <input type="text" id="wifi-ssid">
+        <br>
+        <label for="wifi-password">WiFi Password:</label>
+        <input type="password" id="wifi-password">
+        <br>
+        <button id="save-wifi">Save WiFi Settings</button>
+    </section>
+    
     <script>
         $(document).ready(function () {
-            // Fetch current configuration
+            // Fetch initial configuration
             $.get('/api/device/config', function (data) {
-                if (data.status === "success") {
+                if (data.status === 'success') {
                     const config = data.config;
                     $('#hostname').val(config.hostname);
-                    $('#ip-address').val(config.ip_address);
-                    $('#subnet-mask').val(config.subnet_mask);
-                    $('#gateway').val(config.gateway);
-                    $('#dns-server').val(config.dns_server);
+                    $('#dhcp-toggle').prop('checked', config.dhcp);
+                    $('#ip-address').val(config.ip_address).prop('disabled', config.dhcp);
+                    $('#subnet-mask').val(config.subnet_mask).prop('disabled', config.dhcp);
+                    $('#gateway').val(config.gateway).prop('disabled', config.dhcp);
+                    $('#dns-server').val(config.dns_server).prop('disabled', config.dhcp);
                     $('#timezone').val(config.timezone);
                     $('#daylight-savings').prop('checked', config.daylight_savings);
                     $('#ntp-server').val(config.ntp_server);
                     $('#wifi-ssid').val(config.wifi_ssid);
-                    $('#wifi-password').val(config.wifi_password);
-                } else {
-                    $('#config-status').text(data.message).css('color', 'red');
                 }
             });
 
-            // Submit new configuration
-            $('#config-form').submit(function (event) {
-                event.preventDefault();
-                const configData = {
-                    hostname: $('#hostname').val(),
-                    ip_address: $('#ip-address').val(),
-                    subnet_mask: $('#subnet-mask').val(),
-                    gateway: $('#gateway').val(),
-                    dns_server: $('#dns-server').val(),
-                    timezone: $('#timezone').val(),
-                    daylight_savings: $('#daylight-savings').is(':checked'),
-                    ntp_server: $('#ntp-server').val(),
-                    wifi_ssid: $('#wifi-ssid').val(),
-                    wifi_password: $('#wifi-password').val(),
-                };
+            // Save Hostname
+            $('#save-hostname').click(function () {
+                const hostname = $('#hostname').val();
+                $.post('/api/device/config', { hostname });
+            });
 
-                $.ajax({
-                    url: '/api/device/config',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify(configData),
-                    success: function (response) {
-                        $('#config-status').text(response.message).css('color', response.status === "success" ? 'green' : 'red');
-                    },
-                    error: function () {
-                        $('#config-status').text('Failed to save configuration.').css('color', 'red');
-                    }
-                });
+            // Save Network Settings
+            $('#save-network').click(function () {
+                const dhcp = $('#dhcp-toggle').is(':checked');
+                const ip_address = $('#ip-address').val();
+                const subnet_mask = $('#subnet-mask').val();
+                const gateway = $('#gateway').val();
+                const dns_server = $('#dns-server').val();
+                $.post('/api/device/config', { dhcp, ip_address, subnet_mask, gateway, dns_server });
+            });
+
+            // Save Time Settings
+            $('#save-time').click(function () {
+                const timezone = $('#timezone').val();
+                const daylight_savings = $('#daylight-savings').is(':checked');
+                const ntp_server = $('#ntp-server').val();
+                $.post('/api/device/config', { timezone, daylight_savings, ntp_server });
+            });
+
+            // Save WiFi Settings
+            $('#save-wifi').click(function () {
+                const wifi_ssid = $('#wifi-ssid').val();
+                const wifi_password = $('#wifi-password').val();
+                $.post('/api/device/config', { wifi_ssid, wifi_password });
+            });
+
+            // Toggle DHCP
+            $('#dhcp-toggle').change(function () {
+                const use_dhcp = $(this).is(':checked');
+                $('#ip-address, #subnet-mask, #gateway, #dns-server').prop('disabled', use_dhcp);
             });
         });
     </script>
