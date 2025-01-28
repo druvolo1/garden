@@ -13,10 +13,10 @@ def device_config():
     if request.method == 'GET':
         try:
             # Fetch configuration for Ethernet (eth0)
-            eth0_config = get_ip_config(interface="eth0")
+            eth0_config = get_ip_config("eth0")
 
             # Fetch configuration for Wi-Fi (wlan0)
-            wlan0_config = get_ip_config(interface="wlan0")
+            wlan0_config = get_ip_config("wlan0")
             wlan0_config["ssid"] = get_wifi_config()
 
             # Construct the response
