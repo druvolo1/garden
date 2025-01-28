@@ -11,74 +11,81 @@ def set_hostname(hostname):
 
 def get_ip_config():
     """
-    Retrieve the IP address, subnet mask, gateway, DNS server, and whether DHCP is enabled.
+    Retrieve the IP configuration (IP address, subnet mask, gateway, DNS server) for both Ethernet and Wi-Fi.
     """
+    interfaces = ["eth0", "wlan0"]  # Interfaces to check
+    configs = {}
+
     try:
-        # Check if DHCP is enabled by inspecting the network configuration file
-        dhcp_enabled = False
-        with open("/etc/network/interfaces", "r") as f:
-            config = f.read()
-            if "dhcp" in config:
-                dhcp_enabled = True
+        for interface in interfaces:
+            try:
+                # Get IP and subnet mask
+                ip_output = subprocess.check_output(["ip", "addr", "show", "dev", interface]).decode()
+                ip_address = extract_ip_address(ip_output)
+                subnet_mask = extract_subnet_mask(ip_output)
 
-        # Retrieve IP configuration
-        ip_output = subprocess.check_output(["ip", "addr", "show", "dev", "eth0"]).decode()
-        gateway_output = subprocess.check_output(["ip", "route", "show", "default"]).decode()
-        dns_output = read_resolv_conf()
+                # Get gateway
+                gateway_output = subprocess.check_output(["ip", "route", "show", "default", "dev", interface]).decode()
+                gateway = gateway_output.split()[2] if "default" in gateway_output else None
 
-        ip_address = extract_ip_address(ip_output)
-        subnet_mask = extract_subnet_mask(ip_output)  # Calculate dynamically
-        gateway = gateway_output.split()[2]
-        dns_server = dns_output
+                # Get DNS servers
+                dns_servers = read_resolv_conf()
 
-        return {
-            "dhcp": dhcp_enabled,
-            "ip_address": ip_address,
-            "subnet_mask": subnet_mask,
-            "gateway": gateway,
-            "dns_server": dns_server
-        }
+                # Check DHCP status
+                dhcp_enabled = False
+                try:
+                    nmcli_output = subprocess.check_output(["nmcli", "-t", "-f", "IP4.METHOD", "device", "show", interface]).decode().strip()
+                    dhcp_enabled = nmcli_output == "auto"
+                except FileNotFoundError:
+                    pass  # Skip if NetworkManager is not installed
+
+                configs[interface] = {
+                    "dhcp": dhcp_enabled,
+                    "ip_address": ip_address,
+                    "subnet_mask": subnet_mask,
+                    "gateway": gateway,
+                    "dns_server": dns_servers
+                }
+            except subprocess.CalledProcessError:
+                configs[interface] = {
+                    "dhcp": None,
+                    "ip_address": None,
+                    "subnet_mask": None,
+                    "gateway": None,
+                    "dns_server": None
+                }
+
+        return configs
     except Exception as e:
         raise RuntimeError(f"Error retrieving IP configuration: {e}")
 
-def set_ip_config(ip_address=None, subnet_mask=None, gateway=None, dns_server=None, dhcp=True):
+def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns_server=None):
     """
-    Set the IP configuration (DHCP or Static).
-    If `dhcp` is True, enable DHCP. Otherwise, set static IP configuration.
+    Set the IP configuration for a specific interface (e.g., eth0, wlan0).
     """
+    interface_file = f"/etc/network/interfaces.d/{interface}"
     try:
-        config_path = "/etc/network/interfaces"
-        with open(config_path, "w") as f:
-            # If DHCP is enabled
+        with open(interface_file, "w") as file:
             if dhcp:
-                f.write(
-                    """
-                    auto eth0
-                    iface eth0 inet dhcp
-                    """
-                )
-                print("Configured eth0 for DHCP.")
+                # Configure DHCP
+                file.write(f"""
+auto {interface}
+iface {interface} inet dhcp
+""")
             else:
-                # Static configuration
-                f.write(
-                    f"""
-                    auto eth0
-                    iface eth0 inet static
-                    address {ip_address}
-                    netmask {subnet_mask}
-                    gateway {gateway}
-                    """
-                )
-                print("Configured eth0 for Static IP.")
-
-        # Update DNS configuration
-        with open("/etc/resolv.conf", "w") as resolv_file:
-            resolv_file.write(f"nameserver {dns_server}\n")
-
-        # Apply the network changes
+                # Configure Static IP
+                file.write(f"""
+auto {interface}
+iface {interface} inet static
+    address {ip_address}
+    netmask {subnet_mask}
+    gateway {gateway}
+    dns-nameservers {dns_server}
+""")
         subprocess.run(["systemctl", "restart", "networking"], check=True)
     except Exception as e:
-        raise RuntimeError(f"Error setting IP configuration: {e}")
+        raise RuntimeError(f"Failed to set IP configuration for {interface}: {e}")
+
 
 def get_timezone():
     """Retrieve the current timezone."""
@@ -134,29 +141,34 @@ network={{
 
 # Utility functions
 def extract_ip_address(ip_output):
-    """Extract the IP address from the ip command output."""
+    """Extract the IP address from the `ip` command output."""
     for line in ip_output.splitlines():
         if "inet " in line:
             return line.split()[1].split("/")[0]
-    return "Not found"
+    return None
 
 def extract_subnet_mask(ip_output):
-    """Extract the subnet mask from the ip command output."""
+    """Extract the subnet mask from the `ip` command output."""
     for line in ip_output.splitlines():
         if "inet " in line:
-            cidr = line.split()[1].split("/")[1]  # CIDR notation
-            return cidr_to_subnet_mask(int(cidr))
-    return "255.255.255.0"  # Default
+            cidr = int(line.split()[1].split("/")[1])
+            return convert_cidr_to_netmask(cidr)
+    return None
 
-def cidr_to_subnet_mask(cidr):
+def convert_cidr_to_netmask(cidr):
     """Convert CIDR notation to a subnet mask."""
-    mask = (0xFFFFFFFF >> (32 - cidr)) << (32 - cidr)
-    return ".".join(str((mask >> (i * 8)) & 0xFF) for i in range(4)[::-1])
+    mask = (0xffffffff >> (32 - cidr)) << (32 - cidr)
+    return ".".join(map(str, [(mask >> i) & 0xff for i in [24, 16, 8, 0]]))
 
 def read_resolv_conf():
-    """Read DNS server from /etc/resolv.conf."""
-    with open("/etc/resolv.conf", "r") as file:
-        for line in file:
-            if line.startswith("nameserver"):
-                return line.split()[1]
-    return "Not found"
+    """Read DNS server addresses from `/etc/resolv.conf`."""
+    dns_servers = []
+    try:
+        with open("/etc/resolv.conf", "r") as file:
+            for line in file:
+                if line.startswith("nameserver"):
+                    dns_servers.append(line.split()[1])
+    except FileNotFoundError:
+        pass
+    return dns_servers
+

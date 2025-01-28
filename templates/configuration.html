@@ -3,126 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Device Configuration</title>
     <link rel="stylesheet" href="/static/style.css">
+    <title>Device Configuration</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <h1>Device Configuration</h1>
-    
-    <!-- Hostname Configuration -->
-    <section>
-        <h2>Hostname</h2>
-        <label for="hostname">Hostname:</label>
-        <input type="text" id="hostname">
-        <button id="save-hostname">Save Hostname</button>
-    </section>
-    
-    <!-- Network Configuration -->
-    <section>
-        <h2>Network Configuration</h2>
-        <label for="dhcp-toggle">Use DHCP:</label>
-        <input type="checkbox" id="dhcp-toggle">
-        <br>
-        <label for="ip-address">IP Address:</label>
-        <input type="text" id="ip-address" disabled>
-        <br>
-        <label for="subnet-mask">Subnet Mask:</label>
-        <input type="text" id="subnet-mask" disabled>
-        <br>
-        <label for="gateway">Gateway:</label>
-        <input type="text" id="gateway" disabled>
-        <br>
-        <label for="dns-server">DNS Server:</label>
-        <input type="text" id="dns-server" disabled>
-        <br>
-        <button id="save-network">Save Network Settings</button>
-    </section>
-    
-    <!-- Time Configuration -->
-    <section>
-        <h2>Time Configuration</h2>
-        <label for="timezone">Time Zone:</label>
-        <input type="text" id="timezone">
-        <br>
-        <label for="daylight-savings">Daylight Savings:</label>
-        <input type="checkbox" id="daylight-savings">
-        <br>
-        <label for="ntp-server">NTP Server:</label>
-        <input type="text" id="ntp-server">
-        <br>
-        <button id="save-time">Save Time Settings</button>
-    </section>
-    
-    <!-- WiFi Configuration -->
-    <section>
-        <h2>WiFi Configuration</h2>
-        <label for="wifi-ssid">WiFi SSID:</label>
-        <input type="text" id="wifi-ssid">
-        <br>
-        <label for="wifi-password">WiFi Password:</label>
-        <input type="password" id="wifi-password">
-        <br>
-        <button id="save-wifi">Save WiFi Settings</button>
-    </section>
-    
+    <div class="container">
+        <h1>Device Configuration</h1>
+
+        <div id="hostname-section">
+            <h2>Hostname</h2>
+            <label for="hostname">Hostname:</label>
+            <input type="text" id="hostname" name="hostname">
+            <button id="save-hostname">Save</button>
+        </div>
+
+        <div id="network-section">
+            <h2>Network Configuration</h2>
+
+            <!-- Ethernet Configuration -->
+            <h3>Ethernet (eth0)</h3>
+            <label for="eth0-dhcp">DHCP:</label>
+            <input type="checkbox" id="eth0-dhcp" name="eth0-dhcp">
+            <div id="eth0-static-config" class="static-config">
+                <label for="eth0-ip">IP Address:</label>
+                <input type="text" id="eth0-ip" name="eth0-ip">
+                <label for="eth0-subnet">Subnet Mask:</label>
+                <input type="text" id="eth0-subnet" name="eth0-subnet">
+                <label for="eth0-gateway">Gateway:</label>
+                <input type="text" id="eth0-gateway" name="eth0-gateway">
+                <label for="eth0-dns">DNS Server:</label>
+                <input type="text" id="eth0-dns" name="eth0-dns">
+            </div>
+            <button id="save-eth0">Save</button>
+
+            <!-- Wi-Fi Configuration -->
+            <h3>Wi-Fi (wlan0)</h3>
+            <label for="wlan0-dhcp">DHCP:</label>
+            <input type="checkbox" id="wlan0-dhcp" name="wlan0-dhcp">
+            <div id="wlan0-static-config" class="static-config">
+                <label for="wlan0-ip">IP Address:</label>
+                <input type="text" id="wlan0-ip" name="wlan0-ip">
+                <label for="wlan0-subnet">Subnet Mask:</label>
+                <input type="text" id="wlan0-subnet" name="wlan0-subnet">
+                <label for="wlan0-gateway">Gateway:</label>
+                <input type="text" id="wlan0-gateway" name="wlan0-gateway">
+                <label for="wlan0-dns">DNS Server:</label>
+                <input type="text" id="wlan0-dns" name="wlan0-dns">
+            </div>
+            <label for="wifi-ssid">SSID:</label>
+            <input type="text" id="wifi-ssid" name="wifi-ssid">
+            <label for="wifi-password">Password:</label>
+            <input type="password" id="wifi-password" name="wifi-password">
+            <button id="save-wlan0">Save</button>
+        </div>
+
+        <div id="time-section">
+            <h2>Time Configuration</h2>
+            <label for="timezone">Time Zone:</label>
+            <input type="text" id="timezone" name="timezone">
+            <label for="daylight-savings">Daylight Savings:</label>
+            <input type="checkbox" id="daylight-savings" name="daylight-savings">
+            <label for="ntp-server">NTP Server:</label>
+            <input type="text" id="ntp-server" name="ntp-server">
+            <button id="save-time">Save</button>
+        </div>
+    </div>
+
     <script>
-       $(document).ready(function () {
-            // Fetch initial configuration
-            $.get('/api/device/config', function (data) {
+        $(document).ready(function () {
+            // Load initial config
+            $.getJSON('/api/device/config', function (data) {
                 if (data.status === 'success') {
                     const config = data.config;
+
+                    // Hostname
                     $('#hostname').val(config.hostname);
-                    $('#dhcp-toggle').prop('checked', config.dhcp);
-                    $('#ip-address').val(config.ip_address).prop('disabled', config.dhcp);
-                    $('#subnet-mask').val(config.subnet_mask).prop('disabled', config.dhcp);
-                    $('#gateway').val(config.gateway).prop('disabled', config.dhcp);
-                    $('#dns-server').val(config.dns_server).prop('disabled', config.dhcp);
+
+                    // Ethernet config
+                    const eth0 = config.eth0;
+                    $('#eth0-dhcp').prop('checked', eth0.dhcp);
+                    if (eth0.dhcp) {
+                        $('#eth0-static-config').hide();
+                    } else {
+                        $('#eth0-ip').val(eth0.ip_address);
+                        $('#eth0-subnet').val(eth0.subnet_mask);
+                        $('#eth0-gateway').val(eth0.gateway);
+                        $('#eth0-dns').val(eth0.dns_server);
+                    }
+
+                    // Wi-Fi config
+                    const wlan0 = config.wlan0;
+                    $('#wlan0-dhcp').prop('checked', wlan0.dhcp);
+                    if (wlan0.dhcp) {
+                        $('#wlan0-static-config').hide();
+                    } else {
+                        $('#wlan0-ip').val(wlan0.ip_address);
+                        $('#wlan0-subnet').val(wlan0.subnet_mask);
+                        $('#wlan0-gateway').val(wlan0.gateway);
+                        $('#wlan0-dns').val(wlan0.dns_server);
+                    }
+                    $('#wifi-ssid').val(wlan0.ssid);
+
+                    // Time config
                     $('#timezone').val(config.timezone);
                     $('#daylight-savings').prop('checked', config.daylight_savings);
                     $('#ntp-server').val(config.ntp_server);
-                    $('#wifi-ssid').val(config.wifi_ssid);
                 }
             });
 
-            // Save Hostname
+            // Toggle visibility of static IP fields based on DHCP checkbox
+            $('#eth0-dhcp').change(function () {
+                if ($(this).is(':checked')) {
+                    $('#eth0-static-config').hide();
+                } else {
+                    $('#eth0-static-config').show();
+                }
+            });
+
+            $('#wlan0-dhcp').change(function () {
+                if ($(this).is(':checked')) {
+                    $('#wlan0-static-config').hide();
+                } else {
+                    $('#wlan0-static-config').show();
+                }
+            });
+
+            // Save button actions
             $('#save-hostname').click(function () {
                 const hostname = $('#hostname').val();
-                $.post('/api/device/config', JSON.stringify({ hostname }), 'json');
+                $.post('/api/device/config', { hostname: hostname }, function (data) {
+                    alert(data.message);
+                });
             });
 
-            // Save Network Settings
-            $('#save-network').click(function () {
-                const dhcp = $('#dhcp-toggle').is(':checked');
-                const ip_address = $('#ip-address').val();
-                const subnet_mask = $('#subnet-mask').val();
-                const gateway = $('#gateway').val();
-                const dns_server = $('#dns-server').val();
-                $.post('/api/device/config', JSON.stringify({ dhcp, ip_address, subnet_mask, gateway, dns_server }), 'json');
+            $('#save-eth0').click(function () {
+                const dhcp = $('#eth0-dhcp').is(':checked');
+                const ip_address = $('#eth0-ip').val();
+                const subnet_mask = $('#eth0-subnet').val();
+                const gateway = $('#eth0-gateway').val();
+                const dns_server = $('#eth0-dns').val();
+                $.post('/api/device/config', {
+                    interface: 'eth0',
+                    dhcp: dhcp,
+                    ip_address: ip_address,
+                    subnet_mask: subnet_mask,
+                    gateway: gateway,
+                    dns_server: dns_server
+                }, function (data) {
+                    alert(data.message);
+                });
             });
 
-            // Save Time Settings
+            $('#save-wlan0').click(function () {
+                const dhcp = $('#wlan0-dhcp').is(':checked');
+                const ip_address = $('#wlan0-ip').val();
+                const subnet_mask = $('#wlan0-subnet').val();
+                const gateway = $('#wlan0-gateway').val();
+                const dns_server = $('#wlan0-dns').val();
+                const ssid = $('#wifi-ssid').val();
+                const password = $('#wifi-password').val();
+                $.post('/api/device/config', {
+                    interface: 'wlan0',
+                    dhcp: dhcp,
+                    ip_address: ip_address,
+                    subnet_mask: subnet_mask,
+                    gateway: gateway,
+                    dns_server: dns_server,
+                    wifi_ssid: ssid,
+                    wifi_password: password
+                }, function (data) {
+                    alert(data.message);
+                });
+            });
+
             $('#save-time').click(function () {
                 const timezone = $('#timezone').val();
                 const daylight_savings = $('#daylight-savings').is(':checked');
                 const ntp_server = $('#ntp-server').val();
-                $.post('/api/device/config', JSON.stringify({ timezone, daylight_savings, ntp_server }), 'json');
-            });
-
-            // Save WiFi Settings
-            $('#save-wifi').click(function () {
-                const wifi_ssid = $('#wifi-ssid').val();
-                const wifi_password = $('#wifi-password').val();
-                $.post('/api/device/config', JSON.stringify({ wifi_ssid, wifi_password }), 'json');
-            });
-
-            // Toggle DHCP
-            $('#dhcp-toggle').change(function () {
-                const use_dhcp = $(this).is(':checked');
-                $('#ip-address, #subnet-mask, #gateway, #dns-server').prop('disabled', use_dhcp);
+                $.post('/api/device/config', {
+                    timezone: timezone,
+                    daylight_savings: daylight_savings,
+                    ntp_server: ntp_server
+                }, function (data) {
+                    alert(data.message);
+                });
             });
         });
-      
     </script>
 </body>
 </html>
