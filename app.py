@@ -18,8 +18,8 @@ from services.device_config import (
     get_hostname, set_hostname, get_ip_config, set_ip_config, get_timezone, set_timezone,
     is_daylight_savings, get_ntp_server, set_ntp_server, get_wifi_config, set_wifi_config
 )
-from services.dosage_service import get_dosage_info
-
+from services.dosage_service import get_dosage_info, manual_dispense
+from api.dosing import dosing_blueprint
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode="eventlet")  # or "gevent" if you switch to gevent
@@ -100,6 +100,7 @@ app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
 app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
+app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 
 
 @app.route('/')
