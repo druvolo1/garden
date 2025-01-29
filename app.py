@@ -232,7 +232,7 @@ def device_config():
     # ... existing code ...
     pass
 
-if __name__ == '__main__':
-    # Start threads at application startup, not per client connect
-    start_threads()
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+#if __name__ == '__main__':
+#    # Start threads at application startup, not per client connect
+#    start_threads()
+#    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
