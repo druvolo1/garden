@@ -1,106 +1,127 @@
-<!-- templates/dosage.html (excerpt) -->
+<!-- templates/dosage.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Dosage Info</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Dosage Info</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Include socket.io client library -->
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
-    <nav>
-        <ul>
-            <li><a href="/">Home</a></li>
-            <li><a href="/calibration">Calibration</a></li>
-            <li><a href="/settings">Settings</a></li>
-            <li><a href="/dosage">Dosage</a></li>
-        </ul>
-    </nav>
+  <nav>
+      <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/calibration">Calibration</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li><a href="/dosage">Dosage</a></li>
+      </ul>
+  </nav>
 
-    <h1>Dosage Status</h1>
+  <h1>Dosage Status</h1>
 
-    <p><strong>Current pH:</strong> {{ dosage_data.current_ph }}</p>
-    <p><strong>System Volume:</strong> {{ dosage_data.system_volume }}</p>
-    <p><strong>Auto Dosing Enabled:</strong> {{ dosage_data.auto_dosing_enabled }}</p>
-    <p><strong>pH Target:</strong> {{ dosage_data.ph_target }}</p>
+  <p><strong>Current pH:</strong> <span id="current-ph">{{ dosage_data.current_ph }}</span></p>
+  <p><strong>System Volume:</strong> <span id="system-volume">{{ dosage_data.system_volume }}</span></p>
+  <p><strong>Auto Dosing Enabled:</strong> <span id="auto-dosing">{{ dosage_data.auto_dosing_enabled }}</span></p>
+  <p><strong>pH Target:</strong> <span id="ph-target">{{ dosage_data.ph_target }}</span></p>
 
-    <hr>
+  <hr>
 
-    <!-- pH Up Section -->
-    <h2>pH Up Dosing</h2>
-    <p>
-        <strong>Calculated Amount:</strong>
-        <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml
-    </p>
-    {% if dosage_data.feedback_up %}
-        <p style="color: red;">
-            <!-- Mark as safe to allow HTML inside the feedback message -->
-            {{ dosage_data.feedback_up|safe }}
-        </p>
-    {% endif %}
-    <button id="ph-up-dispense">Dispense pH Up</button>
+  <!-- pH Up Section -->
+  <h2>pH Up Dosing</h2>
+  <p>
+      <strong>Calculated Amount:</strong>
+      <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml
+  </p>
+  {% if dosage_data.feedback_up %}
+      <p style="color: red;">{{ dosage_data.feedback_up|safe }}</p>
+  {% endif %}
+  <button id="ph-up-dispense">Dispense pH Up</button>
 
-    <hr>
+  <hr>
 
-    <!-- pH Down Section -->
-    <h2>pH Down Dosing</h2>
-    <p>
-        <strong>Calculated Amount:</strong>
-        <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml
-    </p>
-    {% if dosage_data.feedback_down %}
-        <p style="color: red;">
-            {{ dosage_data.feedback_down|safe }}
-        </p>
-    {% endif %}
-    <button id="ph-down-dispense">Dispense pH Down</button>
+  <!-- pH Down Section -->
+  <h2>pH Down Dosing</h2>
+  <p>
+      <strong>Calculated Amount:</strong>
+      <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml
+  </p>
+  {% if dosage_data.feedback_down %}
+      <p style="color: red;">{{ dosage_data.feedback_down|safe }}</p>
+  {% endif %}
+  <button id="ph-down-dispense">Dispense pH Down</button>
 
-    <script>
-    $(document).ready(function() {
-        // pH Up button
-        $('#ph-up-dispense').on('click', function() {
-            const amount = parseFloat($('#ph-up-amount').text()) || 0;
-            if (amount === 0) {
-                alert("No pH Up required (0 ml).");
-                return;
-            }
-            $.ajax({
-                url: '/api/dosage/manual',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ type: 'up', amount: amount }),
-                success: function(response) {
-                    alert("Manual pH Up dispense triggered: " + response.message);
-                },
-                error: function(error) {
-                    console.error("Error dispensing pH Up:", error);
-                    alert("Failed to dispense pH Up.");
-                }
-            });
-        });
+  <script>
+    // Connect to Socket.IO
+    const socket = io.connect(window.location.origin);
 
-        // pH Down button
-        $('#ph-down-dispense').on('click', function() {
-            const amount = parseFloat($('#ph-down-amount').text()) || 0;
-            if (amount === 0) {
-                alert("No pH Down required (0 ml).");
-                return;
-            }
-            $.ajax({
-                url: '/api/dosage/manual',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ type: 'down', amount: amount }),
-                success: function(response) {
-                    alert("Manual pH Down dispense triggered: " + response.message);
-                },
-                error: function(error) {
-                    console.error("Error dispensing pH Down:", error);
-                    alert("Failed to dispense pH Down.");
-                }
-            });
+    // Listen for the 'ph_update' event from the server
+    socket.on('ph_update', function(data) {
+      console.log("Received pH update via socket:", data.ph);
+
+      // When we get a new pH update, fetch the latest dosage info
+      fetch('/api/dosage/info')
+        .then(response => response.json())
+        .then(dosage_data => {
+          console.log("Refreshed dosage info:", dosage_data);
+
+          // Update page elements
+          document.getElementById('current-ph').textContent = dosage_data.current_ph;
+          document.getElementById('ph-up-amount').textContent = dosage_data.ph_up_amount;
+          document.getElementById('ph-down-amount').textContent = dosage_data.ph_down_amount;
+
+          // If you want to handle feedback messages, you'd need to dynamically
+          // inject them into the DOM as well. For simplicity, we just do amounts here.
+        })
+        .catch(error => {
+          console.error("Error fetching updated dosage info:", error);
         });
     });
-    </script>
+
+    // pH Up button
+    document.getElementById('ph-up-dispense').addEventListener('click', function() {
+      const amount = parseFloat(document.getElementById('ph-up-amount').textContent) || 0;
+      if (amount === 0) {
+        alert("No pH Up required (0 ml).");
+        return;
+      }
+      fetch('/api/dosage/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'up', amount: amount })
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert("Manual pH Up dispense triggered: " + data.message);
+      })
+      .catch(error => {
+        console.error("Error dispensing pH Up:", error);
+        alert("Failed to dispense pH Up.");
+      });
+    });
+
+    // pH Down button
+    document.getElementById('ph-down-dispense').addEventListener('click', function() {
+      const amount = parseFloat(document.getElementById('ph-down-amount').textContent) || 0;
+      if (amount === 0) {
+        alert("No pH Down required (0 ml).");
+        return;
+      }
+      fetch('/api/dosage/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'down', amount: amount })
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert("Manual pH Down dispense triggered: " + data.message);
+      })
+      .catch(error => {
+        console.error("Error dispensing pH Down:", error);
+        alert("Failed to dispense pH Down.");
+      });
+    });
+  </script>
 </body>
 </html>

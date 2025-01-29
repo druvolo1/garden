@@ -4,9 +4,18 @@ import time
 from flask import Blueprint, request, jsonify
 from api.settings import load_settings
 from services.relay_service import turn_on_relay, turn_off_relay
-from services.dosage_service import manual_dispense
+from services.dosage_service import manual_dispense, get_dosage_info
 
 dosing_blueprint = Blueprint('dosing', __name__)
+
+@dosing_blueprint.route('/info', methods=['GET'])
+def get_current_dosage_info():
+    """
+    Returns the latest dosage info (pH up/down amounts, current pH, etc.)
+    so the front-end can refresh calculations in real time.
+    """
+    dosage_data = get_dosage_info()
+    return jsonify(dosage_data)
 
 @dosing_blueprint.route('/manual', methods=['POST'])
 def manual_dosage():
@@ -32,7 +41,6 @@ def manual_dosage():
 
     # 1. Check for a max dosing limit
     max_dosing = settings.get("max_dosing_amount", 0)
-
     # Only clamp if max_dosing > 0
     if max_dosing > 0 and amount_ml > max_dosing:
         print(f"[Dosing] Calculated amount ({amount_ml} ml) exceeds max ({max_dosing} ml). Clamping.")
