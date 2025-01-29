@@ -1,3 +1,4 @@
+<!-- File: templates/settings.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -200,7 +201,11 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
-            .then(() => console.log('Settings saved successfully'))
+            .then(() => {
+                console.log('Settings saved successfully');
+                // Optionally re-fetch to refresh the UI if needed
+                fetchUsbDevices();
+            })
             .catch(error => console.error('Error saving settings:', error));
         };
 
@@ -216,6 +221,7 @@
             saveUsbAssignment('relay', relayDevice);
         });
 
+        // Save General Settings
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
             saveSettings(`http://${piIp}:5000/api/settings`, {
@@ -228,6 +234,22 @@
             });
         });
 
+        // Save Dosage Strength
+        document.getElementById('dosage-strength-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phUp = parseFloat(document.getElementById('ph-up-strength').value);
+            const phDown = parseFloat(document.getElementById('ph-down-strength').value);
+
+            const payload = {
+                dosage_strength: {
+                    ph_up: phUp,
+                    ph_down: phDown
+                }
+            };
+            saveSettings(`http://${piIp}:5000/api/settings`, payload);
+        });
+
+        // Save Pump Calibration
         document.getElementById('pump-calibration-form').addEventListener('submit', event => {
             event.preventDefault();
             saveSettings(`http://${piIp}:5000/api/settings`, {
@@ -238,6 +260,7 @@
             });
         });
 
+        // Fetch devices & settings on page load
         fetchUsbDevices();
     </script>
 </body>
