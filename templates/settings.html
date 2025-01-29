@@ -68,7 +68,7 @@
         <input type="number" id="max-dosing" name="max-dosing" step="1" disabled><br><br>
     
         <label for="dosing-interval">Dosing Interval (hours):</label>
-        <input type="number" id="dosing-interval" name="dosing-interval" step=".1" disabled><br><br>
+        <input type="number" id="dosing-interval" name="dosing-interval" step=".0001" disabled><br><br>
     
         <label for="system-volume">System Volume (gallons):</label>
         <input type="number" id="system-volume" name="system-volume" step=".1" disabled><br><br>
@@ -178,7 +178,7 @@
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
                 document.getElementById('ph-target').value = settings.ph_target || '5.8';
                 document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
-                document.getElementById('dosing-interval').value = settings.dosing_interval || '';
+                document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
                 document.getElementById('system-volume').value = settings.system_volume || '';
                 document.getElementById('time-zone').value = settings.time_zone || '';
                 document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
