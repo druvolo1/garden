@@ -66,7 +66,6 @@ def auto_dosing_loop():
     Periodically checks if auto-dosing is enabled and if it's time to dose.
     Respects dosing_interval from settings, and last dosing time.
     """
-    from services.dosing_logic import perform_auto_dose  # We'll define in a separate file or inline
 
     while not stop_event.is_set():
         try:
