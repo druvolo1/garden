@@ -12,7 +12,8 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint  # Our updated dosing blueprint
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value
-from services.dosage_service import get_dosage_info, perform_auto_dose 
+from services.dosage_service import get_dosage_info, perform_auto_dose
+from services.auto_dose_state import auto_dose_state  # <-- NEW: import the shared dictionary
 from services.device_config import (
     get_hostname, set_hostname, get_ip_config, set_ip_config, get_timezone, set_timezone,
     is_daylight_savings, get_ntp_server, set_ntp_server, get_wifi_config, set_wifi_config
@@ -39,25 +40,14 @@ def get_local_ip():
         s.close()
     return ip
 
-# -------------------------------
-# AUTO-DOSING STATE & BACKGROUND
-# -------------------------------
-auto_dose_state = {
-    "last_dose_time": None,
-    "last_dose_type": None,
-    "last_dose_amount": 0.0,
-    "next_dose_time": None
-}
-
 def reset_auto_dose_timer():
     """
     Called whenever we dose (manually or automatically) so we start counting
     a new interval until the next auto dose.
     """
-    global auto_dose_state
     now = datetime.now()
     auto_dose_state["last_dose_time"] = now
-    auto_dose_state["last_dose_type"] = None  # We'll set this after we know up/down
+    auto_dose_state["last_dose_type"] = None
     auto_dose_state["last_dose_amount"] = 0.0
     auto_dose_state["next_dose_time"] = None
 
@@ -66,17 +56,16 @@ def auto_dosing_loop():
     Periodically checks if auto-dosing is enabled and if it's time to dose.
     Respects dosing_interval from settings, and last dosing time.
     """
+    from api.settings import load_settings
 
     while not stop_event.is_set():
         try:
-            # Load settings each loop to see if user changed auto_dosing or dosing_interval
-            from api.settings import load_settings
             settings = load_settings()
             auto_enabled = settings.get("auto_dosing_enabled", False)
             interval_hours = float(settings.get("dosing_interval", 0))
             
             if not auto_enabled or interval_hours <= 0:
-                # If disabled or invalid interval, just reset timer & skip
+                # If disabled or invalid interval, just wait
                 time.sleep(5)
                 continue
 
@@ -110,7 +99,6 @@ def auto_dosing_loop():
             log_with_timestamp(f"[AutoDosing] Error: {e}")
             time.sleep(5)
 
-# Background task to broadcast pH readings
 def broadcast_ph_readings():
     last_emitted_value = None
     while not stop_event.is_set():
@@ -127,16 +115,10 @@ def broadcast_ph_readings():
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
-    if stop_event.is_set():
-        log_with_timestamp("Background threads already stopped. Starting again.")
-    else:
-        log_with_timestamp("Background threads are running. Skipping redundant start.")
+    log_with_timestamp("Starting background threads...")
     stop_event.clear()
-    # pH broadcast
     threading.Thread(target=broadcast_ph_readings, daemon=True).start()
-    # auto-dosing
     threading.Thread(target=auto_dosing_loop, daemon=True).start()
-    # serial
     start_serial_reader()
 
 def stop_threads():
@@ -185,9 +167,7 @@ def configuration():
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
-    if not stop_event.is_set():
-        print("Starting background threads...")
-        start_threads()
+    # NOTE: If threads are started once at startup, we do NOT call start_threads() here.
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
 
@@ -213,33 +193,37 @@ def dosage_page():
     """
     dosage_data = get_dosage_info()
 
-    # We'll add auto-dose info from auto_dose_state
-    # so the template can display last/next dose times.
-    dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S") if auto_dose_state["last_dose_time"] else "Never"
+    # Merge auto-dose state so the template has it initially
+    if auto_dose_state["last_dose_time"]:
+        dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        dosage_data["last_dose_time"] = "Never"
     dosage_data["last_dose_type"] = auto_dose_state["last_dose_type"] or "N/A"
     dosage_data["last_dose_amount"] = auto_dose_state["last_dose_amount"]
-    dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S") if auto_dose_state["next_dose_time"] else "Not Scheduled"
+    if auto_dose_state["next_dose_time"]:
+        dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        dosage_data["next_dose_time"] = "Not Scheduled"
 
     return render_template('dosage.html', dosage_data=dosage_data)
 
-# For manual dosing from UI
 @app.route('/api/dosage/manual', methods=['POST'])
 def api_manual_dosage():
+    from datetime import datetime
     data = request.get_json()
-    dispense_type = data.get('type')  # 'up' or 'down'
-    amount = data.get('amount', 0)
+    dispense_type = data.get('type', 'none')
+    amount = data.get('amount', 0.0)
 
     from services.dosage_service import manual_dispense
     manual_dispense(dispense_type, amount)
 
-    # Reset the auto-dosing timer so we start a new interval
+    # Reset the auto-dosing timer
     reset_auto_dose_timer()
     # Record what we did
-    from datetime import datetime
     auto_dose_state["last_dose_time"] = datetime.now()
     auto_dose_state["last_dose_type"] = dispense_type
     auto_dose_state["last_dose_amount"] = amount
-    auto_dose_state["next_dose_time"] = None  # Will be re-set in auto_dosing_loop
+    auto_dose_state["next_dose_time"] = None
 
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
@@ -249,10 +233,6 @@ def device_config():
     pass
 
 if __name__ == '__main__':
-    try:
-        start_threads()
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-    except KeyboardInterrupt:
-        print("Application interrupted. Exiting...")
-    finally:
-        cleanup()
+    # Start threads at application startup, not per client connect
+    start_threads()
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

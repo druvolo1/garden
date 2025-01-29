@@ -6,17 +6,6 @@ from services.relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
 
 def get_dosage_info():
-    """
-    Returns a dictionary of dosage-related info:
-      - current pH
-      - system volume
-      - auto-dosing enabled
-      - pH target
-      - calculated pH Up dosage (clamped if needed)
-      - calculated pH Down dosage (clamped if needed)
-      - feedback_up (a message if pH Up was clamped)
-      - feedback_down (a message if pH Down was clamped)
-    """
     current_ph = get_latest_ph_reading()
     if current_ph is None:
         current_ph = 0.0
@@ -26,28 +15,20 @@ def get_dosage_info():
     auto_dosing_enabled = settings.get("auto_dosing_enabled", False)
     ph_target = settings.get("ph_target", 5.8)
 
-    # Retrieve separate strengths for pH Up and pH Down
     dosage_strength = settings.get("dosage_strength", {})
     ph_up_strength = dosage_strength.get("ph_up", 1.0)
     ph_down_strength = dosage_strength.get("ph_down", 1.0)
 
-    # Retrieve max dosing limit
     max_dosing_amount = settings.get("max_dosing_amount", 0)
 
-    # Initialize amounts
     ph_up_amount = 0.0
     ph_down_amount = 0.0
-
-    # Initialize feedback messages
     feedback_up = ""
     feedback_down = ""
 
-    # ---- pH UP Calculation ----
     if current_ph < ph_target:
         ph_difference = ph_target - current_ph
         calculated_up = (ph_up_strength * ph_difference) * system_volume
-
-        # Only clamp if max_dosing_amount > 0
         if max_dosing_amount > 0 and calculated_up > max_dosing_amount:
             feedback_up = (
                 f"The actual calculated dose ({calculated_up:.2f} ml) exceeds the "
@@ -58,12 +39,9 @@ def get_dosage_info():
         else:
             ph_up_amount = calculated_up
 
-    # ---- pH DOWN Calculation ----
     if current_ph > ph_target:
         ph_difference = current_ph - ph_target
         calculated_down = (ph_down_strength * ph_difference) * system_volume
-
-        # Only clamp if max_dosing_amount > 0
         if max_dosing_amount > 0 and calculated_down > max_dosing_amount:
             feedback_down = (
                 f"The actual calculated dose ({calculated_down:.2f} ml) exceeds the "
@@ -86,33 +64,21 @@ def get_dosage_info():
     }
 
 def manual_dispense(dispense_type, amount):
-    """
-    Simple placeholder for manually dispensing.
-    For now, just print a line to the terminal with the type (up/down) and amount.
-    """
     print(f"[Manual Dispense] Requested to dispense {amount} ml of pH {dispense_type.capitalize()}.")
     return True
-
 
 # -----------------------------
 # AUTO-DOSING LOGIC BELOW
 # -----------------------------
 def perform_auto_dose(settings):
-    """
-    Checks current pH, decides if we need pH Up or Down automatically.
-    Returns (dose_type, dose_amount) - e.g. ('up', 5.0) or ('none', 0.0)
-    If pH is within range, returns ('none', 0.0).
-    """
     ph_value = get_latest_ph_reading()
     if ph_value is None:
         print("[AutoDosing] No pH reading available; skipping auto-dose.")
         return ("none", 0.0)
 
-    # We can reuse get_dosage_info() to get recommended amounts
     dosage_data = get_dosage_info()
     ph_target = dosage_data["ph_target"]
 
-    # Decide thresholds (e.g., dose if pH < target - 0.1 or pH > target + 0.1)
     if ph_value < (ph_target - 0.1):
         dose_ml = dosage_data["ph_up_amount"]
         if dose_ml <= 0:
@@ -126,18 +92,11 @@ def perform_auto_dose(settings):
             return ("none", 0.0)
         do_relay_dispense("down", dose_ml, settings)
         return ("down", dose_ml)
-
     else:
-        # pH is close enough; no dose needed
         print(f"[AutoDosing] pH ({ph_value}) near target ({ph_target}); skipping auto dose.")
         return ("none", 0.0)
 
-
 def do_relay_dispense(dispense_type, amount_ml, settings):
-    """
-    Performs the actual relay-based dosing for `amount_ml`, factoring in calibration, etc.
-    This is invoked by perform_auto_dose() for auto dosing.
-    """
     max_dosing = settings.get("max_dosing_amount", 0)
     if max_dosing > 0 and amount_ml > max_dosing:
         amount_ml = max_dosing
