@@ -6,7 +6,6 @@ import json
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 from api.ph import ph_blueprint
-from api.pump import pump_blueprint
 from api.relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
@@ -95,7 +94,6 @@ atexit.register(cleanup)  # Register cleanup function
 
 # Register API blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
-app.register_blueprint(pump_blueprint, url_prefix='/api/pump')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
 app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
