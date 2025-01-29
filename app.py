@@ -141,13 +141,39 @@ def get_latest_ph():
     else:
         return jsonify({"status": "failure", "message": "No pH reading available."}), 404
 
-@app.route('/dosage')
+@app.route('/dosage', methods=['GET'])
 def dosage_page():
     """
-    Render a page that shows the current pH, system volume, auto-dosing status, and target pH.
+    Render a page that shows:
+      - current pH
+      - system volume
+      - auto-dosing status
+      - pH target
+      - calculated amounts for pH Up and pH Down
     """
     dosage_data = get_dosage_info()
     return render_template('dosage.html', dosage_data=dosage_data)
+
+@app.route('/api/dosage/manual', methods=['POST'])
+def api_manual_dosage():
+    """
+    Endpoint to manually dispense pH Up or Down for the calculated amount.
+    Expects JSON with:
+      {
+        "type": "up" or "down",
+        "amount":  [some numeric value]
+      }
+    """
+    data = request.get_json()
+    dispense_type = data.get('type')  # 'up' or 'down'
+    amount = data.get('amount', 0)
+
+    if dispense_type not in ['up', 'down']:
+        return jsonify({"status": "failure", "error": "Invalid dispense type"}), 400
+
+    manual_dispense(dispense_type, amount)
+
+    return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
 @app.route('/api/device/config', methods=['GET', 'POST'])
 def device_config():
