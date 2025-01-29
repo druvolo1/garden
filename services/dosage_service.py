@@ -1,6 +1,8 @@
 # File: services/dosage_service.py
 
+import time
 from services.ph_service import get_latest_ph_reading
+from services.relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
 
 def get_dosage_info():
@@ -17,7 +19,7 @@ def get_dosage_info():
     """
     current_ph = get_latest_ph_reading()
     if current_ph is None:
-        current_ph = 0.0  # Use 0 or some default if not available
+        current_ph = 0.0
 
     settings = load_settings()
     system_volume = settings.get("system_volume", 0)
@@ -90,3 +92,75 @@ def manual_dispense(dispense_type, amount):
     """
     print(f"[Manual Dispense] Requested to dispense {amount} ml of pH {dispense_type.capitalize()}.")
     return True
+
+
+# -----------------------------
+# AUTO-DOSING LOGIC BELOW
+# -----------------------------
+def perform_auto_dose(settings):
+    """
+    Checks current pH, decides if we need pH Up or Down automatically.
+    Returns (dose_type, dose_amount) - e.g. ('up', 5.0) or ('none', 0.0)
+    If pH is within range, returns ('none', 0.0).
+    """
+    ph_value = get_latest_ph_reading()
+    if ph_value is None:
+        print("[AutoDosing] No pH reading available; skipping auto-dose.")
+        return ("none", 0.0)
+
+    # We can reuse get_dosage_info() to get recommended amounts
+    dosage_data = get_dosage_info()
+    ph_target = dosage_data["ph_target"]
+
+    # Decide thresholds (e.g., dose if pH < target - 0.1 or pH > target + 0.1)
+    if ph_value < (ph_target - 0.1):
+        dose_ml = dosage_data["ph_up_amount"]
+        if dose_ml <= 0:
+            return ("none", 0.0)
+        do_relay_dispense("up", dose_ml, settings)
+        return ("up", dose_ml)
+
+    elif ph_value > (ph_target + 0.1):
+        dose_ml = dosage_data["ph_down_amount"]
+        if dose_ml <= 0:
+            return ("none", 0.0)
+        do_relay_dispense("down", dose_ml, settings)
+        return ("down", dose_ml)
+
+    else:
+        # pH is close enough; no dose needed
+        print(f"[AutoDosing] pH ({ph_value}) near target ({ph_target}); skipping auto dose.")
+        return ("none", 0.0)
+
+
+def do_relay_dispense(dispense_type, amount_ml, settings):
+    """
+    Performs the actual relay-based dosing for `amount_ml`, factoring in calibration, etc.
+    This is invoked by perform_auto_dose() for auto dosing.
+    """
+    max_dosing = settings.get("max_dosing_amount", 0)
+    if max_dosing > 0 and amount_ml > max_dosing:
+        amount_ml = max_dosing
+
+    pump_calibration = settings.get("pump_calibration", {})
+    relay_ports = settings.get("relay_ports", {"ph_up": 1, "ph_down": 2})
+
+    if dispense_type == "up":
+        calibration_value = pump_calibration.get("pump1", 1.0)
+        relay_port = relay_ports["ph_up"]
+    else:
+        calibration_value = pump_calibration.get("pump2", 1.0)
+        relay_port = relay_ports["ph_down"]
+
+    duration_sec = amount_ml * calibration_value
+    if duration_sec <= 0:
+        print(f"[AutoDosing] Calculated run time is 0 for {dispense_type}, skipping.")
+        return
+
+    print(f"[AutoDosing] Dispensing {amount_ml:.2f} ml pH {dispense_type} -> Relay {relay_port}, ~{duration_sec:.2f}s")
+    turn_on_relay(relay_port)
+    time.sleep(duration_sec)
+    turn_off_relay(relay_port)
+
+    # Reuse manual_dispense() for logging
+    manual_dispense(dispense_type, amount_ml)
