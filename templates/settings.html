@@ -101,6 +101,27 @@
         <button type="submit" id="pump-calibration-save-btn" disabled>Save Pump Calibration</button>
     </form>
 
+    <!-- New Section for Relay Port Assignments -->
+    <h2>Relay Port Assignments</h2>
+    <form id="relay-port-form">
+        <label for="ph-up-relay-port">pH Up Relay Port:</label>
+        <select id="ph-up-relay-port" name="ph-up-relay-port" disabled>
+            <!-- For a 2-port relay, just 1 & 2. Add more if needed -->
+            <option value="1">Relay 1</option>
+            <option value="2">Relay 2</option>
+        </select>
+        <br><br>
+
+        <label for="ph-down-relay-port">pH Down Relay Port:</label>
+        <select id="ph-down-relay-port" name="ph-down-relay-port" disabled>
+            <option value="1">Relay 1</option>
+            <option value="2">Relay 2</option>
+        </select>
+        <br><br>
+
+        <button type="submit" id="relay-port-save-btn" disabled>Save Relay Port Assignments</button>
+    </form>
+
     <script>
         const piIp = "{{ pi_ip }}"; // Rendered by Flask
         console.log("Connecting to Pi IP:", piIp);
@@ -149,7 +170,7 @@
                     relayDeviceDropdown.appendChild(relayOption);
                 });
 
-                // Populate settings
+                // Populate existing settings
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
                 document.getElementById('ph-target').value = settings.ph_target || '5.8';
@@ -163,9 +184,14 @@
                 document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
                 document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
 
+                // Relay port assignments (defaults, if missing)
+                const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
+                document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
+                document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
+
                 // Enable/Disable settings based on relay assignment
                 const isRelayAssigned = Boolean(assignedRelay);
-                document.querySelectorAll('#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn').forEach(el => {
+                document.querySelectorAll('#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn').forEach(el => {
                     el.disabled = !isRelayAssigned;
                 });
 
@@ -209,12 +235,18 @@
             .catch(error => console.error('Error saving settings:', error));
         };
 
+        // -------------
+        // Event Listeners
+        // -------------
+
+        // Save pH Probe assignment
         document.getElementById('ph-form').addEventListener('submit', event => {
             event.preventDefault();
             const phDevice = document.getElementById('ph-device').value;
             saveUsbAssignment('ph_probe', phDevice);
         });
 
+        // Save Relay Module assignment
         document.getElementById('relay-form').addEventListener('submit', event => {
             event.preventDefault();
             const relayDevice = document.getElementById('relay-device').value;
@@ -258,6 +290,21 @@
                     pump2: parseFloat(document.getElementById('pump2-calibration').value)
                 }
             });
+        });
+
+        // Save Relay Port Assignments
+        document.getElementById('relay-port-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phUpPort = parseInt(document.getElementById('ph-up-relay-port').value, 10);
+            const phDownPort = parseInt(document.getElementById('ph-down-relay-port').value, 10);
+
+            const payload = {
+                relay_ports: {
+                    ph_up: phUpPort,
+                    ph_down: phDownPort
+                }
+            };
+            saveSettings(`http://${piIp}:5000/api/settings`, payload);
         });
 
         // Fetch devices & settings on page load

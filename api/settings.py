@@ -24,7 +24,10 @@ if not os.path.exists(SETTINGS_FILE):
             "daylight_savings_enabled": True,
             "usb_roles": {"ph_probe": None, "relay": None},
             "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
-            "ph_target": 5.8
+            "ph_target": 5.8,
+
+            # NEW: default relay_ports section
+            "relay_ports": {"ph_up": 1, "ph_down": 2}
         }, f, indent=4)
 
 
@@ -55,12 +58,29 @@ def get_settings():
 def update_settings():
     """
     Update system settings. Expects JSON payload with updated values.
+    Example:
+        {
+            "relay_ports": {"ph_up": 1, "ph_down": 2},
+            "dosage_strength": {"ph_up": 1.0, "ph_down": 1.2},
+            ...
+        }
     """
     new_settings = request.json
     current_settings = load_settings()
 
-    # Update the settings with the new values
+    # OPTIONAL: If you want to do partial merges for sub-dicts:
+    if "relay_ports" in new_settings:
+        if "relay_ports" not in current_settings:
+            current_settings["relay_ports"] = {}
+        # Merge or overwrite the sub-dict for relay_ports
+        current_settings["relay_ports"].update(new_settings["relay_ports"])
+        # Remove it from new_settings so it doesn't overwrite at the top level
+        del new_settings["relay_ports"]
+
+    # Now merge the remaining keys
     current_settings.update(new_settings)
+
+    # Save
     save_settings(current_settings)
 
     return jsonify({"status": "success", "settings": current_settings})
@@ -83,7 +103,10 @@ def reset_settings():
         "daylight_savings_enabled": True,
         "usb_roles": {"ph_probe": None, "relay": None},
         "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
-        "ph_target": 5.8
+        "ph_target": 5.8,
+
+        # NEW: default relay_ports section
+        "relay_ports": {"ph_up": 1, "ph_down": 2}
     }
     save_settings(default_settings)
     return jsonify({"status": "success", "settings": default_settings})
@@ -127,7 +150,7 @@ def assign_usb_device():
     Assign a USB device to a specific role (e.g., ph_probe, relay).
     Expects JSON payload with `role` and `device`.
     """
-    data = request.json
+    data = request.get_json()
     role = data.get("role")  # Either "ph_probe" or "relay"
     device = data.get("device")  # Device can be a string or None
 
