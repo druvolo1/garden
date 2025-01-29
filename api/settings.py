@@ -16,7 +16,7 @@ if not os.path.exists(SETTINGS_FILE):
         json.dump({
             "ph_range": {"min": 5.5, "max": 6.5},
             "max_dosing_amount": 5,
-            "dosing_interval": 1,
+            "dosing_interval": 1.0,
             "system_volume": 5.5,
             "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
             "auto_dosing_enabled": True,
@@ -95,7 +95,7 @@ def reset_settings():
     default_settings = {
         "ph_range": {"min": 5.5, "max": 6.5},
         "max_dosing_amount": 5,
-        "dosing_interval": 1,
+        "dosing_interval": 1.0,
         "system_volume": 5.5,
         "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
         "auto_dosing_enabled": True,
