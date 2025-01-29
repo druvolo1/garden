@@ -1,4 +1,4 @@
-<!-- File: templates/dosage.html -->
+<!-- templates/dosage.html (excerpt) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +8,6 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <!-- Navigation (optional) -->
     <nav>
         <ul>
             <li><a href="/">Home</a></li>
@@ -20,7 +19,6 @@
 
     <h1>Dosage Status</h1>
 
-    <!-- Display main dosage data -->
     <p><strong>Current pH:</strong> {{ dosage_data.current_ph }}</p>
     <p><strong>System Volume:</strong> {{ dosage_data.system_volume }}</p>
     <p><strong>Auto Dosing Enabled:</strong> {{ dosage_data.auto_dosing_enabled }}</p>
@@ -34,6 +32,12 @@
         <strong>Calculated Amount:</strong>
         <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml
     </p>
+    {% if dosage_data.feedback_up %}
+        <p style="color: red;">
+            <!-- Mark as safe to allow HTML inside the feedback message -->
+            {{ dosage_data.feedback_up|safe }}
+        </p>
+    {% endif %}
     <button id="ph-up-dispense">Dispense pH Up</button>
 
     <hr>
@@ -44,12 +48,15 @@
         <strong>Calculated Amount:</strong>
         <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml
     </p>
+    {% if dosage_data.feedback_down %}
+        <p style="color: red;">
+            {{ dosage_data.feedback_down|safe }}
+        </p>
+    {% endif %}
     <button id="ph-down-dispense">Dispense pH Down</button>
 
     <script>
-    // Basic jQuery-based clicks for manual dispense
     $(document).ready(function() {
-
         // pH Up button
         $('#ph-up-dispense').on('click', function() {
             const amount = parseFloat($('#ph-up-amount').text()) || 0;
@@ -93,7 +100,6 @@
                 }
             });
         });
-
     });
     </script>
 </body>
