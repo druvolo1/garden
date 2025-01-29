@@ -33,26 +33,19 @@ def manual_dosage():
     # 1. Check for a max dosing limit
     max_dosing = settings.get("max_dosing_amount", 0)
 
-    # If we have a positive max_dosing, clamp the amount if it exceeds that.
+    # Only clamp if max_dosing > 0
     if max_dosing > 0 and amount_ml > max_dosing:
         print(f"[Dosing] Calculated amount ({amount_ml} ml) exceeds max ({max_dosing} ml). Clamping.")
         amount_ml = max_dosing
-    else:
-        # If max_dosing == 0 or amount_ml <= max_dosing, no clamping is applied
-        pass
 
     # 2. Determine which pump calibration and relay port
     pump_calibration = settings.get("pump_calibration", {})
     if dispense_type == "up":
         calibration_value = pump_calibration.get("pump1", 1.0)  # seconds/ml
-        relay_port = 1
+        relay_port = 1  # or read from settings["relay_ports"]["ph_up"]
     else:
         calibration_value = pump_calibration.get("pump2", 1.0)
-        relay_port = 2
-
-    # OPTIONAL: if using settings["relay_ports"], do:
-    # relay_ports = settings.get("relay_ports", {"ph_up":1,"ph_down":2})
-    # relay_port = relay_ports["ph_up"] if dispense_type == "up" else relay_ports["ph_down"]
+        relay_port = 2  # or read from settings["relay_ports"]["ph_down"]
 
     # 3. Calculate runtime in seconds
     duration_sec = amount_ml * calibration_value

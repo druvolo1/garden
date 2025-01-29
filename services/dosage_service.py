@@ -30,7 +30,7 @@ def get_dosage_info():
     ph_down_strength = dosage_strength.get("ph_down", 1.0)
 
     # Retrieve max dosing limit
-    max_dosing_amount = settings.get("max_dosing_amount", 9999)
+    max_dosing_amount = settings.get("max_dosing_amount", 0)
 
     # Initialize amounts
     ph_up_amount = 0.0
@@ -40,11 +40,13 @@ def get_dosage_info():
     feedback_up = ""
     feedback_down = ""
 
-    # Calculate pH Up amount if current pH < target
+    # ---- pH UP Calculation ----
     if current_ph < ph_target:
         ph_difference = ph_target - current_ph
         calculated_up = (ph_up_strength * ph_difference) * system_volume
-        if calculated_up >= max_dosing_amount:
+
+        # Only clamp if max_dosing_amount > 0
+        if max_dosing_amount > 0 and calculated_up > max_dosing_amount:
             feedback_up = (
                 f"The actual calculated dose ({calculated_up:.2f} ml) exceeds the "
                 f"max dosing amount in <a href=\"/settings\">Settings</a>. "
@@ -54,11 +56,13 @@ def get_dosage_info():
         else:
             ph_up_amount = calculated_up
 
-    # Calculate pH Down amount if current pH > target
+    # ---- pH DOWN Calculation ----
     if current_ph > ph_target:
         ph_difference = current_ph - ph_target
         calculated_down = (ph_down_strength * ph_difference) * system_volume
-        if calculated_down > max_dosing_amount:
+
+        # Only clamp if max_dosing_amount > 0
+        if max_dosing_amount > 0 and calculated_down > max_dosing_amount:
             feedback_down = (
                 f"The actual calculated dose ({calculated_down:.2f} ml) exceeds the "
                 f"max dosing amount in <a href=\"/settings\">Settings</a>. "
