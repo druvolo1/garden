@@ -1,6 +1,7 @@
 # File: services/dosage_service.py
 
 import time
+import eventlet
 from services.ph_service import get_latest_ph_reading
 from services.relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
@@ -118,7 +119,7 @@ def do_relay_dispense(dispense_type, amount_ml, settings):
 
     print(f"[AutoDosing] Dispensing {amount_ml:.2f} ml pH {dispense_type} -> Relay {relay_port}, ~{duration_sec:.2f}s")
     turn_on_relay(relay_port)
-    time.sleep(duration_sec)
+    eventlet.sleep(duration_sec)
     turn_off_relay(relay_port)
 
     # Reuse manual_dispense() for logging
