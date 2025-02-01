@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import json
 import os
 import subprocess
+from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -68,6 +69,12 @@ def update_settings():
     new_settings = request.json
     current_settings = load_settings()
 
+    # Check if auto_dosing_enabled or dosing_interval has changed
+    auto_dosing_changed = (
+        "auto_dosing_enabled" in new_settings or
+        "dosing_interval" in new_settings
+    )
+
     # OPTIONAL: If you want to do partial merges for sub-dicts:
     if "relay_ports" in new_settings:
         if "relay_ports" not in current_settings:
@@ -82,6 +89,10 @@ def update_settings():
 
     # Save
     save_settings(current_settings)
+
+    # If auto-dosing settings were changed, reset the auto_dose_state
+    if auto_dosing_changed:
+        reset_auto_dose_timer()
 
     return jsonify({"status": "success", "settings": current_settings})
 
@@ -175,13 +186,4 @@ def assign_usb_device():
     # Save the updated settings
     save_settings(settings)
 
-    return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
-
-
-# API endpoint: Trigger a USB scan
-@settings_blueprint.route('/scan_usb', methods=['POST'])
-def scan_usb_devices():
-    """
-    Trigger a scan for USB devices (refresh functionality).
-    """
-    return list_usb_devices()
+   

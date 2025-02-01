@@ -50,6 +50,7 @@ def reset_auto_dose_timer():
     auto_dose_state["last_dose_type"] = None
     auto_dose_state["last_dose_amount"] = 0.0
     auto_dose_state["next_dose_time"] = None
+    auto_dose_state["last_interval"] = None  # Clear the last interval
 
 def auto_dosing_loop():
     """
@@ -63,21 +64,29 @@ def auto_dosing_loop():
             settings = load_settings()
             auto_enabled = settings.get("auto_dosing_enabled", False)
             interval_hours = float(settings.get("dosing_interval", 0))
-            
-            if not auto_enabled or interval_hours <= 0:
-                # If disabled or invalid interval, just wait
+
+            # If auto-dosing is disabled, reset the state and wait
+            if not auto_enabled:
+                reset_auto_dose_timer()
+                time.sleep(5)
+                continue
+
+            # If the interval is invalid, reset the state and wait
+            if interval_hours <= 0:
+                reset_auto_dose_timer()
                 time.sleep(5)
                 continue
 
             now = datetime.now()
-            # If we haven't dosed yet or next_dose_time is not set, set next_dose_time
+
+            # If the interval has changed, reset the next_dose_time
+            if auto_dose_state.get("last_interval") != interval_hours:
+                auto_dose_state["last_interval"] = interval_hours
+                auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
+
+            # If next_dose_time is not set, set it based on the current interval
             if not auto_dose_state["next_dose_time"]:
-                if auto_dose_state["last_dose_time"]:
-                    auto_dose_state["next_dose_time"] = auto_dose_state["last_dose_time"] + timedelta(hours=interval_hours)
-                else:
-                    auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                time.sleep(5)
-                continue
+                auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
 
             # If it's time to dose
             if now >= auto_dose_state["next_dose_time"]:
