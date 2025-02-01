@@ -103,7 +103,7 @@ def parse_buffer(ser):
 
 def serial_reader():
     global buffer, last_sent_command
-
+    log_with_timestamp("serial_reader: Starting execution.")
     settings = load_settings()
     ph_device = settings.get("usb_roles", {}).get("ph_probe")
 
