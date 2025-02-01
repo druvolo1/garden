@@ -54,7 +54,10 @@ def auto_dosing_loop():
     Periodically checks if auto-dosing is enabled and if it's time to dose.
     Respects dosing_interval from settings, and last dosing time.
     """
+    
     from api.settings import load_settings
+
+    print(f"Inside auto dosing loop")
 
     while not stop_event.is_set():
         try:
@@ -103,6 +106,7 @@ def auto_dosing_loop():
             eventlet.sleep(5)
 
 def broadcast_ph_readings():
+    print(f"Inside function for broadcasting ph readings")
     last_emitted_value = None
     while not stop_event.is_set():
         try:
