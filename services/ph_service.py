@@ -7,6 +7,8 @@ from api.settings import load_settings
 from queue import Queue
 from datetime import datetime, timedelta
 
+eventlet.monkey_patch()  # Apply monkey patching at the top of the file
+
 # Shared queue for commands sent to the probe
 command_queue = Queue()  # Tracks sent commands and their types
 stop_event = threading.Event()  # Event to signal threads to stop
@@ -228,13 +230,8 @@ def get_last_sent_command():
 serial_reader_thread = None  # Add this global variable
 
 def start_serial_reader():
-    global serial_reader_thread
-    if serial_reader_thread is not None and serial_reader_thread.is_alive():
-        log_with_timestamp("Serial reader is already running.")
-        return
-    stop_event.clear()
-    serial_reader_thread = threading.Thread(target=serial_reader, daemon=True)
-    serial_reader_thread.start()
+    """Start the serial reader in a green thread."""
+    eventlet.spawn(serial_reader)
     log_with_timestamp("Serial reader started.")
 
 

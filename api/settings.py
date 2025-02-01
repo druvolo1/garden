@@ -3,6 +3,8 @@ import json
 import os
 import subprocess
 from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
+from dosing import reset_auto_dose_timer
+
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -155,6 +157,7 @@ def list_usb_devices():
 
 
 # API endpoint: Assign a USB device to a specific role
+# API endpoint: Assign a USB device to a specific role
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
     """
@@ -186,4 +189,5 @@ def assign_usb_device():
     # Save the updated settings
     save_settings(settings)
 
-   
+    # Return a response indicating success
+    return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
