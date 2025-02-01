@@ -1,6 +1,11 @@
 import socket
 import time
-import threading
+import eventlet
+eventlet.monkey_patch()  # Apply monkey patching at the top of the file
+
+# Replace threading with eventlet
+import eventlet.green.threading as threading
+
 import atexit
 import json
 from flask import Flask, render_template, jsonify, request
@@ -10,10 +15,10 @@ from api.relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
-from api.dosing import dosing_blueprint  # Our updated dosing blueprint
+from api.dosing import dosing_blueprint
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value
 from services.dosage_service import get_dosage_info, perform_auto_dose
-from services.auto_dose_state import auto_dose_state  # <-- NEW: import the shared dictionary
+from services.auto_dose_state import auto_dose_state
 from services.device_config import (
     get_hostname, set_hostname, get_ip_config, set_ip_config, get_timezone, set_timezone,
     is_daylight_savings, get_ntp_server, set_ntp_server, get_wifi_config, set_wifi_config
@@ -21,7 +26,7 @@ from services.device_config import (
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode="eventlet")  # or "gevent" if you prefer
+socketio = SocketIO(app, async_mode="eventlet")  # Use eventlet for SocketIO
 stop_event = threading.Event()  # Event to stop background threads
 cleanup_called = False
 serial_reader_thread = None
@@ -68,13 +73,13 @@ def auto_dosing_loop():
             # If auto-dosing is disabled, reset the state and wait
             if not auto_enabled:
                 reset_auto_dose_timer()
-                time.sleep(5)
+                eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
                 continue
 
             # If the interval is invalid, reset the state and wait
             if interval_hours <= 0:
                 reset_auto_dose_timer()
-                time.sleep(5)
+                eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
                 continue
 
             now = datetime.now()
@@ -102,11 +107,11 @@ def auto_dosing_loop():
                     # No dose needed. Maybe check again soon
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
 
-            time.sleep(5)
+            eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
 
         except Exception as e:
             log_with_timestamp(f"[AutoDosing] Error: {e}")
-            time.sleep(5)
+            eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
 
 def broadcast_ph_readings():
     last_emitted_value = None
@@ -119,15 +124,15 @@ def broadcast_ph_readings():
                     last_emitted_value = ph_value
                     socketio.emit('ph_update', {'ph': ph_value})
                     print(f"[Broadcast] Emitting pH update: {ph_value}")
-            time.sleep(1)
+            eventlet.sleep(1)  # Use eventlet.sleep instead of time.sleep
         except Exception as e:
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
     log_with_timestamp("Starting background threads...")
     stop_event.clear()
-    threading.Thread(target=broadcast_ph_readings, daemon=True).start()
-    threading.Thread(target=auto_dosing_loop, daemon=True).start()
+    eventlet.spawn(broadcast_ph_readings)  # Use eventlet.spawn instead of threading.Thread
+    eventlet.spawn(auto_dosing_loop)       # Use eventlet.spawn instead of threading.Thread
     start_serial_reader()
 
 def stop_threads():
@@ -176,7 +181,6 @@ def configuration():
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
-    # NOTE: If threads are started once at startup, we do NOT call start_threads() here.
     if latest_ph_value is not None:
         socketio.emit('ph_update', {'ph': latest_ph_value})
 
@@ -190,19 +194,8 @@ def get_latest_ph():
 
 @app.route('/dosage', methods=['GET'])
 def dosage_page():
-    """
-    Render a page that shows:
-      - current pH
-      - system volume
-      - auto-dosing status
-      - pH target
-      - calculated amounts for pH Up and pH Down
-      - last dose info
-      - next dose time
-    """
     dosage_data = get_dosage_info()
 
-    # Merge auto-dose state so the template has it initially
     if auto_dose_state["last_dose_time"]:
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -226,9 +219,7 @@ def api_manual_dosage():
     from services.dosage_service import manual_dispense
     manual_dispense(dispense_type, amount)
 
-    # Reset the auto-dosing timer
     reset_auto_dose_timer()
-    # Record what we did
     auto_dose_state["last_dose_time"] = datetime.now()
     auto_dose_state["last_dose_type"] = dispense_type
     auto_dose_state["last_dose_amount"] = amount
@@ -240,8 +231,3 @@ def api_manual_dosage():
 def device_config():
     # ... existing code ...
     pass
-
-#if __name__ == '__main__':
-#    # Start threads at application startup, not per client connect
-#    start_threads()
-#    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
