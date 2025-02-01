@@ -19,6 +19,7 @@ workers = 1  # Use only 1 worker to avoid duplicate threads
 worker_class = "eventlet"
 timeout = 60
 loglevel = "debug"
+preload_app = True
 
 # If running locally (not under Gunicorn), start the app directly
 if __name__ == "__main__":
