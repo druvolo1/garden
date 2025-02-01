@@ -124,9 +124,16 @@ def broadcast_ph_readings():
 def start_threads():
     log_with_timestamp("Starting background threads...")
     stop_event.clear()
+    log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
+    log_with_timestamp("Broadcast_ph_readings spawned.")
+    log_with_timestamp("Spawning auto_dosing_loop...")
     eventlet.spawn(auto_dosing_loop)
-    start_serial_reader()
+    log_with_timestamp("Auto_dosing_loop spawned.")
+    log_with_timestamp("Starting serial reader...")
+    start_serial_reader()  # This itself logs "Serial reader started."
+    log_with_timestamp("Serial reader spawn requested.")
+
 
 def stop_threads():
     print("Stopping background threads...")
