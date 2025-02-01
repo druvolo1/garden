@@ -3,7 +3,7 @@ import time
 import eventlet
 from services.auto_dose_utils import reset_auto_dose_timer
 
-eventlet.monkey_patch()  # Apply monkey patching at the top of the file
+eventlet.monkey_patch()  # Apply monkey patching at the very top
 
 # Replace threading with eventlet
 import eventlet.green.threading as threading
@@ -26,6 +26,8 @@ from services.device_config import (
     is_daylight_savings, get_ntp_server, set_ntp_server, get_wifi_config, set_wifi_config
 )
 from datetime import datetime, timedelta
+import sys
+import signal
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode="eventlet")  # Use eventlet for SocketIO
@@ -34,7 +36,7 @@ cleanup_called = False
 serial_reader_thread = None
 
 def log_with_timestamp(message):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -46,8 +48,6 @@ def get_local_ip():
     finally:
         s.close()
     return ip
-
-
 
 def auto_dosing_loop():
     """
@@ -65,13 +65,13 @@ def auto_dosing_loop():
             # If auto-dosing is disabled, reset the state and wait
             if not auto_enabled:
                 reset_auto_dose_timer()
-                eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
+                eventlet.sleep(5)
                 continue
 
             # If the interval is invalid, reset the state and wait
             if interval_hours <= 0:
                 reset_auto_dose_timer()
-                eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
+                eventlet.sleep(5)
                 continue
 
             now = datetime.now()
@@ -87,23 +87,20 @@ def auto_dosing_loop():
 
             # If it's time to dose
             if now >= auto_dose_state["next_dose_time"]:
-                # Auto-dose logic (decide up or down & how much)
                 dose_type, dose_amount = perform_auto_dose(settings)
-                # If dose_amount > 0 => we dispensed
                 if dose_amount > 0:
                     auto_dose_state["last_dose_time"] = now
                     auto_dose_state["last_dose_type"] = dose_type
                     auto_dose_state["last_dose_amount"] = dose_amount
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
                 else:
-                    # No dose needed. Maybe check again soon
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
 
-            eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
+            eventlet.sleep(5)
 
         except Exception as e:
             log_with_timestamp(f"[AutoDosing] Error: {e}")
-            eventlet.sleep(5)  # Use eventlet.sleep instead of time.sleep
+            eventlet.sleep(5)
 
 def broadcast_ph_readings():
     last_emitted_value = None
@@ -116,15 +113,15 @@ def broadcast_ph_readings():
                     last_emitted_value = ph_value
                     socketio.emit('ph_update', {'ph': ph_value})
                     print(f"[Broadcast] Emitting pH update: {ph_value}")
-            eventlet.sleep(1)  # Use eventlet.sleep instead of time.sleep
+            eventlet.sleep(1)
         except Exception as e:
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
     log_with_timestamp("Starting background threads...")
     stop_event.clear()
-    eventlet.spawn(broadcast_ph_readings)  # Use eventlet.spawn instead of threading.Thread
-    eventlet.spawn(auto_dosing_loop)       # Use eventlet.spawn instead of threading.Thread
+    eventlet.spawn(broadcast_ph_readings)
+    eventlet.spawn(auto_dosing_loop)
     start_serial_reader()
 
 def stop_threads():
@@ -142,6 +139,31 @@ def cleanup():
     stop_threads()
     print("Background threads stopped.")
 
+# Instead of a direct cleanup call from the main thread or signal handler,
+# we define a separate cleanup function to run in a green thread.
+def do_cleanup():
+    log_with_timestamp("Cleaning up resources...")
+    try:
+        stop_threads()
+    except Exception as e:
+        log_with_timestamp(f"Error during stop_threads: {e}")
+    log_with_timestamp("Background threads stopped.")
+    sys.exit()  # Exit the application
+
+def graceful_exit(signum, frame):
+    log_with_timestamp(f"Received signal {signum}. Scheduling cleanup...")
+    eventlet.spawn_n(do_cleanup)
+
+def handle_stop_signal(signum, frame):
+    log_with_timestamp(f"Received signal {signum} (SIGTSTP). Scheduling cleanup...")
+    eventlet.spawn_n(do_cleanup)
+
+# Register signal handlers so cleanup is offloaded to a green thread
+signal.signal(signal.SIGINT, graceful_exit)
+signal.signal(signal.SIGTERM, graceful_exit)
+signal.signal(signal.SIGTSTP, handle_stop_signal)
+
+# Also register atexit cleanup (if not already handled by signals)
 atexit.register(cleanup)
 
 # Register API blueprints
@@ -187,7 +209,6 @@ def get_latest_ph():
 @app.route('/dosage', methods=['GET'])
 def dosage_page():
     dosage_data = get_dosage_info()
-
     if auto_dose_state["last_dose_time"]:
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -198,7 +219,6 @@ def dosage_page():
         dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
         dosage_data["next_dose_time"] = "Not Scheduled"
-
     return render_template('dosage.html', dosage_data=dosage_data)
 
 @app.route('/api/dosage/manual', methods=['POST'])
@@ -207,19 +227,21 @@ def api_manual_dosage():
     data = request.get_json()
     dispense_type = data.get('type', 'none')
     amount = data.get('amount', 0.0)
-
     from services.dosage_service import manual_dispense
     manual_dispense(dispense_type, amount)
-
     reset_auto_dose_timer()
     auto_dose_state["last_dose_time"] = datetime.now()
     auto_dose_state["last_dose_type"] = dispense_type
     auto_dose_state["last_dose_amount"] = amount
     auto_dose_state["next_dose_time"] = None
-
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
 @app.route('/api/device/config', methods=['GET', 'POST'])
 def device_config():
     # ... existing code ...
     pass
+
+if __name__ == "__main__":
+    print("[WSGI] Running in local development mode...")
+    start_threads()  # Start threads for local development
+    app.run(host="0.0.0.0", port=5000, debug=True)
