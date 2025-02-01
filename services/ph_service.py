@@ -6,6 +6,7 @@ import serial
 from api.settings import load_settings
 from queue import Queue
 from datetime import datetime, timedelta
+from eventlet import tpool
 
 eventlet.monkey_patch()  # Apply monkey patching at the top of the file
 
@@ -100,65 +101,25 @@ def parse_buffer(ser):
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
-
 def serial_reader():
-    global buffer, last_sent_command
-    log_with_timestamp("serial_reader: Starting execution.")
-    settings = load_settings()
-    ph_device = settings.get("usb_roles", {}).get("ph_probe")
-
-    if not ph_device:
-        log_with_timestamp("No pH probe device assigned.")
-        return
-
-   
-
     while not stop_event.is_set():
         try:
-            with serial.Serial(
-                ph_device,
-                9600,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            ) as ser:
-                log_with_timestamp(f"Connected to pH probe device: {ph_device}")
-                ser.flushInput()
-                ser.flushOutput()
-
+            with serial.Serial(...) as ser:
                 while not stop_event.is_set():
-                    try:
-                        # Check for timeout on the last command
-                        check_command_timeout()
-
-                        # Process commands from the queue
-                        if not command_queue.empty():
-                            next_command = command_queue.get()
-                            send_command_to_probe(ser, next_command["command"])
-                            last_sent_command = next_command["command"]
-
-                        # Read data from the serial port
-                        raw_data = ser.read(100)
-                        if raw_data:
-                            decoded_data = raw_data.decode('utf-8', errors='replace')
-                            with ph_lock:
-                                buffer += decoded_data
-                                if len(buffer) > MAX_BUFFER_LENGTH:
-                                    log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
-                                    buffer = ""
-                            parse_buffer(ser)
-
-                    except (serial.SerialException, OSError) as e:
-                        log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
-                        last_sent_command = None
-                        eventlet.sleep(5)
-                        break
-
+                    # Use tpool.execute to run blocking calls
+                    raw_data = tpool.execute(ser.read, 100)
+                    if raw_data:
+                        decoded_data = raw_data.decode('utf-8', errors='replace')
+                        with ph_lock:
+                            buffer += decoded_data
+                            if len(buffer) > MAX_BUFFER_LENGTH:
+                                log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
+                                buffer = ""
+                        parse_buffer(ser)
         except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Failed to connect to pH probe: {e}. Retrying in 10 seconds...")
-            eventlet.sleep(10)
-
+            log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
+            eventlet.sleep(5)   
+    
 def send_configuration_commands(ser):
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
