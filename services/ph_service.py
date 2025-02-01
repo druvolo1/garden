@@ -118,7 +118,7 @@ def serial_reader():
                         parse_buffer(ser)
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
-            eventlet.sleep(5)   
+            eventlet.sleep(5)
     
 def send_configuration_commands(ser):
     try:
