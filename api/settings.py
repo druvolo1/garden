@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
-from dosing import reset_auto_dose_timer
+from app import reset_auto_dose_timer
 
 
 # Create the Blueprint for settings
