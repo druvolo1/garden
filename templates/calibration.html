@@ -40,7 +40,7 @@
     
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const socket = io.connect('http://172.16.1.219:5000');
+            const socket = io.connect('http://172.16.1.219:8000');
 
             function appendToLog(message, isError = false) {
                 const logItem = document.createElement("li");

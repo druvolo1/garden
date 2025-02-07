@@ -29,7 +29,7 @@
             const piIp = "{{ pi_ip }}".trim(); // Ensure it's properly formatted
             console.log("Connecting to Socket.IO on:", piIp);
 
-            const socket = io.connect(`http://${piIp}:5000`, {
+            const socket = io.connect(`http://${piIp}:8000`, {
                 reconnectionAttempts: 5, // Try reconnecting 5 times before giving up
                 reconnectionDelay: 2000  // Wait 2 seconds between attempts
             });

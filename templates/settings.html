@@ -132,13 +132,13 @@
         const fetchUsbDevices = () => {
             console.log('Rescanning USB devices...');
             Promise.all([
-                fetch(`http://${piIp}:5000/api/settings/usb_devices`).then(response => {
+                fetch(`http://${piIp}:8000/api/settings/usb_devices`).then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch USB devices');
                     }
                     return response.json();
                 }),
-                fetch(`http://${piIp}:5000/api/settings`).then(response => {
+                fetch(`http://${piIp}:8000/api/settings`).then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch settings');
                     }
@@ -206,7 +206,7 @@
         };
 
         const saveUsbAssignment = (role, device) => {
-            fetch(`http://${piIp}:5000/api/settings/assign_usb`, {
+            fetch(`http://${piIp}:8000/api/settings/assign_usb`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role, device })
@@ -259,7 +259,7 @@
         // Save General Settings
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
-            saveSettings(`http://${piIp}:5000/api/settings`, {
+            saveSettings(`http://${piIp}:8000/api/settings`, {
                 ph_target: parseFloat(document.getElementById('ph-target').value),
                 max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
                 dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
@@ -281,13 +281,13 @@
                     ph_down: phDown
                 }
             };
-            saveSettings(`http://${piIp}:5000/api/settings`, payload);
+            saveSettings(`http://${piIp}:8000/api/settings`, payload);
         });
 
         // Save Pump Calibration
         document.getElementById('pump-calibration-form').addEventListener('submit', event => {
             event.preventDefault();
-            saveSettings(`http://${piIp}:5000/api/settings`, {
+            saveSettings(`http://${piIp}:8000/api/settings`, {
                 pump_calibration: {
                     pump1: parseFloat(document.getElementById('pump1-calibration').value),
                     pump2: parseFloat(document.getElementById('pump2-calibration').value)
@@ -307,7 +307,7 @@
                     ph_down: phDownPort
                 }
             };
-            saveSettings(`http://${piIp}:5000/api/settings`, payload);
+            saveSettings(`http://${piIp}:8000/api/settings`, payload);
         });
 
         // Fetch devices & settings on page load
