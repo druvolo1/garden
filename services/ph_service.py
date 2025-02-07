@@ -103,21 +103,20 @@ def parse_buffer(ser):
 
 def serial_reader():
     while not stop_event.is_set():
+        settings = load_settings()
+        ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
+        if not ph_probe_path:
+            log_with_timestamp("No pH probe assigned. Retrying in 5s...")
+            eventlet.sleep(5)
+            continue
+
         try:
-            with serial.Serial(...) as ser:
+            with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
                 while not stop_event.is_set():
-                    # Use tpool.execute to run blocking calls
                     raw_data = tpool.execute(ser.read, 100)
-                    if raw_data:
-                        decoded_data = raw_data.decode('utf-8', errors='replace')
-                        with ph_lock:
-                            buffer += decoded_data
-                            if len(buffer) > MAX_BUFFER_LENGTH:
-                                log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
-                                buffer = ""
-                        parse_buffer(ser)
+                    ...
         except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Serial error: {e}. Reconnecting in 5 seconds...")
+            log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5 seconds...")
             eventlet.sleep(5)
     
 def send_configuration_commands(ser):
