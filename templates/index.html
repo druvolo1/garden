@@ -26,10 +26,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async function () {
-            const piIp = "{{ pi_ip }}".trim(); // Ensure it's properly formatted
-            console.log("Connecting to Socket.IO on:", piIp);
-
-            const socket = io.connect(`http://${piIp}:8000`, {
+            // Instead of hardcoding piIp, use the same origin that served this page
+            const socket = io.connect(window.location.origin, {
                 reconnectionAttempts: 5, // Try reconnecting 5 times before giving up
                 reconnectionDelay: 2000  // Wait 2 seconds between attempts
             });
@@ -64,7 +62,8 @@
             socket.on('connect', () => {
                 console.log('Connected to WebSocket server');
                 socket.emit('message', 'Hello from the client!');
-                fetchInitialPh(); // Fetch initial data only when connected
+                // Fetch initial data only when connected
+                fetchInitialPh();
             });
 
             // Handle pH updates from the server
@@ -78,13 +77,14 @@
                 console.warn("WebSocket connection error:", error);
             });
 
-            // Handle WebSocket disconnection and attempt reconnection
+            // Handle WebSocket disconnection
             socket.on('disconnect', () => {
                 console.warn("WebSocket disconnected. Attempting to reconnect...");
             });
 
-            // Fetch initial pH value on page load
-            fetchInitialPh();
+            // If you want to fetch initial pH even before WebSocket connects,
+            // just uncomment the line below:
+            // fetchInitialPh();
         });
     </script>
 </body>

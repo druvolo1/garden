@@ -109,7 +109,6 @@
     <form id="relay-port-form">
         <label for="ph-up-relay-port">pH Up Relay Port:</label>
         <select id="ph-up-relay-port" name="ph-up-relay-port" disabled>
-            <!-- For a 2-port relay, just 1 & 2. Add more if needed -->
             <option value="1">Relay 1</option>
             <option value="2">Relay 2</option>
         </select>
@@ -126,19 +125,16 @@
     </form>
 
     <script>
-        const piIp = "{{ pi_ip }}"; // Rendered by Flask
-        console.log("Connecting to Pi IP:", piIp);
-
         const fetchUsbDevices = () => {
             console.log('Rescanning USB devices...');
             Promise.all([
-                fetch(`http://${piIp}:8000/api/settings/usb_devices`).then(response => {
+                fetch("/api/settings/usb_devices").then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch USB devices');
                     }
                     return response.json();
                 }),
-                fetch(`http://${piIp}:8000/api/settings`).then(response => {
+                fetch("/api/settings").then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to fetch settings');
                     }
@@ -194,7 +190,9 @@
 
                 // Enable/Disable settings based on relay assignment
                 const isRelayAssigned = Boolean(assignedRelay);
-                document.querySelectorAll('#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn').forEach(el => {
+                document.querySelectorAll(
+                    '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
+                ).forEach(el => {
                     el.disabled = !isRelayAssigned;
                 });
 
@@ -206,7 +204,7 @@
         };
 
         const saveUsbAssignment = (role, device) => {
-            fetch(`http://${piIp}:8000/api/settings/assign_usb`, {
+            fetch("/api/settings/assign_usb", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role, device })
@@ -259,7 +257,7 @@
         // Save General Settings
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
-            saveSettings(`http://${piIp}:8000/api/settings`, {
+            saveSettings("/api/settings", {
                 ph_target: parseFloat(document.getElementById('ph-target').value),
                 max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
                 dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
@@ -281,13 +279,13 @@
                     ph_down: phDown
                 }
             };
-            saveSettings(`http://${piIp}:8000/api/settings`, payload);
+            saveSettings("/api/settings", payload);
         });
 
         // Save Pump Calibration
         document.getElementById('pump-calibration-form').addEventListener('submit', event => {
             event.preventDefault();
-            saveSettings(`http://${piIp}:8000/api/settings`, {
+            saveSettings("/api/settings", {
                 pump_calibration: {
                     pump1: parseFloat(document.getElementById('pump1-calibration').value),
                     pump2: parseFloat(document.getElementById('pump2-calibration').value)
@@ -307,7 +305,7 @@
                     ph_down: phDownPort
                 }
             };
-            saveSettings(`http://${piIp}:8000/api/settings`, payload);
+            saveSettings("/api/settings", payload);
         });
 
         // Fetch devices & settings on page load
