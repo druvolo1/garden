@@ -25,26 +25,66 @@
     <div id="ph-display" style="font-size: 24px; color: blue;">Loading...</div>
 
     <script>
-        const piIp = "{{ pi_ip }}";
-        console.log("Connecting to Socket.IO on:", piIp);
+        document.addEventListener('DOMContentLoaded', async function () {
+            const piIp = "{{ pi_ip }}".trim(); // Ensure it's properly formatted
+            console.log("Connecting to Socket.IO on:", piIp);
 
-        const socket = io.connect(`http://${piIp}:5000`);
+            const socket = io.connect(`http://${piIp}:5000`, {
+                reconnectionAttempts: 5, // Try reconnecting 5 times before giving up
+                reconnectionDelay: 2000  // Wait 2 seconds between attempts
+            });
 
-        socket.on('connect', () => {
-            console.log('Connected to server');
-            socket.emit('message', 'Hello from the client!');
-        });
+            // Helper function to update pH display
+            function updatePhDisplay(ph) {
+                const phDisplay = document.getElementById('ph-display');
+                if (ph !== undefined) {
+                    phDisplay.textContent = `Current pH: ${parseFloat(ph).toFixed(2)}`;
+                } else {
+                    phDisplay.textContent = "pH data unavailable";
+                }
+            }
 
-        socket.on('message', (data) => {
-            console.log('Message from server:', data);
-        });
+            // Fetch latest pH value on page load
+            async function fetchInitialPh() {
+                try {
+                    const response = await fetch('/api/ph/latest');
+                    const data = await response.json();
+                    if (data && data.ph !== undefined) {
+                        updatePhDisplay(data.ph);
+                    } else {
+                        updatePhDisplay();
+                    }
+                } catch (error) {
+                    console.error("Error fetching initial pH data:", error);
+                    updatePhDisplay();
+                }
+            }
 
-        socket.on('ph_update', (data) => {
-            console.log('Real-time pH update:', data);
-            const phDisplay = document.getElementById('ph-display');
-            phDisplay.textContent = data.ph !== undefined 
-                ? `Current pH: ${data.ph.toFixed(2)}` 
-                : 'pH data unavailable';
+            // Handle WebSocket connection
+            socket.on('connect', () => {
+                console.log('Connected to WebSocket server');
+                socket.emit('message', 'Hello from the client!');
+                fetchInitialPh(); // Fetch initial data only when connected
+            });
+
+            // Handle pH updates from the server
+            socket.on('ph_update', (data) => {
+                console.log('Real-time pH update:', data);
+                updatePhDisplay(data.ph);
+            });
+
+            // Handle WebSocket errors
+            socket.on('connect_error', (error) => {
+                console.warn("WebSocket connection error:", error);
+            });
+
+            // Handle WebSocket disconnection and attempt reconnection
+            socket.on('disconnect', () => {
+                console.warn("WebSocket disconnected. Attempting to reconnect...");
+            });
+
+            // Fetch initial pH value on page load
+            fetchInitialPh();
         });
     </script>
 </body>

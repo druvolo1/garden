@@ -1,4 +1,7 @@
 import time
+import eventlet
+
+eventlet.monkey_patch()
 
 # Mock GPIO setup for demonstration
 # Replace with actual GPIO library (RPi.GPIO or similar) if working with real hardware
@@ -50,7 +53,7 @@ def run_pump(pump, time_sec):
         GPIO.output(pump_pin, GPIO.HIGH)
 
         # Run the pump for the specified duration
-        time.sleep(time_sec)
+        eventlet.sleep(time_sec)
 
         # Turn off the pump
         print(f"Turning off pump: {pump}")
@@ -58,7 +61,7 @@ def run_pump(pump, time_sec):
         return True
     except NameError:
         print(f"Simulating pump {pump} for {time_sec} seconds (mock environment).")
-        time.sleep(time_sec)
+        eventlet.sleep(time_sec)
         return True
     except Exception as e:
         print(f"Error running pump: {e}")

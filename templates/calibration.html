@@ -37,97 +37,93 @@
             <ul id="log-list"></ul>
         </div>
     </main>
+    
     <script>
-        $(document).ready(function () {
+        document.addEventListener("DOMContentLoaded", () => {
             const socket = io.connect('http://172.16.1.219:5000');
-    
-            // Helper function to append messages to the log
+
             function appendToLog(message, isError = false) {
-                const logItem = $('<li>').text(message);
-                if (isError) logItem.css('color', 'red');
-                $('#log-list').prepend(logItem);
+                const logItem = document.createElement("li");
+                logItem.textContent = message;
+                if (isError) logItem.style.color = "red";
+                document.getElementById("log-list").prepend(logItem);
             }
-    
-            // Fetch the latest pH value when the page loads
+
+            // Fetch the latest pH value asynchronously
             function fetchLatestPh() {
-                $.get('/api/ph/latest', function (data) {
-                    if (data && data.ph !== undefined) {
-                        $('#current-ph').text(data.ph);
-                        appendToLog(`Initial pH value: ${data.ph}`);
-                    } else {
-                        $('#current-ph').text('--');
-                        appendToLog('No initial pH value available.');
-                    }
-                }).fail(function () {
-                    $('#current-ph').text('--');
-                    appendToLog('Error fetching the initial pH value.', true);
-                });
+                fetch('/api/ph/latest')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.ph !== undefined) {
+                            document.getElementById("current-ph").textContent = data.ph;
+                            appendToLog(`Initial pH value: ${data.ph}`);
+                        } else {
+                            document.getElementById("current-ph").textContent = "--";
+                            appendToLog("No initial pH value available.");
+                        }
+                    })
+                    .catch(() => {
+                        document.getElementById("current-ph").textContent = "--";
+                        appendToLog("Error fetching the initial pH value.", true);
+                    });
             }
-    
-            // WebSocket connection success
-            socket.on('connect', function () {
-                console.log('WebSocket connected successfully.');
-                appendToLog('WebSocket connected successfully.');
-    
-                // Fetch the latest pH value on WebSocket connection
+
+            setTimeout(fetchLatestPh, 0); // Ensures non-blocking execution
+
+            // WebSocket connection handlers
+            socket.on("connect", () => {
+                console.log("WebSocket connected successfully.");
+                appendToLog("WebSocket connected successfully.");
                 fetchLatestPh();
             });
-    
-            // Handle pH updates from the server
-            socket.on('ph_update', function (data) {
-                console.log('Received pH update:', data);
-    
+
+            socket.on("ph_update", (data) => {
+                console.log("Received pH update:", data);
                 if (data && data.ph !== undefined) {
-                    $('#current-ph').text(data.ph);
+                    document.getElementById("current-ph").textContent = data.ph;
                     appendToLog(`Live pH update received: ${data.ph}`);
                 } else {
-                    $('#current-ph').text('--');
-                    appendToLog('No valid pH data received.', true);
+                    appendToLog("No valid pH data received.", true);
                 }
             });
-    
-            // WebSocket reconnection handling
-            socket.on('reconnect', function () {
-                console.log('WebSocket reconnected.');
-                appendToLog('WebSocket reconnected.');
-                fetchLatestPh(); // Fetch the latest pH value on reconnection
+
+            socket.on("reconnect", () => {
+                console.log("WebSocket reconnected.");
+                appendToLog("WebSocket reconnected.");
+                fetchLatestPh();
             });
-    
-            // WebSocket connection error
-            socket.on('connect_error', function (error) {
-                console.error('WebSocket connection error:', error);
-                appendToLog('WebSocket connection error.', true);
+
+            socket.on("connect_error", (error) => {
+                console.error("WebSocket connection error:", error);
+                appendToLog("WebSocket connection error.", true);
             });
-    
-            // WebSocket disconnection
-            socket.on('disconnect', function () {
-                console.warn('WebSocket disconnected.');
-                appendToLog('WebSocket disconnected.', true);
+
+            socket.on("disconnect", () => {
+                console.warn("WebSocket disconnected.");
+                appendToLog("WebSocket disconnected.", true);
             });
-    
-            // Send calibration commands to the server
+
+            // Send calibration command
             function sendCalibrationCommand(level) {
-                $.post(`/api/ph/calibrate/${level}`)
-                    .done(function (data) {
+                fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
+                    .then(response => response.json())
+                    .then(data => {
                         if (data.status === "success") {
-                            console.log(`${level} calibration successful:`, data.message);
                             appendToLog(`Calibration (${level}) successful: ${data.message}`);
                         } else {
-                            console.error(`${level} calibration failed:`, data.message);
                             appendToLog(`Calibration (${level}) failed: ${data.message}`, true);
                         }
                     })
-                    .fail(function () {
-                        console.error(`Failed to send ${level} calibration command.`);
+                    .catch(() => {
                         appendToLog(`Failed to send ${level} calibration command.`, true);
                     });
             }
-    
-            // Button click handlers for calibration commands
-            $('#calibrate-low').click(() => sendCalibrationCommand('low'));
-            $('#calibrate-mid').click(() => sendCalibrationCommand('mid'));
-            $('#calibrate-high').click(() => sendCalibrationCommand('high'));
-            $('#clear-calibration').click(() => sendCalibrationCommand('clear'));
+
+            // Button click handlers
+            document.getElementById("calibrate-low").addEventListener("click", () => sendCalibrationCommand("low"));
+            document.getElementById("calibrate-mid").addEventListener("click", () => sendCalibrationCommand("mid"));
+            document.getElementById("calibrate-high").addEventListener("click", () => sendCalibrationCommand("high"));
+            document.getElementById("clear-calibration").addEventListener("click", () => sendCalibrationCommand("clear"));
         });
     </script>  
 </body>

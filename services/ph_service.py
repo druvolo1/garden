@@ -200,7 +200,7 @@ def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
     stop_event.set()
     try:
-        eventlet.sleep(2)  # Or time.sleep(2) if using native threads
+        eventlet.sleep(2)  
     except SystemExit:
         log_with_timestamp("SystemExit occurred during serial reader stop.")
     except Exception as e:

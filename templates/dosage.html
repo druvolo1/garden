@@ -5,7 +5,6 @@
   <meta charset="UTF-8">
   <title>Dosage Info</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <!-- Include socket.io client library -->
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
@@ -57,81 +56,56 @@
   <button id="ph-down-dispense">Dispense pH Down</button>
 
   <script>
-    // Connect to Socket.IO
-    const socket = io.connect(window.location.origin);
+    document.addEventListener('DOMContentLoaded', async () => {
+        const socket = io.connect(window.location.origin);
 
-    function refreshDosageInfo() {
-      fetch('/api/dosage/info')
-        .then(response => response.json())
-        .then(d => {
-          document.getElementById('current-ph').textContent = d.current_ph;
-          document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
-          document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
-          document.getElementById('last-dose-time').textContent = d.last_dose_time;
-          document.getElementById('last-dose-type').textContent = d.last_dose_type;
-          document.getElementById('last-dose-amount').textContent = d.last_dose_amount;
-          document.getElementById('next-dose-time').textContent = d.next_dose_time;
-        })
-        .catch(err => console.error("Error refreshing dosage info:", err));
-    }
+        async function refreshDosageInfo() {
+            try {
+                const response = await fetch('/api/dosage/info');
+                const d = await response.json();
 
-    // Listen for the 'ph_update' event from the server
-    socket.on('ph_update', function(data) {
-      console.log("Received pH update via socket:", data.ph);
-      // Refresh dosage info each time pH changes
-      refreshDosageInfo();
-    });
+                document.getElementById('current-ph').textContent = d.current_ph;
+                document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
+                document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
+                document.getElementById('last-dose-time').textContent = d.last_dose_time;
+                document.getElementById('last-dose-type').textContent = d.last_dose_type;
+                document.getElementById('last-dose-amount').textContent = d.last_dose_amount;
+                document.getElementById('next-dose-time').textContent = d.next_dose_time;
+            } catch (err) {
+                console.error("Error refreshing dosage info:", err);
+            }
+        }
 
-    // On load, we can also refresh once
-    document.addEventListener('DOMContentLoaded', () => {
-      refreshDosageInfo();
-    });
+        socket.on('ph_update', function(data) {
+            console.log("Received pH update via socket:", data.ph);
+            refreshDosageInfo();
+        });
 
-    // pH Up button
-    document.getElementById('ph-up-dispense').addEventListener('click', function() {
-      const amount = parseFloat(document.getElementById('ph-up-amount').textContent) || 0;
-      if (amount === 0) {
-        alert("No pH Up required (0 ml).");
-        return;
-      }
-      fetch('/api/dosage/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'up', amount: amount })
-      })
-      .then(r => r.json())
-      .then(data => {
-        alert("Manual pH Up dispense triggered: " + data.message);
-        // Also refresh dosage info after manual dose
-        refreshDosageInfo();
-      })
-      .catch(error => {
-        console.error("Error dispensing pH Up:", error);
-        alert("Failed to dispense pH Up.");
-      });
-    });
+        await refreshDosageInfo();
 
-    // pH Down button
-    document.getElementById('ph-down-dispense').addEventListener('click', function() {
-      const amount = parseFloat(document.getElementById('ph-down-amount').textContent) || 0;
-      if (amount === 0) {
-        alert("No pH Down required (0 ml).");
-        return;
-      }
-      fetch('/api/dosage/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'down', amount: amount })
-      })
-      .then(r => r.json())
-      .then(data => {
-        alert("Manual pH Down dispense triggered: " + data.message);
-        refreshDosageInfo();
-      })
-      .catch(error => {
-        console.error("Error dispensing pH Down:", error);
-        alert("Failed to dispense pH Down.");
-      });
+        async function dispensePh(type) {
+            const amount = parseFloat(document.getElementById(`ph-${type}-amount`).textContent) || 0;
+            if (amount === 0) {
+                alert(`No pH ${type.charAt(0).toUpperCase() + type.slice(1)} required (0 ml).`);
+                return;
+            }
+            try {
+                const response = await fetch('/api/dosage/manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type, amount: amount })
+                });
+                const data = await response.json();
+                alert(`Manual pH ${type.charAt(0).toUpperCase() + type.slice(1)} dispense triggered: ` + data.message);
+                refreshDosageInfo();
+            } catch (error) {
+                console.error(`Error dispensing pH ${type.charAt(0).toUpperCase() + type.slice(1)}:`, error);
+                alert(`Failed to dispense pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
+            }
+        }
+
+        document.getElementById('ph-up-dispense').addEventListener('click', () => dispensePh('up'));
+        document.getElementById('ph-down-dispense').addEventListener('click', () => dispensePh('down'));
     });
   </script>
 </body>
