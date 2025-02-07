@@ -103,21 +103,48 @@ def parse_buffer(ser):
 
 def serial_reader():
     while not stop_event.is_set():
+        # 1) Check which device is assigned as the pH probe
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
+
         if not ph_probe_path:
             log_with_timestamp("No pH probe assigned. Retrying in 5s...")
             eventlet.sleep(5)
             continue
 
         try:
+            # 2) Open the serial device (modify baudrate or timeout if needed)
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
+                log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
+                
+                # 3) Continuously read data while not stopped
                 while not stop_event.is_set():
+                    # Use eventlet's threadpool so serial.read() doesn’t block the event loop
                     raw_data = tpool.execute(ser.read, 100)
-                    ...
+                    if raw_data:
+                        # 4) Decode the bytes into a string
+                        decoded_data = raw_data.decode("utf-8", errors="replace")
+
+                        # Safely append to our global buffer
+                        with ph_lock:
+                            global buffer
+                            buffer += decoded_data
+
+                            # Prevent runaway buffer
+                            if len(buffer) > MAX_BUFFER_LENGTH:
+                                log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
+                                buffer = ""
+
+                        # 5) Parse that buffer for complete lines ending in '\r'
+                        parse_buffer(ser)
+                    else:
+                        # No data read, just yield briefly
+                        eventlet.sleep(0.05)
+
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5 seconds...")
             eventlet.sleep(5)
+
     
 def send_configuration_commands(ser):
     try:
