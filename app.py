@@ -255,4 +255,4 @@ def device_config():
 if __name__ == "__main__":
     print("[WSGI] Running in local development mode...")
     start_threads()  # Start threads for local development
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=8000, debug=True)
