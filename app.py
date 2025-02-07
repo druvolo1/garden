@@ -12,6 +12,7 @@ import atexit
 import json
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 from api.ph import ph_blueprint
 from api.relay import relay_blueprint
 from api.water_level import water_level_blueprint
@@ -30,6 +31,7 @@ import sys
 import signal
 
 app = Flask(__name__)
+CORS(app)
 socketio = SocketIO(app, async_mode="eventlet")  # Use eventlet for SocketIO
 stop_event = threading.Event()  # Event to stop background threads
 cleanup_called = False
