@@ -3,7 +3,7 @@ import eventlet
 eventlet.monkey_patch()
 
 import sys
-import atexit
+#import atexit
 import signal
 from datetime import datetime, timedelta
 
@@ -167,7 +167,7 @@ def handle_stop_signal(signum, frame):
 #signal.signal(signal.SIGINT, graceful_exit)
 #signal.signal(signal.SIGTERM, graceful_exit)
 #signal.signal(signal.SIGTSTP, handle_stop_signal)
-atexit.register(cleanup)
+#atexit.register(cleanup)
 
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
