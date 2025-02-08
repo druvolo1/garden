@@ -119,7 +119,8 @@ def broadcast_ph_readings():
 
 def start_threads():
     log_with_timestamp("Starting background threads...")
-    stop_event.reset()  # Clear the event in case it was set
+    if stop_event.ready():
+    stop_event.reset()
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
     log_with_timestamp("Spawning auto_dosing_loop...")
