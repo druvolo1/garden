@@ -1,5 +1,3 @@
-# File: services/ph_service.py
-
 print(f"LOADED ph_service.py from {__file__}", flush=True)
 
 import eventlet
@@ -7,15 +5,13 @@ eventlet.monkey_patch()  # Ensure all standard libs are patched early
 
 import signal
 import serial
+import subprocess
 from queue import Queue
 from datetime import datetime
 from eventlet import tpool
 
 # Import load_settings from your API settings
 from api.settings import load_settings
-
-# All "sleep" calls must use eventlet.sleep
-# eventlet provides a green version of time.sleep after monkey_patch.
 
 # Shared queue for commands sent to the probe
 command_queue = Queue()
@@ -32,7 +28,7 @@ MAX_BUFFER_LENGTH = 100
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
 
 def enqueue_command(command, command_type="general"):
     """Enqueue a command to be sent to the serial device."""
@@ -46,14 +42,6 @@ def send_command_to_probe(ser, command):
         last_sent_command = command
     except Exception as e:
         log_with_timestamp(f"Error sending command '{command}': {e}")
-
-def check_command_timeout():
-    global last_sent_command, last_command_time
-    if last_sent_command and last_command_time:
-        if (datetime.now() - last_command_time).total_seconds() > COMMAND_TIMEOUT:
-            log_with_timestamp(f"Command '{last_sent_command}' timed out. Clearing it.")
-            last_sent_command = None
-            last_command_time = None
 
 def parse_buffer(ser):
     global buffer, latest_ph_value, last_sent_command
@@ -110,6 +98,17 @@ def serial_reader():
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
+        # Debug: Show what's connected under /dev/serial/by-id
+        try:
+            dev_list = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
+            dev_list_str = ", ".join(dev_list) if dev_list else "No devices found"
+            log_with_timestamp(f"Devices in /dev/serial/by-id: {dev_list_str}")
+        except subprocess.CalledProcessError:
+            log_with_timestamp("No devices found in /dev/serial/by-id (subprocess error).")
+
+        # Debug: Show what we read from settings for ph_probe
+        log_with_timestamp(f"Currently assigned pH probe device in settings: {ph_probe_path}")
+
         if not ph_probe_path:
             log_with_timestamp("No pH probe assigned. Retrying in 5s...")
             eventlet.sleep(5)
@@ -121,6 +120,9 @@ def serial_reader():
             # 2) Open device
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
                 log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
+
+                # (Optional) If your sensor needs an init command, uncomment or change:
+                # ser.write(b'R\r')  # or whatever command starts streaming
 
                 while not stop_event.is_set():
                     raw_data = tpool.execute(ser.read, 100)
@@ -144,7 +146,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
             eventlet.sleep(5)
-    
+
 def send_configuration_commands(ser):
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
@@ -162,11 +164,11 @@ def calibrate_ph(ser, level):
         'clear': 'Cal,clear'
     }
 
+    global last_sent_command
+
     if level not in valid_levels:
         log_with_timestamp(f"Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
-
-    global last_sent_command
 
     with ph_lock:  # Protect access to last_sent_command
         command = valid_levels[level]
@@ -189,21 +191,19 @@ def enqueue_calibration(level):
         'high': 'Cal,high,10.00',
         'clear': 'Cal,clear'
     }
-    
+
     if level not in valid_levels:
         return {
             "status": "failure",
             "message": f"Invalid calibration level: {level}. Must be one of {list(valid_levels.keys())}."
         }
-    
+
     command = valid_levels[level]
     command_queue.put({"command": command, "type": "calibration"})
     return {
         "status": "success",
         "message": f"Calibration command '{command}' enqueued."
     }
-
-
 
 def get_last_sent_command():
     """
@@ -224,7 +224,7 @@ def start_serial_reader():
 def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
     stop_event.send()  # set the Event
-    eventlet.sleep(2)
+    # no sleep here to avoid blocking gunicorn's main loop
     log_with_timestamp("Serial reader stopped.")
 
 def get_latest_ph_reading():
@@ -249,8 +249,6 @@ def handle_stop_signal(signum, frame):
     log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
     graceful_exit(signum, frame)  # Reuse the existing graceful exit logic
 
-
 signal.signal(signal.SIGINT, graceful_exit)  # Handle CTRL-C
 signal.signal(signal.SIGTERM, graceful_exit)  # Handle termination signals
 signal.signal(signal.SIGTSTP, handle_stop_signal)  # Handle CTRL-Z
-
