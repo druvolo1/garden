@@ -22,4 +22,6 @@ def start_threads():
 
 if __name__ == "__main__":
     start_threads()
-    app.run("0.0.0.0", 8000, debug=False)
+    # Use Eventlet's WSGI server instead of app.run()
+    from eventlet import wsgi, listen
+    wsgi.server(listen(("0.0.0.0", 8000)), app)
