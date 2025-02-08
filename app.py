@@ -247,5 +247,4 @@ def device_config():
 if __name__ == "__main__":
     print("[WSGI] Running in local development mode...")
     start_threads()
-    # Use socketio.run if you rely on real-time websockets
-    socketio.run(app, host="0.0.0.0", port=8000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=8000, debug=False)
