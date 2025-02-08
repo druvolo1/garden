@@ -71,29 +71,48 @@ def manual_dispense(dispense_type, amount):
 # AUTO-DOSING LOGIC BELOW
 # -----------------------------
 def perform_auto_dose(settings):
+    """
+    Checks the current pH reading against the acceptable range (from settings["ph_range"])
+    and dispenses pH Up if the value is below the minimum or pH Down if above the maximum.
+    Returns a tuple (direction, dose_ml) if a dose is performed, otherwise ("none", 0.0).
+    """
     ph_value = get_latest_ph_reading()
     if ph_value is None:
         print("[AutoDosing] No pH reading available; skipping auto-dose.")
         return ("none", 0.0)
 
-    dosage_data = get_dosage_info()
-    ph_target = dosage_data["ph_target"]
+    # Get the acceptable pH range from settings.
+    ph_range = settings.get("ph_range", {})
+    try:
+        min_ph = float(ph_range.get("min", 5.5))
+        max_ph = float(ph_range.get("max", 6.5))
+    except ValueError:
+        print("[AutoDosing] Error converting ph_range values; using defaults.")
+        min_ph, max_ph = 5.5, 6.5
 
-    if ph_value < (ph_target - 0.1):
-        dose_ml = dosage_data["ph_up_amount"]
+    # Check if the current pH is below the minimum or above the maximum.
+    if ph_value < min_ph:
+        # pH is too low – we need to raise it (dispense pH up)
+        dosage_data = get_dosage_info()  # Make sure this uses the correct logic, if needed.
+        dose_ml = dosage_data.get("ph_up_amount", 0)
         if dose_ml <= 0:
             return ("none", 0.0)
         do_relay_dispense("up", dose_ml, settings)
+        print(f"[AutoDosing] pH {ph_value} is below minimum {min_ph}: dispensing {dose_ml} ml of pH Up.")
         return ("up", dose_ml)
-    elif ph_value > (ph_target + 0.1):
-        dose_ml = dosage_data["ph_down_amount"]
+    elif ph_value > max_ph:
+        # pH is too high – we need to lower it (dispense pH down)
+        dosage_data = get_dosage_info()
+        dose_ml = dosage_data.get("ph_down_amount", 0)
         if dose_ml <= 0:
             return ("none", 0.0)
         do_relay_dispense("down", dose_ml, settings)
+        print(f"[AutoDosing] pH {ph_value} is above maximum {max_ph}: dispensing {dose_ml} ml of pH Down.")
         return ("down", dose_ml)
     else:
-        print(f"[AutoDosing] pH ({ph_value}) near target ({ph_target}); skipping auto dose.")
+        print(f"[AutoDosing] pH ({ph_value}) within acceptable range ({min_ph} - {max_ph}); skipping auto dose.")
         return ("none", 0.0)
+
 
 def do_relay_dispense(dispense_type, amount_ml, settings):
     max_dosing = settings.get("max_dosing_amount", 0)
