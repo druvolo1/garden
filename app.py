@@ -112,6 +112,30 @@ def broadcast_ph_readings():
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
+def broadcast_status():
+    """
+    Periodically build a full status update (settings, current pH, auto-dose state, and errors)
+    and emit it on the "/status" namespace.
+    """
+    from api.settings import load_settings
+    log_with_timestamp("Inside function for broadcasting status updates")
+    while True:
+        try:
+            settings = load_settings()
+            status = {
+                "settings": settings,
+                "current_ph": get_latest_ph_reading(),
+                "auto_dose_state": auto_dose_state,
+                # Add an errors field if needed.
+                "errors": []
+            }
+            # Emit the status update on the '/status' namespace.
+            socketio.emit("status_update", status, namespace="/status")
+            log_with_timestamp("[Status] Emitting status update")
+            eventlet.sleep(5)
+        except Exception as e:
+            log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
+            eventlet.sleep(5)
 
 def start_threads():
     # Spawn all background threads.
@@ -126,6 +150,10 @@ def start_threads():
     log_with_timestamp("Spawning serial reader...")
     eventlet.spawn(serial_reader)
     log_with_timestamp("Serial reader spawned.")
+
+    log_with_timestamp("Spawning status broadcaster...")
+    eventlet.spawn(broadcast_status)
+    log_with_timestamp("Status broadcaster spawned.")
 
 # ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
 start_threads()
