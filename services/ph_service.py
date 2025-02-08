@@ -51,19 +51,16 @@ def check_command_timeout():
             last_command_time = None
 
 def parse_buffer(ser):
-    """
-    Parse the shared buffer for responses and identify the context (e.g., configuration, calibration).
-    """
     global buffer, latest_ph_value, last_sent_command
 
     while '\r' in buffer:  # Process complete lines
-        # Split the buffer at the first '\r'
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
-        # Skip empty lines
+        log_with_timestamp(f"parse_buffer found line: {line!r}")
+
         if not line:
-            log_with_timestamp("Skipping empty line.")
+            log_with_timestamp("Skipping empty line from parse_buffer.")
             continue
 
         # Handle responses (*OK, *ER)
@@ -112,39 +109,40 @@ def serial_reader():
             eventlet.sleep(5)
             continue
 
+        log_with_timestamp(f"Attempting to open pH probe device: {ph_probe_path}")
+
         try:
-            # 2) Open the serial device (modify baudrate or timeout if needed)
+            # 2) Open the serial device
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
                 log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
-                
-                # 3) Continuously read data while not stopped
+
                 while not stop_event.is_set():
-                    # Use eventlet's threadpool so serial.read() doesn’t block the event loop
+                    # 3) Read data in a non-blocking way
                     raw_data = tpool.execute(ser.read, 100)
                     if raw_data:
-                        # 4) Decode the bytes into a string
+                        log_with_timestamp(f"Raw data received ({len(raw_data)} bytes): {raw_data!r}")
+                        
+                        # 4) Decode
                         decoded_data = raw_data.decode("utf-8", errors="replace")
+                        log_with_timestamp(f"Decoded data: {decoded_data!r}")
 
-                        # Safely append to our global buffer
+                        # Lock + append to buffer
                         with ph_lock:
                             global buffer
                             buffer += decoded_data
-
-                            # Prevent runaway buffer
                             if len(buffer) > MAX_BUFFER_LENGTH:
                                 log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
                                 buffer = ""
 
-                        # 5) Parse that buffer for complete lines ending in '\r'
+                        # 5) Parse
                         parse_buffer(ser)
                     else:
-                        # No data read, just yield briefly
+                        # Nothing read
                         eventlet.sleep(0.05)
 
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5 seconds...")
             eventlet.sleep(5)
-
     
 def send_configuration_commands(ser):
     try:
