@@ -1,3 +1,5 @@
+# File: api/configuration.py
+
 from app import app
 from flask import jsonify, request
 from services.device_config import (

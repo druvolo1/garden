@@ -1,3 +1,5 @@
+# File: services/device_config.py
+
 import os
 import subprocess
 
