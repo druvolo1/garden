@@ -118,6 +118,7 @@ def broadcast_ph_readings():
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
+    eventlet.sleep(0.1)
     log_with_timestamp("Starting background threads...")
     if stop_event.ready():
         stop_event.reset()
@@ -162,9 +163,9 @@ def handle_stop_signal(signum, frame):
     log_with_timestamp(f"Received signal {signum} (SIGTSTP). Scheduling cleanup...")
     eventlet.spawn_n(do_cleanup)
 
-signal.signal(signal.SIGINT, graceful_exit)
-signal.signal(signal.SIGTERM, graceful_exit)
-signal.signal(signal.SIGTSTP, handle_stop_signal)
+#signal.signal(signal.SIGINT, graceful_exit)
+#signal.signal(signal.SIGTERM, graceful_exit)
+#signal.signal(signal.SIGTSTP, handle_stop_signal)
 atexit.register(cleanup)
 
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
