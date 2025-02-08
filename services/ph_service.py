@@ -99,6 +99,7 @@ def parse_buffer(ser):
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 def serial_reader():
+    print("DEBUG: Entered serial_reader() at all...")
     while not stop_event.is_set():
         # 1) Check which device is assigned as the pH probe
         settings = load_settings()
