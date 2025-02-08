@@ -1,6 +1,5 @@
 # File: services/dosage_service.py
 
-import time
 import eventlet
 from services.ph_service import get_latest_ph_reading
 from services.relay_service import turn_on_relay, turn_off_relay
@@ -28,8 +27,8 @@ def get_dosage_info():
     feedback_down = ""
 
     if current_ph < ph_target:
-        ph_difference = ph_target - current_ph
-        calculated_up = (ph_up_strength * ph_difference) * system_volume
+        ph_diff = ph_target - current_ph
+        calculated_up = ph_up_strength * ph_diff * system_volume
         if max_dosing_amount > 0 and calculated_up > max_dosing_amount:
             feedback_up = (
                 f"The actual calculated dose ({calculated_up:.2f} ml) exceeds the "
@@ -41,8 +40,8 @@ def get_dosage_info():
             ph_up_amount = calculated_up
 
     if current_ph > ph_target:
-        ph_difference = current_ph - ph_target
-        calculated_down = (ph_down_strength * ph_difference) * system_volume
+        ph_diff = current_ph - ph_target
+        calculated_down = ph_down_strength * ph_diff * system_volume
         if max_dosing_amount > 0 and calculated_down > max_dosing_amount:
             feedback_down = (
                 f"The actual calculated dose ({calculated_down:.2f} ml) exceeds the "
@@ -86,7 +85,6 @@ def perform_auto_dose(settings):
             return ("none", 0.0)
         do_relay_dispense("up", dose_ml, settings)
         return ("up", dose_ml)
-
     elif ph_value > (ph_target + 0.1):
         dose_ml = dosage_data["ph_down_amount"]
         if dose_ml <= 0:
@@ -119,7 +117,7 @@ def do_relay_dispense(dispense_type, amount_ml, settings):
 
     print(f"[AutoDosing] Dispensing {amount_ml:.2f} ml pH {dispense_type} -> Relay {relay_port}, ~{duration_sec:.2f}s")
     turn_on_relay(relay_port)
-    eventlet.sleep(duration_sec)
+    eventlet.sleep(duration_sec)   # Non-blocking Eventlet sleep
     turn_off_relay(relay_port)
 
     # Reuse manual_dispense() for logging

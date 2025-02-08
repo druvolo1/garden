@@ -1,30 +1,32 @@
 print(f"LOADED ph_service.py from {__file__}", flush=True)
 
-import time
-import threading
 import eventlet
+eventlet.monkey_patch()  # Ensure all standard libs are patched early
+
 import signal
 import serial
-from api.settings import load_settings
 from queue import Queue
-from datetime import datetime, timedelta
+from datetime import datetime
 from eventlet import tpool
 
-eventlet.monkey_patch()  # Apply monkey patching at the top of the file
+# Import load_settings from your API settings
+from api.settings import load_settings
+
+# All "sleep" calls must use eventlet.sleep
+# eventlet provides a green version of time.sleep after monkey_patch.
 
 # Shared queue for commands sent to the probe
-command_queue = Queue()  # Tracks sent commands and their types
-stop_event = threading.Event()  # Event to signal threads to stop
-ph_lock = threading.Lock()  # Lock for thread-safe operations
+command_queue = Queue()
+stop_event = eventlet.event.Event()  # eventlet's own Event
+
+# A simple lock from eventlet if needed
+ph_lock = eventlet.semaphore.Semaphore()
 
 buffer = ""  # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
-last_sent_command = None  # Store the most recent command sent
-COMMAND_TIMEOUT = 10  # Timeout in seconds
-MAX_RETRIES = 5  # Maximum number of reconnection attempts
-RETRY_DELAY = 5  # Delay between retries in seconds
-last_command_time = None  # Global variable to track when the last command was sent
-MAX_BUFFER_LENGTH = 100  # Prevent excessive buffer growth
+last_sent_command = None
+COMMAND_TIMEOUT = 10
+MAX_BUFFER_LENGTH = 100
 
 def log_with_timestamp(message):
     """Helper function to log messages with a timestamp."""
@@ -35,12 +37,11 @@ def enqueue_command(command, command_type="general"):
     command_queue.put({"command": command, "type": command_type})
 
 def send_command_to_probe(ser, command):
-    global last_sent_command, last_command_time
+    global last_sent_command
     try:
         log_with_timestamp(f"Sending command to probe: {command}")
         ser.write((command + '\r').encode())
         last_sent_command = command
-        last_command_time = datetime.now()
     except Exception as e:
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
@@ -69,41 +70,41 @@ def parse_buffer(ser):
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
-                last_sent_command = None  # Reset after a valid response
+                last_sent_command = None
             else:
                 log_with_timestamp(f"Unexpected response: {line} (no command was sent)")
 
-            # Send the next command if the queue is not empty
+            # If queue not empty, send the next command
             if not command_queue.empty():
-                next_command = command_queue.get()
-                last_sent_command = next_command["command"]  # Update the last command sent
+                next_cmd = command_queue.get()
+                last_sent_command = next_cmd["command"]
                 log_with_timestamp(f"Sending next command: {last_sent_command}")
-                send_command_to_probe(ser, next_command["command"])
-
+                send_command_to_probe(ser, next_cmd["command"])
             continue
 
-        # Process pH values
+        # Process numeric pH values
         try:
             ph_value = round(float(line), 2)
-            if not (0.0 <= ph_value <= 14.0):  # Validate pH range
+            if not (0.0 <= ph_value <= 14.0):
                 raise ValueError(f"pH value out of range: {ph_value}")
 
-            # Update the latest pH value (thread-safe)
-            #log_with_timestamp(f"Valid pH value identified: {ph_value}")
+            # Thread-safe update of latest_ph_value
             with ph_lock:
-                latest_ph_value = ph_value  # Overwrite the current value
+                latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
 
         except ValueError as e:
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
+    # If leftover text without '\r'
     if buffer:
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 def serial_reader():
     print("DEBUG: Entered serial_reader() at all...")
+
     while not stop_event.is_set():
-        # 1) Check which device is assigned as the pH probe
+        # 1) Check assigned pH probe
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
@@ -115,21 +116,18 @@ def serial_reader():
         log_with_timestamp(f"Attempting to open pH probe device: {ph_probe_path}")
 
         try:
-            # 2) Open the serial device
+            # 2) Open device
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
                 log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
 
                 while not stop_event.is_set():
-                    # 3) Read data in a non-blocking way
                     raw_data = tpool.execute(ser.read, 100)
                     if raw_data:
                         log_with_timestamp(f"Raw data received ({len(raw_data)} bytes): {raw_data!r}")
-                        
-                        # 4) Decode
+
                         decoded_data = raw_data.decode("utf-8", errors="replace")
                         log_with_timestamp(f"Decoded data: {decoded_data!r}")
 
-                        # Lock + append to buffer
                         with ph_lock:
                             global buffer
                             buffer += decoded_data
@@ -137,21 +135,20 @@ def serial_reader():
                                 log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
                                 buffer = ""
 
-                        # 5) Parse
                         parse_buffer(ser)
                     else:
-                        # Nothing read
                         eventlet.sleep(0.05)
 
         except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5 seconds...")
+            log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
             eventlet.sleep(5)
     
 def send_configuration_commands(ser):
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
+        # e.g. "C,2" or any needed init
         command = "C,2"
-        send_command_to_probe(ser, command)  # Directly send the command
+        send_command_to_probe(ser, command)
     except Exception as e:
         log_with_timestamp(f"Error sending configuration commands: {e}")
 
@@ -218,26 +215,18 @@ def get_last_sent_command():
 serial_reader_thread = None  # Add this global variable
 
 def start_serial_reader():
-    """Start the serial reader in a green thread."""
+    """Spawn the serial_reader in an eventlet green thread."""
     eventlet.spawn(serial_reader)
     log_with_timestamp("Serial reader started.")
 
-
 def stop_serial_reader():
     log_with_timestamp("Stopping serial reader...")
-    stop_event.set()
-    try:
-        eventlet.sleep(2)  
-    except SystemExit:
-        log_with_timestamp("SystemExit occurred during serial reader stop.")
-    except Exception as e:
-        log_with_timestamp(f"Error stopping serial reader: {e}")
+    stop_event.send()  # set the Event
+    eventlet.sleep(2)
     log_with_timestamp("Serial reader stopped.")
 
 def get_latest_ph_reading():
-    """
-    Retrieve the most recent pH value.
-    """
+    """Retrieve the most recent pH value."""
     global latest_ph_value
     with ph_lock:
         if latest_ph_value is not None:
@@ -248,10 +237,7 @@ def get_latest_ph_reading():
 def graceful_exit(signum, frame):
     log_with_timestamp(f"Received signal {signum}. Cleaning up...")
     try:
-        # Perform cleanup operations directly
-        stop_serial_reader()  # Stop the serial reader gracefully
-        stop_event.set()      # Signal other threads to stop
-        last_sent_command = None  # Clear the last command before exit
+        stop_serial_reader()
     except Exception as e:
         log_with_timestamp(f"Error during cleanup: {e}")
     log_with_timestamp("Cleanup complete. Exiting application.")
