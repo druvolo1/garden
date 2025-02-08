@@ -19,6 +19,8 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
 
+from status_namespace import StatusNamespace
+
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value, serial_reader
