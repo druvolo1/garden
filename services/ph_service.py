@@ -46,7 +46,7 @@ def parse_buffer(ser):
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
 
-        log_with_timestamp(f"parse_buffer found line: {line!r}")
+        #log_with_timestamp(f"parse_buffer found line: {line!r}")
 
         if not line:
             log_with_timestamp("Skipping empty line from parse_buffer.")
@@ -112,9 +112,9 @@ def serial_reader():
                 while not stop_event.ready():
                     raw_data = tpool.execute(ser.read, 100)
                     if raw_data:
-                        log_with_timestamp(f"Raw data received ({len(raw_data)} bytes): {raw_data!r}")
+                        #log_with_timestamp(f"Raw data received ({len(raw_data)} bytes): {raw_data!r}")
                         decoded_data = raw_data.decode("utf-8", errors="replace")
-                        log_with_timestamp(f"Decoded data: {decoded_data!r}")
+                        #log_with_timestamp(f"Decoded data: {decoded_data!r}")
                         with ph_lock:
                             global buffer
                             buffer += decoded_data

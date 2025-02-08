@@ -45,43 +45,39 @@ def get_local_ip():
 
 def auto_dosing_loop():
     """
-    Periodically checks if auto-dosing is enabled and if it's time to dose.
-    Respects dosing_interval from settings, and last dosing time.
+    Periodically checks settings to see if auto-dosing is enabled and if it's time to dose.
+    If the dosing interval has changed, resets the timer.
+    If auto-dosing is disabled, it resets the auto-dose state and waits.
     """
     from api.settings import load_settings
 
-    print("Inside auto dosing loop")
-
+    log_with_timestamp("Inside auto dosing loop")
     while True:
         try:
             settings = load_settings()
             auto_enabled = settings.get("auto_dosing_enabled", False)
             interval_hours = float(settings.get("dosing_interval", 0))
 
-            # If auto-dosing is disabled, reset and wait
-            if not auto_enabled:
-                reset_auto_dose_timer()
-                eventlet.sleep(5)
-                continue
-
-            # If interval is invalid, reset and wait
-            if interval_hours <= 0:
+            # If auto-dosing is disabled or the interval is invalid, reset and wait.
+            if not auto_enabled or interval_hours <= 0:
                 reset_auto_dose_timer()
                 eventlet.sleep(5)
                 continue
 
             now = datetime.now()
 
-            # If the interval changed, reset next_dose_time
+            # If the interval has changed, reset next_dose_time.
             if auto_dose_state.get("last_interval") != interval_hours:
                 auto_dose_state["last_interval"] = interval_hours
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
+                log_with_timestamp(f"Interval changed; next dose time reset to {auto_dose_state['next_dose_time']}")
 
-            # If next_dose_time not set, set it
-            if not auto_dose_state["next_dose_time"]:
+            # If next_dose_time is not set, initialize it.
+            if not auto_dose_state.get("next_dose_time"):
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
+                log_with_timestamp(f"Next dose time initialized to {auto_dose_state['next_dose_time']}")
 
-            # If it's time to dose
+            # If it's time to dose, perform auto-dose.
             if now >= auto_dose_state["next_dose_time"]:
                 dose_type, dose_amount = perform_auto_dose(settings)
                 if dose_amount > 0:
@@ -89,17 +85,18 @@ def auto_dosing_loop():
                     auto_dose_state["last_dose_type"] = dose_type
                     auto_dose_state["last_dose_amount"] = dose_amount
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
+                    log_with_timestamp(f"Auto-dose performed: {dose_type} {dose_amount} ml; next dose at {auto_dose_state['next_dose_time']}")
                 else:
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
+                    log_with_timestamp(f"No dose performed; next dose rescheduled for {auto_dose_state['next_dose_time']}")
 
             eventlet.sleep(5)
-
         except Exception as e:
             log_with_timestamp(f"[AutoDosing] Error: {e}")
             eventlet.sleep(5)
 
 def broadcast_ph_readings():
-    print("Inside function for broadcasting ph readings")
+    log_with_timestamp("Inside function for broadcasting pH readings")
     last_emitted_value = None
     while True:
         try:
@@ -109,14 +106,22 @@ def broadcast_ph_readings():
                 if ph_value != last_emitted_value:
                     last_emitted_value = ph_value
                     socketio.emit('ph_update', {'ph': ph_value})
-                    print(f"[Broadcast] Emitting pH update: {ph_value}")
+                    log_with_timestamp(f"[Broadcast] Emitting pH update: {ph_value}")
             eventlet.sleep(1)
         except Exception as e:
-            print(f"[Broadcast] Error broadcasting pH value: {e}")
+            log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
-    # For now, we only want to start the serial reader.
-    log_with_timestamp("Starting serial reader (background thread)...")
+    # Spawn all background threads.
+    log_with_timestamp("Spawning broadcast_ph_readings...")
+    eventlet.spawn(broadcast_ph_readings)
+    log_with_timestamp("Broadcast_ph_readings spawned.")
+
+    log_with_timestamp("Spawning auto_dosing_loop...")
+    eventlet.spawn(auto_dosing_loop)
+    log_with_timestamp("Auto_dosing_loop spawned.")
+
+    log_with_timestamp("Spawning serial reader...")
     eventlet.spawn(serial_reader)
     log_with_timestamp("Serial reader spawned.")
 
