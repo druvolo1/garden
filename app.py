@@ -1,9 +1,10 @@
+#File: app.py
+
 import socket
 import eventlet
 eventlet.monkey_patch()
 
 import sys
-#import atexit
 import signal
 from datetime import datetime, timedelta
 
@@ -23,14 +24,10 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
 
-# We'll use an Event from eventlet instead of threading
-stop_event = eventlet.event.Event()
 
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, async_mode="eventlet")
-
-cleanup_called = False
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -55,7 +52,7 @@ def auto_dosing_loop():
 
     print("Inside auto dosing loop")
 
-    while not stop_event.is_set():
+    while True:
         try:
             settings = load_settings()
             auto_enabled = settings.get("auto_dosing_enabled", False)
@@ -104,7 +101,7 @@ def auto_dosing_loop():
 def broadcast_ph_readings():
     print("Inside function for broadcasting ph readings")
     last_emitted_value = None
-    while not stop_event.is_set():
+    while True:
         try:
             ph_value = get_latest_ph_reading()
             if ph_value is not None:
@@ -118,57 +115,15 @@ def broadcast_ph_readings():
             print(f"[Broadcast] Error broadcasting pH value: {e}")
 
 def start_threads():
-    eventlet.sleep(0.1)
-    #log_with_timestamp("Starting background threads...")
-    #if stop_event.ready():
-    #    stop_event.reset()
-    #log_with_timestamp("Spawning broadcast_ph_readings...")
-    #eventlet.spawn(broadcast_ph_readings)
-    #log_with_timestamp("Spawning auto_dosing_loop...")
-    #eventlet.spawn(auto_dosing_loop)
-    log_with_timestamp("Starting serial reader...")
+    # For now, we only want to start the serial reader.
+    log_with_timestamp("Starting serial reader (background thread)...")
     eventlet.spawn(serial_reader)
-    #start_serial_reader()  # from ph_service.py
-    #log_with_timestamp("Serial reader spawn requested.")
+    log_with_timestamp("Serial reader spawned.")
 
-def stop_threads():
-    print("Stopping background threads...")
-    stop_event.send()
-    stop_serial_reader()
-    print("Background threads stopped.")
+# ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
+start_threads()
 
-def cleanup():
-    global cleanup_called
-    if cleanup_called:
-        return
-    cleanup_called = True
-    print("Cleaning up resources...")
-    stop_threads()
-    print("Background threads stopped.")
-
-def do_cleanup():
-    # Called from a signal handler in a separate green thread
-    log_with_timestamp("Cleaning up resources via do_cleanup() ...")
-    try:
-        stop_threads()
-    except Exception as e:
-        log_with_timestamp(f"Error during stop_threads: {e}")
-    log_with_timestamp("Background threads stopped.")
-    sys.exit()
-
-def graceful_exit(signum, frame):
-    log_with_timestamp(f"Received signal {signum}. Scheduling cleanup...")
-    eventlet.spawn_n(do_cleanup)
-
-def handle_stop_signal(signum, frame):
-    log_with_timestamp(f"Received signal {signum} (SIGTSTP). Scheduling cleanup...")
-    eventlet.spawn_n(do_cleanup)
-
-#signal.signal(signal.SIGINT, graceful_exit)
-#signal.signal(signal.SIGTERM, graceful_exit)
-#signal.signal(signal.SIGTSTP, handle_stop_signal)
-#atexit.register(cleanup)
-
+# Register our Blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
@@ -196,9 +151,10 @@ def configuration():
 
 @socketio.on('connect')
 def handle_connect():
-    print("Client connected")
-    if latest_ph_value is not None:
-        socketio.emit('ph_update', {'ph': latest_ph_value})
+    log_with_timestamp("Client connected")
+    current = get_latest_ph_reading()
+    if current is not None:
+        socketio.emit('ph_update', {'ph': current})
 
 @app.route('/api/ph/latest', methods=['GET'])
 def get_latest_ph():
@@ -212,13 +168,13 @@ def get_latest_ph():
 def dosage_page():
     from services.dosage_service import get_dosage_info
     dosage_data = get_dosage_info()
-    if auto_dose_state["last_dose_time"]:
+    if auto_dose_state.get("last_dose_time"):
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
         dosage_data["last_dose_time"] = "Never"
-    dosage_data["last_dose_type"] = auto_dose_state["last_dose_type"] or "N/A"
-    dosage_data["last_dose_amount"] = auto_dose_state["last_dose_amount"]
-    if auto_dose_state["next_dose_time"]:
+    dosage_data["last_dose_type"] = auto_dose_state.get("last_dose_type") or "N/A"
+    dosage_data["last_dose_amount"] = auto_dose_state.get("last_dose_amount")
+    if auto_dose_state.get("next_dose_time"):
         dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
         dosage_data["next_dose_time"] = "Not Scheduled"
@@ -245,6 +201,5 @@ def device_config():
     pass
 
 if __name__ == "__main__":
-    print("[WSGI] Running in local development mode...")
-    start_threads()
+    log_with_timestamp("[WSGI] Running in local development mode...")
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)
