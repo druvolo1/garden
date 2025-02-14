@@ -10,22 +10,23 @@
     <pre id="output"></pre>
     <script>
         const output = document.getElementById('output');
-        const socket = io("http://172.16.1.219:8000", {
-            transports: ["websocket"],
-            path: "/socket.io"
+        // Connect to the /status namespace
+        const socket = io("http://172.16.1.219:8000/status", {
+            transports: ["websocket"]
         });
-
+    
         socket.on("connect", () => {
-            output.textContent += "Connected to default namespace\n";
+            output.textContent += "Connected to /status namespace\n";
         });
-
-        socket.on("ph_update", (data) => {
-            output.textContent += "ph_update event: " + JSON.stringify(data) + "\n";
+    
+        // Listen for the "status_update" event
+        socket.on("status_update", (data) => {
+            output.textContent += "status_update event: " + JSON.stringify(data) + "\n";
         });
-
+    
         socket.on("disconnect", () => {
             output.textContent += "Disconnected\n";
         });
-    </script>
+    </script>   
 </body>
 </html>

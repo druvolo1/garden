@@ -29,7 +29,13 @@ from services.dosage_service import get_dosage_info, perform_auto_dose
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, async_mode="eventlet")
+socketio = SocketIO(
+    app,
+    async_mode="eventlet",
+    cors_allowed_origins="*"
+)
+
+socketio.on_namespace(StatusNamespace('/status'))
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
