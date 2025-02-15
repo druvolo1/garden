@@ -9,6 +9,7 @@ import subprocess
 from queue import Queue
 from datetime import datetime
 from eventlet import tpool
+from services.error_service import set_error, clear_error
 
 from api.settings import load_settings
 
@@ -99,6 +100,7 @@ def serial_reader():
 
         if not ph_probe_path:
             log_with_timestamp("No pH probe assigned. Retrying in 5s...")
+            set_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
             continue
 
@@ -106,6 +108,7 @@ def serial_reader():
 
         try:
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
+                clear_error("PH_USB_OFFLINE")
                 log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
                 # Uncomment if the sensor requires a start command:
                 # ser.write(b'R\r')
@@ -126,6 +129,7 @@ def serial_reader():
                         eventlet.sleep(0.05)
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
+            set_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
 
 def send_configuration_commands(ser):

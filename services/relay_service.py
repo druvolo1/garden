@@ -3,6 +3,7 @@
 import serial
 import json
 import os
+from services.error_service import set_error, clear_error
 
 # USB Relay Commands
 RELAY_ON_COMMANDS = {
@@ -47,8 +48,11 @@ def turn_on_relay(relay_id):
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_ON_COMMANDS[relay_id])
         print(f"Relay {relay_id} turned ON.")
+        clear_error("PUMP_RELAY_OFFLINE")
     except Exception as e:
         print(f"Error turning on relay {relay_id}: {e}")
+        set_error("PUMP_RELAY_OFFLINE")
+        
 
 def turn_off_relay(relay_id):
     try:
@@ -56,8 +60,10 @@ def turn_off_relay(relay_id):
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_OFF_COMMANDS[relay_id])
         print(f"Relay {relay_id} turned OFF.")
+        clear_error("PUMP_RELAY_OFFLINE")
     except Exception as e:
         print(f"Error turning off relay {relay_id}: {e}")
+        set_error("PUMP_RELAY_OFFLINE")
 
 def get_relay_status(relay_id):
     # If you maintain a dictionary for on/off status, or read from device
