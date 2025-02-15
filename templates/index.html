@@ -19,7 +19,6 @@
             <li><a href="/settings">Settings</a></li>
         </ul>
     </nav>
-    
 
     <h1>pH Dosing System</h1>
     <p>Welcome to the pH Dosing System!</p>
@@ -27,15 +26,19 @@
     <h2>Current pH Reading</h2>
     <div id="ph-display" style="font-size: 24px; color: blue;">Loading...</div>
 
+    <!-- NEW: Water Level Section -->
+    <h2>Water Level Sensors</h2>
+    <div id="water-level-status">
+        <!-- We'll populate sensor statuses here. -->
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', async function () {
-            // Instead of hardcoding piIp, use the same origin that served this page
             const socket = io.connect(window.location.origin, {
-                reconnectionAttempts: 5, // Try reconnecting 5 times before giving up
-                reconnectionDelay: 2000  // Wait 2 seconds between attempts
+                reconnectionAttempts: 5,
+                reconnectionDelay: 2000
             });
 
-            // Helper function to update pH display
             function updatePhDisplay(ph) {
                 const phDisplay = document.getElementById('ph-display');
                 if (ph !== undefined) {
@@ -45,7 +48,28 @@
                 }
             }
 
-            // Fetch latest pH value on page load
+            // NEW: Renders the water-level sensor statuses
+            function renderWaterLevel(waterLevel) {
+                const container = document.getElementById('water-level-status');
+                if (!waterLevel) {
+                    container.innerHTML = "<p>No water-level data.</p>";
+                    return;
+                }
+                // Build a small table or list
+                let html = "<ul>";
+                for (const key in waterLevel) {
+                    if (waterLevel.hasOwnProperty(key)) {
+                        const sensor = waterLevel[key];
+                        const label = sensor.label || key;
+                        const triggered = sensor.triggered ? "TRIGGERED" : "NOT triggered";
+                        html += `<li>${label} (GPIO ${sensor.pin}): ${triggered}</li>`;
+                    }
+                }
+                html += "</ul>";
+                container.innerHTML = html;
+            }
+
+            // (Optional) fetch initial pH data
             async function fetchInitialPh() {
                 try {
                     const response = await fetch('/api/ph/latest');
@@ -61,33 +85,48 @@
                 }
             }
 
-            // Handle WebSocket connection
+            // (Optional) fetch initial water-level data
+            async function fetchWaterLevel() {
+                try {
+                    const response = await fetch('/api/water_level/');
+                    const data = await response.json();
+                    renderWaterLevel(data);
+                } catch (error) {
+                    console.error("Error fetching initial water level data:", error);
+                }
+            }
+
+            // WebSocket
             socket.on('connect', () => {
                 console.log('Connected to WebSocket server');
-                socket.emit('message', 'Hello from the client!');
-                // Fetch initial data only when connected
+                // fetch initial data
                 fetchInitialPh();
+                fetchWaterLevel();
             });
 
-            // Handle pH updates from the server
             socket.on('ph_update', (data) => {
                 console.log('Real-time pH update:', data);
                 updatePhDisplay(data.ph);
             });
 
-            // Handle WebSocket errors
+            // If your "status_update" from broadcast_status includes water_level
+            socket.on('status_update', (data) => {
+                if (data.current_ph !== undefined) {
+                    updatePhDisplay(data.current_ph);
+                }
+                if (data.water_level) {
+                    renderWaterLevel(data.water_level);
+                }
+                // ... handle other data if you want ...
+            });
+
             socket.on('connect_error', (error) => {
                 console.warn("WebSocket connection error:", error);
             });
 
-            // Handle WebSocket disconnection
             socket.on('disconnect', () => {
                 console.warn("WebSocket disconnected. Attempting to reconnect...");
             });
-
-            // If you want to fetch initial pH even before WebSocket connects,
-            // just uncomment the line below:
-            // fetchInitialPh();
         });
     </script>
 </body>

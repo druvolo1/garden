@@ -33,7 +33,7 @@ from services.device_config import (
     get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
     set_timezone, set_ntp_server, set_wifi_config
 )
-
+from services.water_level_service import get_water_level_status
 
 app = Flask(__name__)
 CORS(app)
@@ -126,8 +126,8 @@ def broadcast_ph_readings():
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
-from datetime import datetime
-from services.plant_service import get_weeks_since_start
+
+
 
 def broadcast_status():
     from api.settings import load_settings
@@ -156,11 +156,15 @@ def broadcast_status():
             # Gather active errors
             current_errors = get_current_errors()
 
+            # NEW: Water level info
+            water_level_info = get_water_level_status()
+
             status = {
                 "settings": settings,
                 "current_ph": get_latest_ph_reading(),
                 "auto_dose_state": auto_dose_copy,
-                "errors": current_errors  # <--- use get_current_errors() here
+                "water_level": water_level_info,      # <--- ADDED
+                "errors": current_errors
             }
 
             socketio.emit("status_update", status, namespace="/status")

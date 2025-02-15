@@ -7,40 +7,86 @@ try:
 except ImportError:
     print("RPi.GPIO not available. Using mock environment.")
 
-# Define GPIO pins for water level sensors
-WATER_LEVEL_GPIO_PINS = {
-    "reservoir_empty": 22,  # Pin for "Reservoir Empty" sensor
-    "reservoir_full": 23    # Pin for "Reservoir Full" sensor
-}
+from api.settings import load_settings
 
-# Initialize GPIO pins
+def load_water_level_sensors():
+    """
+    Load the water-level sensor config from settings, which should look like:
+      {
+        "sensor1": {"label": "Full", "pin": 22},
+        "sensor2": {"label": "3 Gal", "pin": 23},
+        "sensor3": {"label": "Empty", "pin": 24}
+      }
+    If not present, fall back to defaults.
+    """
+    s = load_settings()
+    default_sensors = {
+        "sensor1": {"label": "Full",   "pin": 22},
+        "sensor2": {"label": "3 Gal",  "pin": 23},
+        "sensor3": {"label": "Empty",  "pin": 24},
+    }
+    return s.get("water_level_sensors", default_sensors)
+
 def setup_water_level_pins():
+    """
+    Configure each sensor's pin as input with pull-up.
+    Call this at startup or after sensor pin changes.
+    """
+    sensors = load_water_level_sensors()
     try:
-        for pin in WATER_LEVEL_GPIO_PINS.values():
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Set as input with pull-up resistor
+        for sensor_key, cfg in sensors.items():
+            pin = cfg.get("pin")
+            if pin is not None:
+                GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     except NameError:
         print("Skipping GPIO setup (mock environment).")
 
-# Run setup on import
+# Initialize pins on import
 setup_water_level_pins()
 
-# Function to get the status of water level sensors
 def get_water_level_status():
     """
-    Get the current status of water level sensors.
-
-    Returns:
-        dict: A dictionary with the status of the "reservoir_empty" and "reservoir_full" sensors.
+    Return a dict with each sensor's label, pin, and whether it's triggered.
+    Example:
+        {
+          "sensor1": {
+            "label": "Full",
+            "pin": 22,
+            "triggered": True
+          },
+          "sensor2": {
+            "label": "3 Gal",
+            "pin": 23,
+            "triggered": False
+          },
+          "sensor3": {
+            "label": "Empty",
+            "pin": 24,
+            "triggered": False
+          }
+        }
     """
-    try:
-        status = {
-            "reservoir_empty": not GPIO.input(WATER_LEVEL_GPIO_PINS["reservoir_empty"]),  # True = sensor triggered
-            "reservoir_full": not GPIO.input(WATER_LEVEL_GPIO_PINS["reservoir_full"])    # True = sensor triggered
+    sensors = load_water_level_sensors()
+    status = {}
+    for sensor_key, cfg in sensors.items():
+        label = cfg.get("label", sensor_key)
+        pin = cfg.get("pin")
+        try:
+            # If RPi.GPIO is available, read the pin
+            triggered = False
+            if pin is not None:
+                # Low means "not triggered", so we invert if you want True=active:
+                # This depends on your actual float sensor hardware.
+                sensor_state = GPIO.input(pin)
+                triggered = (sensor_state == 0)  # or not sensor_state
+        except NameError:
+            # Mock for non-Pi
+            triggered = (sensor_key == "sensor1")  # e.g., just pick one random True
+
+        status[sensor_key] = {
+            "label": label,
+            "pin": pin,
+            "triggered": triggered
         }
-    except NameError:
-        # Mock status for testing in non-Pi environments
-        status = {
-            "reservoir_empty": False,
-            "reservoir_full": True
-        }
+
     return status
