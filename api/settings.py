@@ -43,40 +43,43 @@ def emit_status_update():
     """
     Emit a status_update event with the latest settings and system status.
     """
-    # Lazy import to avoid circular dependencies
-    from services.ph_service import get_latest_ph_reading
-    from services.water_level_service import get_water_level_status
+    try:
+        # Lazy import to avoid circular dependencies
+        from services.ph_service import get_latest_ph_reading
+        from services.water_level_service import get_water_level_status
 
-    settings = load_settings()
+        settings = load_settings()
 
-    # Prepare the status update payload
-    auto_dose_copy = dict(auto_dose_state)
-    if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
-        auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
-    if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
-        auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
+        # Prepare the status update payload
+        auto_dose_copy = dict(auto_dose_state)
+        if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
+            auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
+        if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
+            auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
 
-    plant_info_raw = settings.get("plant_info", {})
-    weeks = get_weeks_since_start(plant_info_raw)
-    plant_info = {
-        "name": plant_info_raw.get("name", ""),
-        "start_date": plant_info_raw.get("start_date", ""),
-        "weeks_since_start": weeks
-    }
+        plant_info_raw = settings.get("plant_info", {})
+        weeks = get_weeks_since_start(plant_info_raw)
+        plant_info = {
+            "name": plant_info_raw.get("name", ""),
+            "start_date": plant_info_raw.get("start_date", ""),
+            "weeks_since_start": weeks
+        }
 
-    water_level_info = get_water_level_status()
+        water_level_info = get_water_level_status()
 
-    status = {
-        "settings": settings,
-        "current_ph": get_latest_ph_reading(),
-        "auto_dose_state": auto_dose_copy,
-        "plant_info": plant_info,
-        "water_level": water_level_info,
-        "errors": []
-    }
+        status = {
+            "settings": settings,
+            "current_ph": get_latest_ph_reading(),
+            "auto_dose_state": auto_dose_copy,
+            "plant_info": plant_info,
+            "water_level": water_level_info,
+            "errors": []
+        }
 
-    # Emit the status_update event to all clients
-    emit("status_update", status, namespace="/status")
+        # Emit the status_update event to all clients
+        emit("status_update", status, namespace="/status")
+    except Exception as e:
+        print(f"Error in emit_status_update: {e}")
 
 # API endpoint: Get all settings
 @settings_blueprint.route('/', methods=['GET'])
@@ -177,9 +180,15 @@ def list_usb_devices():
     """
     devices = []
     try:
+        print("Executing command: ls /dev/serial/by-id")
         result = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
         devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
-    except subprocess.CalledProcessError:
+        print("USB devices found:", devices)
+    except subprocess.CalledProcessError as e:
+        print(f"Error listing USB devices: {e}")
+        devices = []
+    except Exception as e:
+        print(f"Unexpected error: {e}")
         devices = []
 
     settings = load_settings()
@@ -194,7 +203,10 @@ def list_usb_devices():
     save_settings(settings)
 
     # Emit a status_update event to notify all clients
-    emit_status_update()
+    try:
+        emit_status_update()
+    except Exception as e:
+        print(f"Error emitting status update: {e}")
 
     return jsonify(devices)
 
