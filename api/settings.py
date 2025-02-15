@@ -82,20 +82,18 @@ def update_settings():
             current_settings["water_level_sensors"][sensor_key] = sensor_data
         del new_settings["water_level_sensors"]
 
-        # RE-SETUP PINS WITH NEW ASSIGNMENTS
+        # Force re-setup of pins to avoid "You must setup() the GPIO channel first"
         from services.water_level_service import setup_water_level_pins
         setup_water_level_pins()
 
-    # Merge any remaining top-level keys
+    # Merge everything else
     current_settings.update(new_settings)
-
     save_settings(current_settings)
 
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
     return jsonify({"status": "success", "settings": current_settings})
-
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
