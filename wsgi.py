@@ -11,11 +11,9 @@ def post_fork(server, worker):
     try:
         start_threads()  # Start background threads for this worker
         
-        # Register the mDNS service
-        mdns_zeroconf, mdns_info = register_mdns_service(service_name="GardenMonitor", port=8000)
+        global mdns_zeroconf, mdns_info
+        mdns_zeroconf, mdns_info = register_mdns_service(service_name="MyGardenService", port=8000)
         print(f"[Gunicorn] Worker {worker.pid} MDNS service registered successfully.")
-        
-        print(f"[Gunicorn] Worker {worker.pid} threads started successfully.")
     except Exception as e:
         print(f"[Gunicorn] Error starting threads in worker {worker.pid}: {e}")
         raise  # Re-raise the exception to prevent the worker from hanging
