@@ -1,460 +1,425 @@
-<!-- File: templates/settings.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Settings</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
-  <!-- Navigation Menu -->
-  <nav>
-    <ul>
-      <li><a href="/">Home</a></li>
-      <li><a href="/calibration">Calibration</a></li>
-      <li><a href="/configuration">Configuration</a></li>
-      <li><a href="/dosage">Dosage</a></li>
-      <li><a href="/settings">Settings</a></li>
-    </ul>
-  </nav>
 
-  <h1>Settings</h1>
+    <!-- Navigation Menu -->
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/calibration">Calibration</a></li>
+            <li><a href="/configuration">Configuration</a></li>
+            <li><a href="/dosage">Dosage</a></li>
+            <li><a href="/settings" class="active">Settings</a></li>
+        </ul>
+    </nav>
 
-  <h2>Assign USB Devices</h2>
-  <form id="ph-form">
-    <label for="ph-device">pH Probe:</label>
-    <select id="ph-device" name="ph-device">
-      <option value="">Select a device</option>
-    </select>
-    <button type="submit">Save pH Probe</button>
-  </form>
-  <br>
+    <main>
+        <h1>Settings</h1>
+        <p class="subtitle">Configure your device, dosing, and sensors.</p>
 
-  <form id="relay-form">
-    <label for="relay-device">Relay Module:</label>
-    <select id="relay-device" name="relay-device">
-      <option value="">Select a device</option>
-    </select>
-    <button type="submit">Save Relay Module</button>
-  </form>
-  <button id="rescan-usb">Rescan USB Devices</button>
-  <div id="status"></div>
+        <div class="settings-grid">
 
-  <div id="relay-warning" style="color: red; display: none;">
-    <strong>Relay module not assigned. Dosing-related settings are disabled.</strong>
-  </div>
+            <!-- USB Device Assignment -->
+            <div class="data-container">
+                <h2>Assign USB Devices</h2>
+                <form id="ph-form">
+                    <label for="ph-device">pH Probe:</label>
+                    <select id="ph-device" name="ph-device">
+                        <option value="">Select a device</option>
+                    </select>
+                    <button type="submit">Save pH Probe</button>
+                </form>
 
-  <h2>pH Min/Max Range</h2>
-  <form id="ph-range-form">
-    <label for="ph-min">pH Range - Min:</label>
-    <input type="number" id="ph-min" name="ph-min" step="0.01"><br><br>
+                <form id="relay-form">
+                    <label for="relay-device">Relay Module:</label>
+                    <select id="relay-device" name="relay-device">
+                        <option value="">Select a device</option>
+                    </select>
+                    <button type="submit">Save Relay Module</button>
+                </form>
+                <button id="rescan-usb">Rescan USB Devices</button>
+                <div id="status"></div>
+                <div id="relay-warning" class="error-message" style="display: none;">
+                    <strong>Relay module not assigned. Dosing-related settings are disabled.</strong>
+                </div>
+            </div>
 
-    <label for="ph-max">pH Range - Max:</label>
-    <input type="number" id="ph-max" name="ph-max" step="0.01"><br><br>
+            <!-- pH Min/Max Range -->
+            <div class="data-container">
+                <h2>pH Min/Max Range</h2>
+                <form id="ph-range-form">
+                    <label for="ph-min">pH Range - Min:</label>
+                    <input type="number" id="ph-min" name="ph-min" step="0.01">
 
-    <button type="submit">Save pH Range</button>
-  </form>
+                    <label for="ph-max">pH Range - Max:</label>
+                    <input type="number" id="ph-max" name="ph-max" step="0.01">
 
-  <h2>General Settings</h2>
-  <form id="general-settings-form">
-    <label for="ph-target">pH Target:</label>
-    <input type="number" id="ph-target" name="ph-target" step="0.01" value="5.8" disabled><br><br>
+                    <button type="submit">Save pH Range</button>
+                </form>
+            </div>
 
-    <label for="max-dosing">
-      Max Dosing Amount (ml)
-      <small>(Set to 0 for no maximum)</small>:
-    </label>
-    <input type="number" id="max-dosing" name="max-dosing" step="1" disabled><br><br>
+            <!-- General Settings -->
+            <div class="data-container">
+                <h2>General Settings</h2>
+                <form id="general-settings-form">
+                    <label for="ph-target">pH Target:</label>
+                    <input type="number" id="ph-target" name="ph-target" step="0.01" disabled>
 
-    <label for="dosing-interval">Dosing Interval (hours):</label>
-    <input type="number" id="dosing-interval" name="dosing-interval" step=".0001" disabled><br><br>
+                    <label for="max-dosing">Max Dosing Amount (ml):</label>
+                    <input type="number" id="max-dosing" name="max-dosing" step="1" disabled>
 
-    <label for="system-volume">System Volume (gallons):</label>
-    <input type="number" id="system-volume" name="system-volume" step=".1" disabled><br><br>
+                    <label for="dosing-interval">Dosing Interval (hours):</label>
+                    <input type="number" id="dosing-interval" name="dosing-interval" step=".0001" disabled>
 
-    <label for="time-zone">Time Zone:</label>
-    <input type="text" id="time-zone" name="time-zone" disabled><br><br>
+                    <label for="system-volume">System Volume (gallons):</label>
+                    <input type="number" id="system-volume" name="system-volume" step=".1" disabled>
 
-    <label for="auto-dosing">Auto-Dosing Enabled:</label>
-    <input type="checkbox" id="auto-dosing" name="auto-dosing" disabled><br><br>
+                    <label for="time-zone">Time Zone:</label>
+                    <input type="text" id="time-zone" name="time-zone" disabled>
 
-    <button type="submit" id="general-save-btn" disabled>Save General Settings</button>
-  </form>
+                    <label for="auto-dosing">Auto-Dosing Enabled:</label>
+                    <input type="checkbox" id="auto-dosing" name="auto-dosing" disabled>
 
-  <h2>Dosage Strength</h2>
-  <form id="dosage-strength-form">
-    <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
-    <input type="number" id="ph-up-strength" name="ph-up-strength" step="0.01" disabled><br><br>
+                    <button type="submit" id="general-save-btn" disabled>Save General Settings</button>
+                </form>
+            </div>
 
-    <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
-    <input type="number" id="ph-down-strength" name="ph-down-strength" step="0.01" disabled><br><br>
+            <!-- Dosage Strength -->
+            <div class="data-container">
+                <h2>Dosage Strength</h2>
+                <form id="dosage-strength-form">
+                    <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
+                    <input type="number" id="ph-up-strength" name="ph-up-strength" step="0.01" disabled>
 
-    <button type="submit" id="dosage-save-btn" disabled>Save Dosage Strength</button>
-  </form>
+                    <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
+                    <input type="number" id="ph-down-strength" name="ph-down-strength" step="0.01" disabled>
 
-  <h2>Pump Calibration</h2>
-  <form id="pump-calibration-form">
-    <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
-    <input type="number" id="pump1-calibration" name="pump1-calibration" step="0.01" disabled><br><br>
+                    <button type="submit" id="dosage-save-btn" disabled>Save Dosage Strength</button>
+                </form>
+            </div>
 
-    <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
-    <input type="number" id="pump2-calibration" name="pump2-calibration" step="0.01" disabled><br><br>
+            <!-- Pump Calibration -->
+            <div class="data-container">
+                <h2>Pump Calibration</h2>
+                <form id="pump-calibration-form">
+                    <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
+                    <input type="number" id="pump1-calibration" name="pump1-calibration" step="0.01" disabled><br><br>
 
-    <button type="submit" id="pump-calibration-save-btn" disabled>Save Pump Calibration</button>
-  </form>
+                    <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
+                    <input type="number" id="pump2-calibration" name="pump2-calibration" step="0.01" disabled><br><br>
 
-  <!-- Relay Port Assignments -->
-  <h2>Relay Port Assignments</h2>
-  <form id="relay-port-form">
-    <label for="ph-up-relay-port">pH Up Relay Port:</label>
-    <select id="ph-up-relay-port" name="ph-up-relay-port" disabled>
-      <option value="1">Relay 1</option>
-      <option value="2">Relay 2</option>
-    </select>
-    <br><br>
+                    <button type="submit" id="pump-calibration-save-btn" disabled>Save Pump Calibration</button>
+                </form>
+            </div>
 
-    <label for="ph-down-relay-port">pH Down Relay Port:</label>
-    <select id="ph-down-relay-port" name="ph-down-relay-port" disabled>
-      <option value="1">Relay 1</option>
-      <option value="2">Relay 2</option>
-    </select>
-    <br><br>
+            <!-- Relay Port Assignments -->
+            <div class="data-container">
+                <h2>Relay Port Assignments</h2>
+                <form id="relay-port-form">
+                    <label for="ph-up-relay-port">pH Up Relay Port:</label>
+                    <select id="ph-up-relay-port" name="ph-up-relay-port" disabled>
+                        <option value="1">Relay 1</option>
+                        <option value="2">Relay 2</option>
+                    </select>
+                    <br><br>
 
-    <button type="submit" id="relay-port-save-btn" disabled>Save Relay Port Assignments</button>
-  </form>
+                    <label for="ph-down-relay-port">pH Down Relay Port:</label>
+                    <select id="ph-down-relay-port" name="ph-down-relay-port" disabled>
+                        <option value="1">Relay 1</option>
+                        <option value="2">Relay 2</option>
+                    </select>
+                    <br><br>
 
-  <!-- Plant Info Section -->
-  <h2>Plant Info</h2>
-  <form id="plant-info-form">
-    <label for="plant-name">Plant Name:</label>
-    <input type="text" id="plant-name" name="plant-name"><br><br>
+                    <button type="submit" id="relay-port-save-btn" disabled>Save Relay Port Assignments</button>
+                </form>
+            </div>
 
-    <label for="plant-start-date">Plant Start Date:</label>
-    <input type="date" id="plant-start-date" name="plant-start-date"><br><br>
+            <!-- Plant Info Section -->
+            <div class="data-container">
+                <h2>Plant Info</h2>
+                <form id="plant-info-form">
+                    <label for="plant-name">Plant Name:</label>
+                    <input type="text" id="plant-name" name="plant-name"><br><br>
 
-    <label>Weeks Since Start:</label>
-    <span id="weeks-since-start">0</span><br><br>
+                    <label for="plant-start-date">Plant Start Date:</label>
+                    <input type="date" id="plant-start-date" name="plant-start-date"><br><br>
 
-    <button type="submit">Save Plant Info</button>
-  </form>
+                    <label>Weeks Since Start:</label>
+                    <span id="weeks-since-start">0</span><br><br>
 
-  <!-- NEW: Water Level Sensors -->
-  <h2>Water Level Sensors</h2>
-  <form id="water-level-sensors-form">
-    <fieldset>
-      <legend>Sensor 1</legend>
-      <label>Label:</label>
-      <input type="text" id="sensor1-label">
-      <label>Pin:</label>
-      <input type="number" id="sensor1-pin">
-    </fieldset>
+                    <button type="submit">Save Plant Info</button>
+                </form>
+            </div>
 
-    <fieldset>
-      <legend>Sensor 2</legend>
-      <label>Label:</label>
-      <input type="text" id="sensor2-label">
-      <label>Pin:</label>
-      <input type="number" id="sensor2-pin">
-    </fieldset>
+            <!-- Water Level Sensors -->
+            <div class="data-container">
+                <h2>Water Level Sensors</h2>
+                <form id="water-level-sensors-form">
+                    <fieldset>
+                        <legend>Sensor 1</legend>
+                        <label>Label:</label>
+                        <input type="text" id="sensor1-label">
+                        <label>Pin:</label>
+                        <input type="number" id="sensor1-pin">
+                    </fieldset>
 
-    <fieldset>
-      <legend>Sensor 3</legend>
-      <label>Label:</label>
-      <input type="text" id="sensor3-label">
-      <label>Pin:</label>
-      <input type="number" id="sensor3-pin">
-    </fieldset>
+                    <fieldset>
+                        <legend>Sensor 2</legend>
+                        <label>Label:</label>
+                        <input type="text" id="sensor2-label">
+                        <label>Pin:</label>
+                        <input type="number" id="sensor2-pin">
+                    </fieldset>
 
-    <button type="submit">Save Water Sensors</button>
-  </form>
+                    <fieldset>
+                        <legend>Sensor 3</legend>
+                        <label>Label:</label>
+                        <input type="text" id="sensor3-label">
+                        <label>Pin:</label>
+                        <input type="number" id="sensor3-pin">
+                    </fieldset>
 
-  <script>
-    const fetchUsbDevices = () => {
-      console.log('Rescanning USB devices...');
-      Promise.all([
-        fetch("/api/settings/usb_devices").then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch USB devices');
-          }
-          return response.json();
-        }),
-        fetch("/api/settings").then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch settings');
-          }
-          return response.json();
-        })
-      ])
-      .then(([devices, settings]) => {
-        console.log('Devices to add:', devices);
-        console.log('Current settings:', settings);
+                    <button type="submit">Save Water Sensors</button>
+                </form>
+            </div>
 
-        // Populating USB device dropdowns
-        const phDeviceDropdown = document.getElementById('ph-device');
-        const relayDeviceDropdown = document.getElementById('relay-device');
-        const assignedPhProbe = settings.usb_roles?.ph_probe || "";
-        const assignedRelay = settings.usb_roles?.relay || "";
+        </div>
+    </main>
 
-        phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
-        relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+    <script>
+        const fetchUsbDevices = () => {
+            console.log('Rescanning USB devices...');
+            Promise.all([
+                fetch("/api/settings/usb_devices").then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch USB devices');
+                    }
+                    return response.json();
+                }),
+                fetch("/api/settings").then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch settings');
+                    }
+                    return response.json();
+                })
+            ])
+            .then(([devices, settings]) => {
+                console.log('Devices to add:', devices);
+                console.log('Current settings:', settings);
 
-        devices.forEach(device => {
-          const phOption = document.createElement('option');
-          phOption.value = device.device;
-          phOption.textContent = device.device;
-          if (device.device === assignedPhProbe) phOption.selected = true;
-          phDeviceDropdown.appendChild(phOption);
+                // Populating USB device dropdowns
+                const phDeviceDropdown = document.getElementById('ph-device');
+                const relayDeviceDropdown = document.getElementById('relay-device');
+                const assignedPhProbe = settings.usb_roles?.ph_probe || "";
+                const assignedRelay = settings.usb_roles?.relay || "";
 
-          const relayOption = document.createElement('option');
-          relayOption.value = device.device;
-          relayOption.textContent = device.device;
-          if (device.device === assignedRelay) relayOption.selected = true;
-          relayDeviceDropdown.appendChild(relayOption);
+                phDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+                relayDeviceDropdown.innerHTML = '<option value="">Select a device</option>';
+
+                devices.forEach(device => {
+                    const phOption = document.createElement('option');
+                    phOption.value = device.device;
+                    phOption.textContent = device.device;
+                    if (device.device === assignedPhProbe) phOption.selected = true;
+                    phDeviceDropdown.appendChild(phOption);
+
+                    const relayOption = document.createElement('option');
+                    relayOption.value = device.device;
+                    relayOption.textContent = device.device;
+                    if (device.device === assignedRelay) relayOption.selected = true;
+                    relayDeviceDropdown.appendChild(relayOption);
+                });
+
+                // pH Range
+                document.getElementById('ph-min').value = settings.ph_range?.min || '';
+                document.getElementById('ph-max').value = settings.ph_range?.max || '';
+
+                // General
+                document.getElementById('ph-target').value = settings.ph_target || '5.8';
+                document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
+                document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
+                document.getElementById('system-volume').value = settings.system_volume || '';
+                document.getElementById('time-zone').value = settings.time_zone || '';
+                document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+
+                // Dosage Strength
+                document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
+                document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+
+                // Pump Calibration
+                document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
+                document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
+
+                // Relay Ports
+                const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
+                document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
+                document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
+
+                // PLANT INFO:
+                const plantInfo = settings.plant_info || {};
+                document.getElementById('plant-name').value = plantInfo.name || '';
+                document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+                updateWeeksSinceStart(plantInfo.start_date);
+
+                // WATER LEVEL SENSORS
+                const sensors = settings.water_level_sensors || {
+                    sensor1: { label: "Full", pin: 22 },
+                    sensor2: { label: "3 Gal", pin: 23 },
+                    sensor3: { label: "Empty", pin: 24 }
+                };
+
+                // Populate each sensor field
+                document.getElementById('sensor1-label').value = sensors.sensor1.label;
+                document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
+                document.getElementById('sensor2-label').value = sensors.sensor2.label;
+                document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
+                document.getElementById('sensor3-label').value = sensors.sensor3.label;
+                document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
+
+                // Enable/disable forms based on whether Relay is assigned
+                const isRelayAssigned = Boolean(assignedRelay);
+                document.querySelectorAll(
+                    '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
+                ).forEach(el => {
+                    el.disabled = !isRelayAssigned;
+                });
+
+                // Show warning if no relay
+                const relayWarning = document.getElementById('relay-warning');
+                relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
+            })
+            .catch(error => console.error('Error fetching USB devices or settings:', error));
+        };
+
+        function updateWeeksSinceStart(startDateStr) {
+            const weeksSpan = document.getElementById('weeks-since-start');
+            if (!startDateStr) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const startDate = new Date(startDateStr);
+            if (isNaN(startDate)) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const now = new Date();
+            const diffMs = now - startDate;
+            if (diffMs < 0) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+            weeksSpan.textContent = weeks.toString();
+        }
+
+        const saveUsbAssignment = (role, device) => {
+            fetch("/api/settings/assign_usb", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role, device })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`${role} assigned successfully.`);
+                    document.getElementById('status').textContent = `${role} assigned successfully.`;
+                } else {
+                    console.error(`Failed to assign ${role}:`, data.error);
+                    document.getElementById('status').textContent = `Failed to assign ${role}.`;
+                }
+            })
+            .catch(error => console.error(`Error saving ${role} assignment:`, error));
+        };
+
+        const saveSettings = (endpoint, payload) => {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                console.log('Settings saved successfully');
+                // Optionally re-fetch to refresh UI
+                fetchUsbDevices();
+            })
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
+        // pH Probe assignment
+        document.getElementById('ph-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phDevice = document.getElementById('ph-device').value;
+            saveUsbAssignment('ph_probe', phDevice);
+        });
+
+        // Relay assignment
+        document.getElementById('relay-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const relayDevice = document.getElementById('relay-device').value;
+            saveUsbAssignment('relay', relayDevice);
         });
 
         // pH Range
-        document.getElementById('ph-min').value = settings.ph_range?.min || '';
-        document.getElementById('ph-max').value = settings.ph_range?.max || '';
-
-        // General
-        document.getElementById('ph-target').value = settings.ph_target || '5.8';
-        document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
-        document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
-        document.getElementById('system-volume').value = settings.system_volume || '';
-        document.getElementById('time-zone').value = settings.time_zone || '';
-        document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
-
-        // Dosage Strength
-        document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
-        document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
-
-        // Pump Calibration
-        document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
-        document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
-
-        // Relay Ports
-        const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
-        document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
-        document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
-
-        // PLANT INFO:
-        const plantInfo = settings.plant_info || {};
-        document.getElementById('plant-name').value = plantInfo.name || '';
-        document.getElementById('plant-start-date').value = plantInfo.start_date || '';
-        updateWeeksSinceStart(plantInfo.start_date);
-
-        // WATER LEVEL SENSORS
-        const sensors = settings.water_level_sensors || {
-          sensor1: { label: "Full", pin: 22 },
-          sensor2: { label: "3 Gal", pin: 23 },
-          sensor3: { label: "Empty", pin: 24 }
-        };
-
-        // Populate each sensor field
-        document.getElementById('sensor1-label').value = sensors.sensor1.label;
-        document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
-        document.getElementById('sensor2-label').value = sensors.sensor2.label;
-        document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
-        document.getElementById('sensor3-label').value = sensors.sensor3.label;
-        document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
-
-        // Enable/disable forms based on whether Relay is assigned
-        const isRelayAssigned = Boolean(assignedRelay);
-        document.querySelectorAll(
-          '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
-        ).forEach(el => {
-          el.disabled = !isRelayAssigned;
+        document.getElementById('ph-range-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const minVal = parseFloat(document.getElementById('ph-min').value);
+            const maxVal = parseFloat(document.getElementById('ph-max').value);
+            const payload = {
+                ph_range: {
+                    min: minVal,
+                    max: maxVal
+                }
+            };
+            saveSettings("/api/settings", payload);
         });
 
-        // Show warning if no relay
-        const relayWarning = document.getElementById('relay-warning');
-        relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
-      })
-      .catch(error => console.error('Error fetching USB devices or settings:', error));
-    };
+        // General
+        document.getElementById('general-settings-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const payload = {
+                ph_target: parseFloat(document.getElementById('ph-target').value),
+                max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
+                dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
+                system_volume: parseFloat(document.getElementById('system-volume').value),
+                time_zone: document.getElementById('time-zone').value,
+                auto_dosing_enabled: document.getElementById('auto-dosing').checked
+            };
+            saveSettings("/api/settings", payload);
+        });
 
-    function updateWeeksSinceStart(startDateStr) {
-      const weeksSpan = document.getElementById('weeks-since-start');
-      if (!startDateStr) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const startDate = new Date(startDateStr);
-      if (isNaN(startDate)) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const now = new Date();
-      const diffMs = now - startDate;
-      if (diffMs < 0) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-      weeksSpan.textContent = weeks.toString();
-    }
+        // Dosage Strength
+        document.getElementById('dosage-strength-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phUp = parseFloat(document.getElementById('ph-up-strength').value);
+            const phDown = parseFloat(document.getElementById('ph-down-strength').value);
+            const payload = {
+                dosage_strength: {
+                    ph_up: phUp,
+                    ph_down: phDown
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
 
-    const saveUsbAssignment = (role, device) => {
-      fetch("/api/settings/assign_usb", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, device })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'success') {
-          console.log(`${role} assigned successfully.`);
-          document.getElementById('status').textContent = `${role} assigned successfully.`;
-        } else {
-          console.error(`Failed to assign ${role}:`, data.error);
-          document.getElementById('status').textContent = `Failed to assign ${role}.`;
-        }
-      })
-      .catch(error => console.error(`Error saving ${role} assignment:`, error));
-    };
+        // Pump Calibration
+        document.getElementById('pump-calibration-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const payload = {
+                pump_calibration: {
+                    pump1: parseFloat(document.getElementById('pump1-calibration').value),
+                    pump2: parseFloat(document.getElementById('pump2-calibration').value)
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
 
-    const saveSettings = (endpoint, payload) => {
-      fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(() => {
-        console.log('Settings saved successfully');
-        // Optionally re-fetch to refresh UI
-        fetchUsbDevices();
-      })
-      .catch(error => console.error('Error saving settings:', error));
-    };
-
-    // pH Probe assignment
-    document.getElementById('ph-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const phDevice = document.getElementById('ph-device').value;
-      saveUsbAssignment('ph_probe', phDevice);
-    });
-
-    // Relay assignment
-    document.getElementById('relay-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const relayDevice = document.getElementById('relay-device').value;
-      saveUsbAssignment('relay', relayDevice);
-    });
-
-    // pH Range
-    document.getElementById('ph-range-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const minVal = parseFloat(document.getElementById('ph-min').value);
-      const maxVal = parseFloat(document.getElementById('ph-max').value);
-      const payload = {
-        ph_range: {
-          min: minVal,
-          max: maxVal
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // General
-    document.getElementById('general-settings-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const payload = {
-        ph_target: parseFloat(document.getElementById('ph-target').value),
-        max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
-        dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
-        system_volume: parseFloat(document.getElementById('system-volume').value),
-        time_zone: document.getElementById('time-zone').value,
-        auto_dosing_enabled: document.getElementById('auto-dosing').checked
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // Dosage Strength
-    document.getElementById('dosage-strength-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const phUp = parseFloat(document.getElementById('ph-up-strength').value);
-      const phDown = parseFloat(document.getElementById('ph-down-strength').value);
-      const payload = {
-        dosage_strength: {
-          ph_up: phUp,
-          ph_down: phDown
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // Pump Calibration
-    document.getElementById('pump-calibration-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const payload = {
-        pump_calibration: {
-          pump1: parseFloat(document.getElementById('pump1-calibration').value),
-          pump2: parseFloat(document.getElementById('pump2-calibration').value)
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // Relay Ports
-    document.getElementById('relay-port-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const phUpPort = parseInt(document.getElementById('ph-up-relay-port').value, 10);
-      const phDownPort = parseInt(document.getElementById('ph-down-relay-port').value, 10);
-      const payload = {
-        relay_ports: {
-          ph_up: phUpPort,
-          ph_down: phDownPort
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // Plant Info
-    document.getElementById('plant-info-form').addEventListener('submit', event => {
-      event.preventDefault();
-      const plantName = document.getElementById('plant-name').value;
-      const startDate = document.getElementById('plant-start-date').value;
-      const payload = {
-        plant_info: {
-          name: plantName,
-          start_date: startDate
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    document.getElementById('plant-start-date').addEventListener('change', (e) => {
-      updateWeeksSinceStart(e.target.value);
-    });
-
-    // NEW: Water Level Sensors
-    document.getElementById('water-level-sensors-form').addEventListener('submit', event => {
-      event.preventDefault();
-
-      const sensor1Label = document.getElementById('sensor1-label').value;
-      const sensor1Pin = parseInt(document.getElementById('sensor1-pin').value, 10) || 22;
-
-      const sensor2Label = document.getElementById('sensor2-label').value;
-      const sensor2Pin = parseInt(document.getElementById('sensor2-pin').value, 10) || 23;
-
-      const sensor3Label = document.getElementById('sensor3-label').value;
-      const sensor3Pin = parseInt(document.getElementById('sensor3-pin').value, 10) || 24;
-
-      const payload = {
-        water_level_sensors: {
-          sensor1: { label: sensor1Label, pin: sensor1Pin },
-          sensor2: { label: sensor2Label, pin: sensor2Pin },
-          sensor3: { label: sensor3Label, pin: sensor3Pin }
-        }
-      };
-      saveSettings("/api/settings", payload);
-    });
-
-    // On page load
-    fetchUsbDevices();
-  </script>
-</body>
-</html>
+        // Relay Ports
+        document.getElementById('relay-port-form').addEventListener('submit', event
