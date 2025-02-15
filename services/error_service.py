@@ -1,7 +1,7 @@
 # File: services/error_service.py
 import serial
 import time
-from services.relay_service import get_relay_device_path
+
 # We'll also use set_error, clear_error, get_current_errors from this module
 
 error_codes = {
@@ -28,6 +28,7 @@ def check_relay_offline():
     Attempt to open the relay device path. If it fails, mark `RELAY_USB_OFFLINE`.
     If it succeeds, clear that error.
     """
+    from services.relay_service import get_relay_device_path
     try:
         device_path = get_relay_device_path()  # from relay_service
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
