@@ -3,12 +3,18 @@ import eventlet
 eventlet.monkey_patch()
 
 from app import app, start_threads
+from mdns_service import register_mdns_service  # <-- Import your function
 
 # This function will be called by Gunicorn after a worker is forked
 def post_fork(server, worker):
     print(f"[Gunicorn] Worker {worker.pid} forked. Starting threads...")
     try:
         start_threads()  # Start background threads for this worker
+        
+        # Register the mDNS service
+        mdns_zeroconf, mdns_info = register_mdns_service(service_name="GardenMonitor", port=8000)
+        print(f"[Gunicorn] Worker {worker.pid} MDNS service registered successfully.")
+        
         print(f"[Gunicorn] Worker {worker.pid} threads started successfully.")
     except Exception as e:
         print(f"[Gunicorn] Error starting threads in worker {worker.pid}: {e}")
@@ -31,7 +37,9 @@ if __name__ == "__main__":
     print("[WSGI] Running in local development mode...")
     try:
         start_threads()  # Start threads for local development
-        print("[WSGI] Background threads started successfully.")
+        # Also register the mDNS service locally:
+        mdns_zeroconf, mdns_info = register_mdns_service(service_name="GardenMonitor", port=8000)
+        print("[WSGI] Background threads and MDNS service started successfully.")
     except Exception as e:
         print(f"[WSGI] Error starting background threads: {e}")
         raise  # Re-raise the exception to prevent the app from hanging
