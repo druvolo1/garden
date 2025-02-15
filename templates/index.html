@@ -59,7 +59,7 @@
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
                         const sensor = waterLevel[key];
-                        html += `<li>${sensor.label || key} (GPIO ${sensor.pin}): ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}</li>`;
+                        html += `<li>${sensor.label || key}: ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}</li>`;
                     }
                 }
                 html += "</ul>";
