@@ -28,18 +28,20 @@
         });
 
         socket.on("connect", () => {
-            output.textContent += "Connected to /status namespace\n\n";
+            // Overwrite textContent to show connection status
+            output.textContent = "Connected to /status namespace\n\n";
         });
 
         // Listen for the "status_update" event
         socket.on("status_update", (data) => {
             // Pretty-print the JSON with 2 spaces of indentation
             const prettyData = JSON.stringify(data, null, 2);
-            output.textContent += "status_update event:\n" + prettyData + "\n\n";
+            // Overwrite the output each time a new status comes in
+            output.textContent = "status_update event:\n" + prettyData + "\n\n";
         });
 
         socket.on("disconnect", () => {
-            output.textContent += "Disconnected\n\n";
+            output.textContent = "Disconnected\n\n";
         });
     </script>
 </body>
