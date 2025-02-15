@@ -1,9 +1,9 @@
-# status_namespace.py
+# File: status_namespace.py
 from flask_socketio import Namespace
 from services.ph_service import get_latest_ph_reading
 from api.settings import load_settings
 from services.auto_dose_state import auto_dose_state
-from services.plant_service import get_weeks_since_start  # <-- import your weeks-since-start logic
+from services.plant_service import get_weeks_since_start
 from datetime import datetime
 
 def log_with_timestamp(msg):
@@ -28,25 +28,26 @@ class StatusNamespace(Namespace):
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
 
-        # Pull out plant info from settings, or default to an empty dict
+        # Load plant_info from settings (if any)
         plant_info_raw = settings.get("plant_info", {})
-        plant_weeks = get_weeks_since_start(plant_info_raw)
+        # Compute weeks since start
+        weeks = get_weeks_since_start(plant_info_raw)
 
-        # Build full "plant_info" sub-dict for the status event
+        # Create a new dict for plant_info with an additional "weeks_since_start"
         plant_info = {
             "name": plant_info_raw.get("name", ""),
             "start_date": plant_info_raw.get("start_date", ""),
-            "weeks_since_start": plant_weeks
+            "weeks_since_start": weeks
         }
 
         status = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
             "auto_dose_state": auto_dose_copy,
-            "plant_info": plant_info,   # <--- add the new plant_info section
+            "plant_info": plant_info,    # all plant/grow data is grouped here
             "errors": []
         }
 
-        # Emit the status_update event (no namespace specified => default).
-        # If you want the /status namespace, add `namespace='/status'` below.
+        # Emit this status to all clients in the default namespace
+        # If you want it on /status, add: namespace="/status"
         self.emit("status_update", status)
