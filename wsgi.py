@@ -3,7 +3,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from app import app, start_threads
-from mdns_service import register_mdns_service  # <-- Import your function
+from services.mdns_service import register_mdns_service
 
 # This function will be called by Gunicorn after a worker is forked
 def post_fork(server, worker):
