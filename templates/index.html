@@ -7,8 +7,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+
     <!-- Navigation Menu -->
     <nav>
         <ul>
@@ -20,17 +22,20 @@
         </ul>
     </nav>
 
-    <h1>pH Dosing System</h1>
-    <p>Welcome to the pH Dosing System!</p>
+    <main>
+        <h1>pH Dosing System</h1>
+        <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <h2>Current pH Reading</h2>
-    <div id="ph-display" style="font-size: 24px; color: blue;">Loading...</div>
+        <div class="data-container">
+            <h2>Current pH Reading</h2>
+            <div id="ph-display" class="data-box">Loading...</div>
+        </div>
 
-    <!-- NEW: Water Level Section -->
-    <h2>Water Level Sensors</h2>
-    <div id="water-level-status">
-        <!-- We'll populate sensor statuses here. -->
-    </div>
+        <div class="data-container">
+            <h2>Water Level Sensors</h2>
+            <div id="water-level-status" class="data-box"></div>
+        </div>
+    </main>
 
     <script>
         document.addEventListener('DOMContentLoaded', async function () {
@@ -41,93 +46,58 @@
 
             function updatePhDisplay(ph) {
                 const phDisplay = document.getElementById('ph-display');
-                if (ph !== undefined) {
-                    phDisplay.textContent = `Current pH: ${parseFloat(ph).toFixed(2)}`;
-                } else {
-                    phDisplay.textContent = "pH data unavailable";
-                }
+                phDisplay.textContent = ph ? `Current pH: ${parseFloat(ph).toFixed(2)}` : "pH data unavailable";
             }
 
-            // NEW: Renders the water-level sensor statuses
             function renderWaterLevel(waterLevel) {
                 const container = document.getElementById('water-level-status');
                 if (!waterLevel) {
                     container.innerHTML = "<p>No water-level data.</p>";
                     return;
                 }
-                // Build a small table or list
                 let html = "<ul>";
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
                         const sensor = waterLevel[key];
-                        const label = sensor.label || key;
-                        const triggered = sensor.triggered ? "TRIGGERED" : "NOT triggered";
-                        html += `<li>${label} (GPIO ${sensor.pin}): ${triggered}</li>`;
+                        html += `<li>${sensor.label || key} (GPIO ${sensor.pin}): ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}</li>`;
                     }
                 }
                 html += "</ul>";
                 container.innerHTML = html;
             }
 
-            // (Optional) fetch initial pH data
             async function fetchInitialPh() {
                 try {
                     const response = await fetch('/api/ph/latest');
                     const data = await response.json();
-                    if (data && data.ph !== undefined) {
-                        updatePhDisplay(data.ph);
-                    } else {
-                        updatePhDisplay();
-                    }
+                    updatePhDisplay(data.ph);
                 } catch (error) {
-                    console.error("Error fetching initial pH data:", error);
-                    updatePhDisplay();
+                    console.error("Error fetching pH data:", error);
                 }
             }
 
-            // (Optional) fetch initial water-level data
             async function fetchWaterLevel() {
                 try {
                     const response = await fetch('/api/water_level/');
                     const data = await response.json();
                     renderWaterLevel(data);
                 } catch (error) {
-                    console.error("Error fetching initial water level data:", error);
+                    console.error("Error fetching water level:", error);
                 }
             }
 
-            // WebSocket
             socket.on('connect', () => {
-                console.log('Connected to WebSocket server');
-                // fetch initial data
                 fetchInitialPh();
                 fetchWaterLevel();
             });
 
-            socket.on('ph_update', (data) => {
-                console.log('Real-time pH update:', data);
-                updatePhDisplay(data.ph);
-            });
-
-            // If your "status_update" from broadcast_status includes water_level
+            socket.on('ph_update', (data) => updatePhDisplay(data.ph));
             socket.on('status_update', (data) => {
-                if (data.current_ph !== undefined) {
-                    updatePhDisplay(data.current_ph);
-                }
-                if (data.water_level) {
-                    renderWaterLevel(data.water_level);
-                }
-                // ... handle other data if you want ...
-            });
-
-            socket.on('connect_error', (error) => {
-                console.warn("WebSocket connection error:", error);
-            });
-
-            socket.on('disconnect', () => {
-                console.warn("WebSocket disconnected. Attempting to reconnect...");
+                if (data.current_ph !== undefined) updatePhDisplay(data.current_ph);
+                if (data.water_level) renderWaterLevel(data.water_level);
             });
         });
     </script>
+
 </body>
 </html>

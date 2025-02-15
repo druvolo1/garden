@@ -1,41 +1,110 @@
+/* Global Styles */
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f9f9f9;
+    font-family: 'Poppins', sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
     margin: 0;
     padding: 0;
 }
 
-header {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px 20px;
+/* Navigation Bar */
+nav {
+    background-color: #1e1e1e;
+    padding: 15px;
+    text-align: center;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+nav ul li {
+    display: inline;
+    margin: 0 15px;
+}
+
+nav ul li a {
+    color: #f4c531;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease-in-out;
+}
+
+nav ul li a:hover {
+    color: #ffffff;
+}
+
+/* Main Content */
+main {
+    max-width: 800px;
+    margin: 40px auto;
     text-align: center;
 }
 
 h1 {
-    margin: 0;
-    font-size: 24px;
+    font-size: 32px;
+    font-weight: 600;
+    margin-bottom: 10px;
 }
 
-main {
+.subtitle {
+    font-size: 18px;
+    color: #b0b0b0;
+    margin-bottom: 30px;
+}
+
+/* Data Containers */
+.data-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
     padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0px 4px 10px rgba(255, 204, 0, 0.2);
 }
 
-button {
-    background-color: #007BFF;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    margin: 5px;
-    cursor: pointer;
+h2 {
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 10px;
+}
+
+.data-box {
+    font-size: 24px;
+    font-weight: bold;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 5px;
+    display: inline-block;
+}
+
+/* Buttons */
+button {
+    background: linear-gradient(to right, #f4c531, #e2a600);
+    color: #121212;
+    border: none;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
 }
 
 button:hover {
-    background-color: #0056b3;
+    background: linear-gradient(to right, #e2a600, #c98e00);
+    transform: scale(1.05);
 }
 
-#log-list li {
-    font-size: 14px;
+/* Lists */
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+ul li {
+    font-size: 18px;
     margin: 5px 0;
 }

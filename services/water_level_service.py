@@ -16,9 +16,9 @@ _pins_inited = False
 def load_water_level_sensors():
     s = load_settings()
     default_sensors = {
-        "sensor1": {"label": "Full",  "pin": 22},
-        "sensor2": {"label": "3 Gal", "pin": 23},
-        "sensor3": {"label": "Empty", "pin": 24},
+        "sensor1": {"label": "Full",  "pin": 17},
+        "sensor2": {"label": "3 Gal", "pin": 18},
+        "sensor3": {"label": "Empty", "pin": 19},
     }
     return s.get("water_level_sensors", default_sensors)
 
