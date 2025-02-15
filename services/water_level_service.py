@@ -1,25 +1,19 @@
 # File: services/water_level_service.py
+import threading
 
 try:
     import RPi.GPIO as GPIO
 except ImportError:
-    # Mock environment for non-Pi
     GPIO = None
     print("RPi.GPIO not available. Using mock environment.")
 
-import sys
 from api.settings import load_settings
 
+# A global lock and a flag that indicates if we've fully initialized pins
+_pins_lock = threading.Lock()
+_pins_inited = False
+
 def load_water_level_sensors():
-    """
-    Read sensor definitions from settings['water_level_sensors'] or fallback defaults.
-    Example structure:
-    {
-      "sensor1": { "label": "Full",  "pin": 22 },
-      "sensor2": { "label": "3 Gal", "pin": 23 },
-      "sensor3": { "label": "Empty", "pin": 24 }
-    }
-    """
     s = load_settings()
     default_sensors = {
         "sensor1": {"label": "Full",  "pin": 22},
@@ -28,52 +22,58 @@ def load_water_level_sensors():
     }
     return s.get("water_level_sensors", default_sensors)
 
-def setup_water_level_pins():
+def ensure_pins_inited():
     """
-    Re-initialize water-level sensor pins. If pins changed, this ensures new pins are set.
-    1) Cleanup any existing config
-    2) setmode(GPIO.BCM)
-    3) set up each sensor's pin as input
+    Safely ensure that GPIO.setmode() and GPIO.setup() have been called exactly once
+    or after pins are changed. Any code reading the pins should call this first.
+    """
+    global _pins_inited
+    if not GPIO:
+        return  # mock environment, no-op
+
+    with _pins_lock:
+        if not _pins_inited:
+            # We do a full setup
+            try:
+                GPIO.setwarnings(False)
+                GPIO.setmode(GPIO.BCM)
+                sensors = load_water_level_sensors()
+                for sensor_key, cfg in sensors.items():
+                    pin = cfg.get("pin")
+                    if pin is not None:
+                        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                _pins_inited = True
+                print("Water-level pins have been initialized.")
+            except Exception as e:
+                print(f"Error initializing water-level pins: {e}")
+
+def force_cleanup_and_init():
+    """
+    If user updates pins, we do a full GPIO.cleanup(), then re-init.
+    This is called from update_settings() after water_level_sensors changes.
     """
     if not GPIO:
-        print("Skipping GPIO setup (mock environment).")
         return
-
-    # Cleanup everything: frees up pins so we can re-set them
-    GPIO.cleanup()
-
-    # Re-establish BCM mode
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-
-    sensors = load_water_level_sensors()
-    for sensor_key, cfg in sensors.items():
-        pin = cfg.get("pin")
-        if pin is not None:
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    with _pins_lock:
+        global _pins_inited
+        GPIO.cleanup()
+        _pins_inited = False
+        # Now calling ensure_pins_inited() will do the new setup
 
 def get_water_level_status():
     """
-    Return a dict with sensor label, pin, and triggered state.
-    'triggered' depends on your hardware logic (HIGH vs LOW).
-    Example:
-      {
-        "sensor1": {"label": "Full",   "pin": 22, "triggered": True},
-        "sensor2": {"label": "3 Gal",  "pin": 23, "triggered": False},
-        "sensor3": {"label": "Empty",  "pin": 24, "triggered": False}
-      }
+    Return a dict with each sensor’s label, pin, and triggered state.
     """
     sensors = load_water_level_sensors()
-    status = {}
+    ensure_pins_inited()  # Make sure pins are set up before reading
 
+    status = {}
     for sensor_key, cfg in sensors.items():
         label = cfg.get("label", sensor_key)
         pin = cfg.get("pin")
         triggered = False
         if GPIO and pin is not None:
-            # For typical float sensors or contact sensors, you may find
-            # that "GPIO.input(pin) == 0" means "triggered". Adjust as needed.
-            sensor_state = GPIO.input(pin)
+            sensor_state = GPIO.input(pin)  # This is safe now that pins are inited
             triggered = (sensor_state == 0)
         status[sensor_key] = {
             "label": label,

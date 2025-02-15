@@ -59,7 +59,7 @@ def get_settings():
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
-    new_settings = request.json
+    new_settings = request.get_json() or {}
     current_settings = load_settings()
 
     auto_dosing_changed = (
@@ -75,25 +75,34 @@ def update_settings():
         del new_settings["relay_ports"]
 
     # Merge water_level_sensors if present
+    water_sensors_updated = False
     if "water_level_sensors" in new_settings:
         if "water_level_sensors" not in current_settings:
             current_settings["water_level_sensors"] = {}
+
         for sensor_key, sensor_data in new_settings["water_level_sensors"].items():
             current_settings["water_level_sensors"][sensor_key] = sensor_data
+
         del new_settings["water_level_sensors"]
+        water_sensors_updated = True
 
-        # Force re-setup of pins to avoid "You must setup() the GPIO channel first"
-        from services.water_level_service import setup_water_level_pins
-        setup_water_level_pins()
-
-    # Merge everything else
+    # Merge all remaining top-level keys (ph_range, ph_target, etc.)
     current_settings.update(new_settings)
+
+    # Save the changes so that future load_settings() sees them
     save_settings(current_settings)
 
+    # If water-level pins changed, reinit them
+    if water_sensors_updated:
+        from services.water_level_service import force_cleanup_and_init
+        force_cleanup_and_init()
+
+    # If auto-dosing changed, reset timer
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
     return jsonify({"status": "success", "settings": current_settings})
+
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
