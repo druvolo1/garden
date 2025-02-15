@@ -71,7 +71,7 @@
                 <h2>General Settings</h2>
                 <form id="general-settings-form">
                     <label for="ph-target">pH Target:</label>
-                    <input type="number" id="ph-target" name="ph-target" step="0.01" value="5.8" disabled>
+                    <input type="number" id="ph-target" name="ph-target" step="0.01" disabled>
 
                     <label for="max-dosing">Max Dosing Amount (ml):</label>
                     <input type="number" id="max-dosing" name="max-dosing" step="1" disabled>
@@ -103,40 +103,62 @@
                 </form>
             </div>
 
-            <!-- Water Level Sensors -->
-            <div class="data-container">
-                <h2>Water Level Sensors</h2>
-                <form id="water-level-sensors-form">
-                    <fieldset>
-                        <legend>Sensor 1</legend>
-                        <label>Label:</label>
-                        <input type="text" id="sensor1-label">
-                        <label>Pin:</label>
-                        <input type="number" id="sensor1-pin">
-                    </fieldset>
-
-                    <fieldset>
-                        <legend>Sensor 2</legend>
-                        <label>Label:</label>
-                        <input type="text" id="sensor2-label">
-                        <label>Pin:</label>
-                        <input type="number" id="sensor2-pin">
-                    </fieldset>
-
-                    <fieldset>
-                        <legend>Sensor 3</legend>
-                        <label>Label:</label>
-                        <input type="text" id="sensor3-label">
-                        <label>Pin:</label>
-                        <input type="number" id="sensor3-pin">
-                    </fieldset>
-
-                    <button type="submit">Save Water Sensors</button>
-                </form>
-            </div>
-
         </div>
     </main>
+
+    <script>
+        async function fetchSettings() {
+            try {
+                const response = await fetch("/api/settings");
+                if (!response.ok) throw new Error("Failed to fetch settings");
+                const settings = await response.json();
+
+                // Assign values
+                document.getElementById('ph-min').value = settings.ph_range?.min || '';
+                document.getElementById('ph-max').value = settings.ph_range?.max || '';
+                document.getElementById('ph-target').value = settings.ph_target || '5.8';
+                document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
+                document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
+                document.getElementById('system-volume').value = settings.system_volume || '';
+                document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+                document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
+                document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+
+            } catch (error) {
+                console.error("Error fetching settings:", error);
+            }
+        }
+
+        async function fetchUsbDevices() {
+            try {
+                const response = await fetch("/api/settings/usb_devices");
+                if (!response.ok) throw new Error("Failed to fetch USB devices");
+                const devices = await response.json();
+
+                const phDropdown = document.getElementById('ph-device');
+                const relayDropdown = document.getElementById('relay-device');
+                phDropdown.innerHTML = '<option value="">Select a device</option>';
+                relayDropdown.innerHTML = '<option value="">Select a device</option>';
+
+                devices.forEach(device => {
+                    const option = new Option(device.device, device.device);
+                    phDropdown.appendChild(option);
+                    relayDropdown.appendChild(option.cloneNode(true));
+                });
+            } catch (error) {
+                console.error("Error fetching USB devices:", error);
+            }
+        }
+
+        document.getElementById('rescan-usb').addEventListener('click', fetchUsbDevices);
+        document.getElementById('ph-form').addEventListener('submit', e => e.preventDefault());
+        document.getElementById('relay-form').addEventListener('submit', e => e.preventDefault());
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchSettings();
+            fetchUsbDevices();
+        });
+    </script>
 
 </body>
 </html>
