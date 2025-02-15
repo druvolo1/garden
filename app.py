@@ -27,6 +27,11 @@ from services.ph_service import get_latest_ph_reading, start_serial_reader, stop
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.plant_service import get_weeks_since_start
 from services.error_service import check_for_hardware_errors
+from services.device_config import (
+    get_hostname, get_ip_config, get_timezone, is_daylight_savings,
+    get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
+    set_timezone, set_ntp_server, set_wifi_config
+)
 
 
 app = Flask(__name__)
@@ -264,8 +269,76 @@ def api_manual_dosage():
 
 @app.route('/api/device/config', methods=['GET', 'POST'])
 def device_config():
-    # Your existing code ...
-    pass
+    if request.method == 'GET':
+        try:
+            # Build config dict from your device_config.py functions
+            hostname = get_hostname()
+            eth0 = get_ip_config("eth0")
+            wlan0 = get_ip_config("wlan0")
+            wlan0["ssid"] = get_wifi_config()  # add the WiFi SSID to the wlan0 dict
+
+            tz = get_timezone()
+            dls = is_daylight_savings()
+            ntp = get_ntp_server()
+
+            response = {
+                "status": "success",
+                "config": {
+                    "hostname": hostname,
+                    "eth0": eth0,
+                    "wlan0": wlan0,
+                    "timezone": tz,
+                    "daylight_savings": dls,
+                    "ntp_server": ntp
+                }
+            }
+            return jsonify(response), 200
+        except Exception as e:
+            return jsonify({"status": "failure", "message": str(e)}), 500
+
+    if request.method == 'POST':
+        try:
+            data = request.get_json() or {}
+
+            # If the request has a 'hostname', set it
+            if "hostname" in data:
+                set_hostname(data["hostname"])
+
+            # If there's interface data for eth0 or wlan0
+            if "interface" in data:
+                iface = data["interface"]
+                dhcp = data.get("dhcp", False)
+                ip_address = data.get("ip_address", "")
+                subnet_mask = data.get("subnet_mask", "255.255.255.0")
+                gateway = data.get("gateway", "")
+                dns1 = data.get("dns1", "")
+                dns2 = data.get("dns2", "")
+
+                set_ip_config(
+                    iface, dhcp, ip_address, subnet_mask,
+                    gateway, dns1, dns2
+                )
+
+                # If it's wlan0, also handle WiFi SSID/pwd
+                if iface == "wlan0":
+                    ssid = data.get("wifi_ssid", "")
+                    password = data.get("wifi_password", "")
+                    if ssid and password:
+                        set_wifi_config(ssid, password)
+
+            # Time / NTP
+            if "timezone" in data:
+                set_timezone(data["timezone"])
+            if "ntp_server" in data:
+                set_ntp_server(data["ntp_server"])
+
+            # If "daylight_savings" is provided, you might do more logic here,
+            # but typically DST is automatic by region/timezone.
+
+            return jsonify({"status": "success", "message": "Settings updated."}), 200
+
+        except Exception as e:
+            return jsonify({"status": "failure", "message": str(e)}), 500
 
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
