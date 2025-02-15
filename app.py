@@ -119,16 +119,30 @@ def broadcast_ph_readings():
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
+from datetime import datetime
+from services.plant_service import get_weeks_since_start
+
 def broadcast_status():
     from api.settings import load_settings
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
             settings = load_settings()
+
+            # Make a copy so we don't mutate the original auto_dose_state
+            auto_dose_copy = dict(auto_dose_state)
+            
+            # Convert any datetime fields to isoformat strings
+            if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
+                auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
+            if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
+                auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
+
+            # Build the status object
             status = {
                 "settings": settings,
                 "current_ph": get_latest_ph_reading(),
-                "auto_dose_state": auto_dose_state,
+                "auto_dose_state": auto_dose_copy,
                 "plant_weeks_since_start": 0,  # default
                 "errors": []
             }
@@ -142,9 +156,11 @@ def broadcast_status():
             socketio.emit("status_update", status, namespace="/status")
             log_with_timestamp("[Status] Emitting status update")
             eventlet.sleep(5)
+
         except Exception as e:
             log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
             eventlet.sleep(5)
+
 
 
 def start_threads():
