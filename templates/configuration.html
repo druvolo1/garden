@@ -4,10 +4,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/static/style.css">
   <title>Device Configuration</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <!-- Navigation Menu -->
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
@@ -21,94 +22,144 @@
   <div class="container">
     <h1>Device Configuration</h1>
 
-    <!-- Hostname -->
-    <div id="hostname-section">
-      <h2>Hostname</h2>
-      <label for="hostname">Hostname:</label>
-      <input type="text" id="hostname" name="hostname">
-      <button id="save-hostname">Save</button>
-    </div>
+    <!-- Hostname Configuration -->
+    <fieldset class="config-card">
+      <legend><h2>Hostname</h2></legend>
+      <div class="form-group">
+        <label for="hostname">Hostname:</label>
+        <input type="text" id="hostname" name="hostname">
+        <button id="save-hostname">Save</button>
+      </div>
+    </fieldset>
 
     <!-- Network Configuration -->
-    <div id="network-section">
-      <h2>Network Configuration</h2>
+    <fieldset class="config-card">
+      <legend><h2>Network Configuration</h2></legend>
 
       <!-- Ethernet (eth0) -->
-      <h3>Ethernet (eth0)</h3>
-      <label for="eth0-dhcp">DHCP:</label>
-      <input type="checkbox" id="eth0-dhcp">
-      <div id="eth0-static-config" class="static-config">
-        <label for="eth0-ip">IP Address:</label>
-        <input type="text" id="eth0-ip">
-        <label for="eth0-subnet">Subnet Mask:</label>
-        <input type="text" id="eth0-subnet">
-        <label for="eth0-gateway">Gateway:</label>
-        <input type="text" id="eth0-gateway">
-        <label for="eth0-dns1">DNS Server 1:</label>
-        <input type="text" id="eth0-dns1">
-        <label for="eth0-dns2">DNS Server 2:</label>
-        <input type="text" id="eth0-dns2">
-      </div>
-      <button id="save-eth0">Save</button>
+      <fieldset class="inner-card">
+        <legend><h3>Ethernet (eth0)</h3></legend>
+        <div class="form-group">
+          <label for="eth0-dhcp">DHCP:</label>
+          <input type="checkbox" id="eth0-dhcp">
+        </div>
+        <div id="eth0-static-config" class="static-config">
+          <div class="form-group">
+            <label for="eth0-ip">IP Address:</label>
+            <input type="text" id="eth0-ip">
+          </div>
+          <div class="form-group">
+            <label for="eth0-subnet">Subnet Mask:</label>
+            <input type="text" id="eth0-subnet">
+          </div>
+          <div class="form-group">
+            <label for="eth0-gateway">Gateway:</label>
+            <input type="text" id="eth0-gateway">
+          </div>
+          <div class="form-group">
+            <label for="eth0-dns1">DNS Server 1:</label>
+            <input type="text" id="eth0-dns1">
+          </div>
+          <div class="form-group">
+            <label for="eth0-dns2">DNS Server 2:</label>
+            <input type="text" id="eth0-dns2">
+          </div>
+        </div>
+        <button id="save-eth0">Save</button>
+      </fieldset>
 
       <!-- Wi-Fi (wlan0) -->
-      <h3>Wi-Fi (wlan0)</h3>
-      <label for="wlan0-dhcp">DHCP:</label>
-      <input type="checkbox" id="wlan0-dhcp">
-      <div id="wlan0-static-config" class="static-config">
-        <label for="wlan0-ip">IP Address:</label>
-        <input type="text" id="wlan0-ip">
-        <label for="wlan0-subnet">Subnet Mask:</label>
-        <input type="text" id="wlan0-subnet">
-        <label for="wlan0-gateway">Gateway:</label>
-        <input type="text" id="wlan0-gateway">
-        <label for="wlan0-dns1">DNS Server 1:</label>
-        <input type="text" id="wlan0-dns1">
-        <label for="wlan0-dns2">DNS Server 2:</label>
-        <input type="text" id="wlan0-dns2">
-      </div>
-      <label for="wifi-ssid">SSID:</label>
-      <input type="text" id="wifi-ssid">
-      <label for="wifi-password">Password:</label>
-      <input type="password" id="wifi-password">
-      <button id="save-wlan0">Save</button>
-    </div>
+      <fieldset class="inner-card">
+        <legend><h3>Wi-Fi (wlan0)</h3></legend>
+        <div class="form-group">
+          <label for="wlan0-dhcp">DHCP:</label>
+          <input type="checkbox" id="wlan0-dhcp">
+        </div>
+        <div id="wlan0-static-config" class="static-config">
+          <div class="form-group">
+            <label for="wlan0-ip">IP Address:</label>
+            <input type="text" id="wlan0-ip">
+          </div>
+          <div class="form-group">
+            <label for="wlan0-subnet">Subnet Mask:</label>
+            <input type="text" id="wlan0-subnet">
+          </div>
+          <div class="form-group">
+            <label for="wlan0-gateway">Gateway:</label>
+            <input type="text" id="wlan0-gateway">
+          </div>
+          <div class="form-group">
+            <label for="wlan0-dns1">DNS Server 1:</label>
+            <input type="text" id="wlan0-dns1">
+          </div>
+          <div class="form-group">
+            <label for="wlan0-dns2">DNS Server 2:</label>
+            <input type="text" id="wlan0-dns2">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="wifi-ssid">SSID:</label>
+          <input type="text" id="wifi-ssid">
+        </div>
+        <div class="form-group">
+          <label for="wifi-password">Password:</label>
+          <input type="password" id="wifi-password">
+        </div>
+        <button id="save-wlan0">Save</button>
+      </fieldset>
+    </fieldset>
 
     <!-- Time Configuration -->
-    <div id="time-section">
-      <h2>Time Configuration</h2>
-      <!-- Replaced the text input for time zone with a dropdown list -->
-      <label for="timezone-select">Time Zone:</label>
-      <select id="timezone-select">
-        <option value="">Loading timezones...</option>
-      </select>
-
-      <!-- Daylight savings is just read-only now -->
-      <label for="daylight-savings">Currently in Daylight Savings:</label>
-      <input type="checkbox" id="daylight-savings" disabled>
-
-      <label for="ntp-server">NTP Server:</label>
-      <input type="text" id="ntp-server">
+    <fieldset class="config-card">
+      <legend><h2>Time Configuration</h2></legend>
+      <div class="form-group">
+        <label for="timezone-select">Time Zone:</label>
+        <select id="timezone-select">
+          <option value="">Loading timezones...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="daylight-savings">Currently in Daylight Savings:</label>
+        <input type="checkbox" id="daylight-savings" disabled>
+      </div>
+      <div class="form-group">
+        <label for="ntp-server">NTP Server:</label>
+        <input type="text" id="ntp-server">
+      </div>
       <button id="save-time">Save</button>
-    </div>
+    </fieldset>
   </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
-      // Fetch the device config (hostname, interface data, current tz)
+      // Toggle between DHCP and static config
+      function toggleStaticConfig(iface, isDhcp) {
+        document.getElementById(`${iface}-static-config`).style.display = isDhcp ? "none" : "block";
+      }
+
+      // Simple "guess DST" function
+      function guessIfDst(timezone) {
+        const upper = timezone.toUpperCase();
+        if (upper.includes("UTC") || upper.includes("GMT") || upper.includes("ETC")) {
+          return false;
+        }
+        return true; // naive assumption for all others
+      }
+
+      // Fetch config from /api/device/config
       async function fetchConfig() {
         try {
           const response = await fetch('/api/device/config');
           const data = await response.json();
 
           if (data.status === 'success') {
-            const config = data.config;
+            const config = data.config || {};
 
             // Hostname
             document.getElementById("hostname").value = config.hostname || "";
 
             // Ethernet (eth0)
-            const eth0 = config.eth0;
+            const eth0 = config.eth0 || {};
             document.getElementById("eth0-dhcp").checked = eth0.dhcp || false;
             toggleStaticConfig("eth0", eth0.dhcp);
             if (!eth0.dhcp) {
@@ -120,7 +171,7 @@
             }
 
             // Wi-Fi (wlan0)
-            const wlan0 = config.wlan0;
+            const wlan0 = config.wlan0 || {};
             document.getElementById("wlan0-dhcp").checked = wlan0.dhcp || false;
             toggleStaticConfig("wlan0", wlan0.dhcp);
             if (!wlan0.dhcp) {
@@ -133,43 +184,35 @@
             document.getElementById("wifi-ssid").value = wlan0.ssid || "";
 
             // Time config
-            // We'll set the currently selected timezone once fetchTimezones() populates the dropdown
             window.currentTZ = config.timezone || "";
-            document.getElementById("daylight-savings").checked = config.daylight_savings || false;
+            document.getElementById("daylight-savings").checked = !!config.daylight_savings;
             document.getElementById("ntp-server").value = config.ntp_server || "";
 
           } else {
-            console.error("Failed to load config:", data.message);
+            console.error("Failed to load device config:", data.message);
           }
         } catch (error) {
-          console.error("Error fetching configuration:", error);
+          console.error("Error fetching config:", error);
         }
       }
 
-      // Fetch all timezones from a new endpoint (e.g. /api/device/timezones)
-      // and populate the <select id="timezone-select">. Then select currentTZ.
+      // Fetch all timezones from /api/device/timezones
       async function fetchTimezones() {
         try {
           const response = await fetch('/api/device/timezones');
           const data = await response.json();
           if (data.status === 'success') {
-            const timezones = data.timezones || [];
             const tzSelect = document.getElementById("timezone-select");
-            tzSelect.innerHTML = ""; // Clear existing
-
-            timezones.forEach(tz => {
-              // Guess if it includes DST or not
+            tzSelect.innerHTML = "";
+            (data.timezones || []).forEach(tz => {
               const includesDST = guessIfDst(tz);
               const label = includesDST ? `${tz} (DST)` : `${tz} (No DST)`;
-
-              const option = document.createElement("option");
-              option.value = tz;
-              option.textContent = label;
-              // We'll store the raw tz as the option value
-              tzSelect.appendChild(option);
+              const opt = document.createElement("option");
+              opt.value = tz;
+              opt.textContent = label;
+              tzSelect.appendChild(opt);
             });
-
-            // Now set the selected index to currentTZ if it exists
+            // Select currentTZ if set
             if (window.currentTZ) {
               tzSelect.value = window.currentTZ;
             }
@@ -179,40 +222,28 @@
         }
       }
 
-      // Very naive function: if timezone contains "UTC", "GMT", or "Etc", assume no DST
-      function guessIfDst(timezone) {
-        const upper = timezone.toUpperCase();
-        if (upper.includes("UTC") || upper.includes("GMT") || upper.includes("ETC")) {
-          return false;
-        }
-        // Otherwise guess it might have DST
-        return true;
-      }
-
-      function toggleStaticConfig(iface, isDhcp) {
-        document.getElementById(`${iface}-static-config`).style.display = isDhcp ? "none" : "block";
-      }
-
+      // Save config helper
       async function saveConfig(endpoint, payload) {
         try {
-          const response = await fetch(endpoint, {
+          const resp = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          const data = await response.json();
-          alert(data.message);
+          const data = await resp.json();
+          alert(data.message || "Config saved.");
         } catch (error) {
           console.error("Error saving config:", error);
         }
       }
 
-      // Event handlers
+      // Hostname button
       document.getElementById("save-hostname").addEventListener("click", () => {
         const hostname = document.getElementById("hostname").value;
         saveConfig('/api/device/config', { hostname });
       });
 
+      // ETH0
       document.getElementById("save-eth0").addEventListener("click", () => {
         saveConfig('/api/device/config', {
           interface: 'eth0',
@@ -225,6 +256,7 @@
         });
       });
 
+      // WLAN0
       document.getElementById("save-wlan0").addEventListener("click", () => {
         saveConfig('/api/device/config', {
           interface: 'wlan0',
@@ -239,21 +271,26 @@
         });
       });
 
+      // Time
       document.getElementById("save-time").addEventListener("click", () => {
-        // We'll send the selected timezone and NTP server
         const tzSelect = document.getElementById("timezone-select");
-        const selectedTZ = tzSelect.value;
         const ntp = document.getElementById("ntp-server").value;
-
         saveConfig('/api/device/config', {
-          timezone: selectedTZ,
-          // daylight_savings is read-only, but we can still send it if you want
+          timezone: tzSelect.value,
           daylight_savings: document.getElementById("daylight-savings").checked,
           ntp_server: ntp
         });
       });
 
-      // First fetch main config, then fetch all timezones
+      // DHCP toggles
+      document.getElementById("eth0-dhcp").addEventListener("change", (e) => {
+        toggleStaticConfig("eth0", e.target.checked);
+      });
+      document.getElementById("wlan0-dhcp").addEventListener("change", (e) => {
+        toggleStaticConfig("wlan0", e.target.checked);
+      });
+
+      // Init
       await fetchConfig();
       await fetchTimezones();
     });
