@@ -25,6 +25,7 @@ from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
+from services.plant_service import get_weeks_since_start
 
 
 app = Flask(__name__)
@@ -124,28 +125,23 @@ def broadcast_status():
     while True:
         try:
             settings = load_settings()
-            current_ph = get_latest_ph_reading()
-
-            # Make a copy of auto_dose_state so we don’t mutate the original
-            auto_dose_copy = dict(auto_dose_state)
-
-            # Convert any datetime objects to strings
-            if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
-                auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
-            if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
-                auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
-
             status = {
                 "settings": settings,
-                "current_ph": current_ph,
-                "auto_dose_state": auto_dose_copy,
+                "current_ph": get_latest_ph_reading(),
+                "auto_dose_state": auto_dose_state,
+                "plant_weeks_since_start": 0,  # default
                 "errors": []
             }
 
+            # If we have plant_info in settings, compute weeks
+            plant_info = settings.get("plant_info", {})
+            weeks = get_weeks_since_start(plant_info)
+            status["plant_weeks_since_start"] = weeks
+
+            # Emit the status update on the '/status' namespace
             socketio.emit("status_update", status, namespace="/status")
             log_with_timestamp("[Status] Emitting status update")
             eventlet.sleep(5)
-
         except Exception as e:
             log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
             eventlet.sleep(5)
