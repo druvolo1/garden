@@ -6,6 +6,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Device Configuration</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    /* Minimal inline styles for demonstration; ideally put in style.css */
+    
+    .config-card, .inner-card {
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .config-card legend {
+      font-weight: bold;
+    }
+    .inner-card legend {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      margin: 0.5rem 0;
+    }
+    .form-group label {
+      min-width: 140px; /* label width */
+      font-weight: 600;
+    }
+    .form-group input, .form-group select {
+      flex: 1;
+      max-width: 200px; /* limit input width */
+      margin-left: 0.5rem;
+    }
+    
+    /* For side-by-side layout */
+    .flex-row {
+      display: flex;
+      gap: 1rem; /* space between columns */
+    }
+    .flex-col {
+      flex: 1;
+      min-width: 0; /* flex-shrink */
+    }
+    
+    /* Hide or show static config section */
+    .static-config {
+      margin-left: 1.5rem;
+      margin-top: 0.5rem;
+    }
+  </style>
 </head>
 <body>
   <!-- Navigation Menu -->
@@ -24,94 +72,98 @@
 
     <!-- Hostname Configuration -->
     <fieldset class="config-card">
-      <legend><h2>Hostname</h2></legend>
+      <legend>Hostname</legend>
       <div class="form-group">
         <label for="hostname">Hostname:</label>
         <input type="text" id="hostname" name="hostname">
-        <button id="save-hostname">Save</button>
+        <button id="save-hostname" style="margin-left:1rem;">Save</button>
       </div>
     </fieldset>
 
     <!-- Network Configuration -->
     <fieldset class="config-card">
-      <legend><h2>Network Configuration</h2></legend>
+      <legend>Network Configuration</legend>
 
-      <!-- Ethernet (eth0) -->
-      <fieldset class="inner-card">
-        <legend><h3>Ethernet (eth0)</h3></legend>
-        <div class="form-group">
-          <label for="eth0-dhcp">DHCP:</label>
-          <input type="checkbox" id="eth0-dhcp">
-        </div>
-        <div id="eth0-static-config" class="static-config">
+      <!-- Ethernet + Wi-Fi side by side -->
+      <div class="flex-row">
+        
+        <!-- Ethernet (eth0) -->
+        <fieldset class="inner-card flex-col">
+          <legend>Ethernet (eth0)</legend>
           <div class="form-group">
-            <label for="eth0-ip">IP Address:</label>
-            <input type="text" id="eth0-ip">
+            <label for="eth0-dhcp">DHCP:</label>
+            <input type="checkbox" id="eth0-dhcp">
           </div>
-          <div class="form-group">
-            <label for="eth0-subnet">Subnet Mask:</label>
-            <input type="text" id="eth0-subnet">
+          <div id="eth0-static-config" class="static-config">
+            <div class="form-group">
+              <label for="eth0-ip">IP Address:</label>
+              <input type="text" id="eth0-ip">
+            </div>
+            <div class="form-group">
+              <label for="eth0-subnet">Subnet Mask:</label>
+              <input type="text" id="eth0-subnet">
+            </div>
+            <div class="form-group">
+              <label for="eth0-gateway">Gateway:</label>
+              <input type="text" id="eth0-gateway">
+            </div>
+            <div class="form-group">
+              <label for="eth0-dns1">DNS 1:</label>
+              <input type="text" id="eth0-dns1">
+            </div>
+            <div class="form-group">
+              <label for="eth0-dns2">DNS 2:</label>
+              <input type="text" id="eth0-dns2">
+            </div>
           </div>
-          <div class="form-group">
-            <label for="eth0-gateway">Gateway:</label>
-            <input type="text" id="eth0-gateway">
-          </div>
-          <div class="form-group">
-            <label for="eth0-dns1">DNS Server 1:</label>
-            <input type="text" id="eth0-dns1">
-          </div>
-          <div class="form-group">
-            <label for="eth0-dns2">DNS Server 2:</label>
-            <input type="text" id="eth0-dns2">
-          </div>
-        </div>
-        <button id="save-eth0">Save</button>
-      </fieldset>
+          <button id="save-eth0" style="margin-top:1rem;">Save</button>
+        </fieldset>
 
-      <!-- Wi-Fi (wlan0) -->
-      <fieldset class="inner-card">
-        <legend><h3>Wi-Fi (wlan0)</h3></legend>
-        <div class="form-group">
-          <label for="wlan0-dhcp">DHCP:</label>
-          <input type="checkbox" id="wlan0-dhcp">
-        </div>
-        <div id="wlan0-static-config" class="static-config">
+        <!-- Wi-Fi (wlan0) -->
+        <fieldset class="inner-card flex-col">
+          <legend>Wi-Fi (wlan0)</legend>
           <div class="form-group">
-            <label for="wlan0-ip">IP Address:</label>
-            <input type="text" id="wlan0-ip">
+            <label for="wlan0-dhcp">DHCP:</label>
+            <input type="checkbox" id="wlan0-dhcp">
+          </div>
+          <div id="wlan0-static-config" class="static-config">
+            <div class="form-group">
+              <label for="wlan0-ip">IP Address:</label>
+              <input type="text" id="wlan0-ip">
+            </div>
+            <div class="form-group">
+              <label for="wlan0-subnet">Subnet Mask:</label>
+              <input type="text" id="wlan0-subnet">
+            </div>
+            <div class="form-group">
+              <label for="wlan0-gateway">Gateway:</label>
+              <input type="text" id="wlan0-gateway">
+            </div>
+            <div class="form-group">
+              <label for="wlan0-dns1">DNS 1:</label>
+              <input type="text" id="wlan0-dns1">
+            </div>
+            <div class="form-group">
+              <label for="wlan0-dns2">DNS 2:</label>
+              <input type="text" id="wlan0-dns2">
+            </div>
           </div>
           <div class="form-group">
-            <label for="wlan0-subnet">Subnet Mask:</label>
-            <input type="text" id="wlan0-subnet">
+            <label for="wifi-ssid">SSID:</label>
+            <input type="text" id="wifi-ssid">
           </div>
           <div class="form-group">
-            <label for="wlan0-gateway">Gateway:</label>
-            <input type="text" id="wlan0-gateway">
+            <label for="wifi-password">Password:</label>
+            <input type="password" id="wifi-password">
           </div>
-          <div class="form-group">
-            <label for="wlan0-dns1">DNS Server 1:</label>
-            <input type="text" id="wlan0-dns1">
-          </div>
-          <div class="form-group">
-            <label for="wlan0-dns2">DNS Server 2:</label>
-            <input type="text" id="wlan0-dns2">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="wifi-ssid">SSID:</label>
-          <input type="text" id="wifi-ssid">
-        </div>
-        <div class="form-group">
-          <label for="wifi-password">Password:</label>
-          <input type="password" id="wifi-password">
-        </div>
-        <button id="save-wlan0">Save</button>
-      </fieldset>
+          <button id="save-wlan0" style="margin-top:1rem;">Save</button>
+        </fieldset>
+      </div>
     </fieldset>
 
     <!-- Time Configuration -->
     <fieldset class="config-card">
-      <legend><h2>Time Configuration</h2></legend>
+      <legend>Time Configuration</legend>
       <div class="form-group">
         <label for="timezone-select">Time Zone:</label>
         <select id="timezone-select">
@@ -119,31 +171,29 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="daylight-savings">Currently in Daylight Savings:</label>
+        <label for="daylight-savings">Currently in DST:</label>
         <input type="checkbox" id="daylight-savings" disabled>
       </div>
       <div class="form-group">
         <label for="ntp-server">NTP Server:</label>
         <input type="text" id="ntp-server">
       </div>
-      <button id="save-time">Save</button>
+      <button id="save-time" style="margin-top:1rem;">Save</button>
     </fieldset>
   </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
-      // Toggle between DHCP and static config
       function toggleStaticConfig(iface, isDhcp) {
         document.getElementById(`${iface}-static-config`).style.display = isDhcp ? "none" : "block";
       }
 
-      // Simple "guess DST" function
       function guessIfDst(timezone) {
         const upper = timezone.toUpperCase();
         if (upper.includes("UTC") || upper.includes("GMT") || upper.includes("ETC")) {
           return false;
         }
-        return true; // naive assumption for all others
+        return true;
       }
 
       // Fetch config from /api/device/config
@@ -151,14 +201,13 @@
         try {
           const response = await fetch('/api/device/config');
           const data = await response.json();
-
           if (data.status === 'success') {
             const config = data.config || {};
 
             // Hostname
             document.getElementById("hostname").value = config.hostname || "";
 
-            // Ethernet (eth0)
+            // Ethernet
             const eth0 = config.eth0 || {};
             document.getElementById("eth0-dhcp").checked = eth0.dhcp || false;
             toggleStaticConfig("eth0", eth0.dhcp);
@@ -170,7 +219,7 @@
               document.getElementById("eth0-dns2").value = eth0.dns2 || "";
             }
 
-            // Wi-Fi (wlan0)
+            // Wi-Fi
             const wlan0 = config.wlan0 || {};
             document.getElementById("wlan0-dhcp").checked = wlan0.dhcp || false;
             toggleStaticConfig("wlan0", wlan0.dhcp);
@@ -183,7 +232,7 @@
             }
             document.getElementById("wifi-ssid").value = wlan0.ssid || "";
 
-            // Time config
+            // Time
             window.currentTZ = config.timezone || "";
             document.getElementById("daylight-savings").checked = !!config.daylight_savings;
             document.getElementById("ntp-server").value = config.ntp_server || "";
@@ -191,16 +240,16 @@
           } else {
             console.error("Failed to load device config:", data.message);
           }
-        } catch (error) {
-          console.error("Error fetching config:", error);
+        } catch (err) {
+          console.error("Error fetching config:", err);
         }
       }
 
-      // Fetch all timezones from /api/device/timezones
+      // Fetch timezones from /api/device/timezones
       async function fetchTimezones() {
         try {
-          const response = await fetch('/api/device/timezones');
-          const data = await response.json();
+          const resp = await fetch('/api/device/timezones');
+          const data = await resp.json();
           if (data.status === 'success') {
             const tzSelect = document.getElementById("timezone-select");
             tzSelect.innerHTML = "";
@@ -212,7 +261,6 @@
               opt.textContent = label;
               tzSelect.appendChild(opt);
             });
-            // Select currentTZ if set
             if (window.currentTZ) {
               tzSelect.value = window.currentTZ;
             }
@@ -222,28 +270,27 @@
         }
       }
 
-      // Save config helper
+      // Save config
       async function saveConfig(endpoint, payload) {
         try {
           const resp = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {"Content-Type":"application/json"},
             body: JSON.stringify(payload),
           });
           const data = await resp.json();
           alert(data.message || "Config saved.");
-        } catch (error) {
-          console.error("Error saving config:", error);
+        } catch (err) {
+          console.error("Error saving config:", err);
         }
       }
 
-      // Hostname button
+      // Handlers
       document.getElementById("save-hostname").addEventListener("click", () => {
         const hostname = document.getElementById("hostname").value;
         saveConfig('/api/device/config', { hostname });
       });
 
-      // ETH0
       document.getElementById("save-eth0").addEventListener("click", () => {
         saveConfig('/api/device/config', {
           interface: 'eth0',
@@ -256,7 +303,6 @@
         });
       });
 
-      // WLAN0
       document.getElementById("save-wlan0").addEventListener("click", () => {
         saveConfig('/api/device/config', {
           interface: 'wlan0',
@@ -271,26 +317,26 @@
         });
       });
 
-      // Time
       document.getElementById("save-time").addEventListener("click", () => {
         const tzSelect = document.getElementById("timezone-select");
         const ntp = document.getElementById("ntp-server").value;
         saveConfig('/api/device/config', {
           timezone: tzSelect.value,
+          // daylight_savings is read-only, but we can still send if desired
           daylight_savings: document.getElementById("daylight-savings").checked,
           ntp_server: ntp
         });
       });
 
       // DHCP toggles
-      document.getElementById("eth0-dhcp").addEventListener("change", (e) => {
+      document.getElementById("eth0-dhcp").addEventListener("change", e => {
         toggleStaticConfig("eth0", e.target.checked);
       });
-      document.getElementById("wlan0-dhcp").addEventListener("change", (e) => {
+      document.getElementById("wlan0-dhcp").addEventListener("change", e => {
         toggleStaticConfig("wlan0", e.target.checked);
       });
 
-      // Init
+      // On page load
       await fetchConfig();
       await fetchTimezones();
     });
