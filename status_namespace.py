@@ -1,11 +1,16 @@
 # File: status_namespace.py
-from flask_socketio import Namespace, emit
+from flask_socketio import Namespace, SocketIO
 from services.ph_service import get_latest_ph_reading
 from utils.settings_utils import load_settings  # Import from utils
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
 from datetime import datetime
+
+# Initialize SocketIO (ensure this is consistent with your app initialization)
+# Note: You should initialize `socketio` in your main app file and import it here.
+# For example:
+# from app import socketio  # Assuming `socketio` is initialized in `app.py`
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -46,9 +51,13 @@ def emit_status_update():
         }
 
         # Emit the status_update event to all clients
-        emit("status_update", status, namespace="/status")
+        from app import socketio  # Import socketio from your main app file
+        socketio.emit("status_update", status, namespace="/status")
+        log_with_timestamp("Status update emitted successfully.")  # Debugging line
     except Exception as e:
-        print(f"Error in emit_status_update: {e}")
+        log_with_timestamp(f"Error in emit_status_update: {e}")
+        import traceback
+        traceback.print_exc()  # Print the full traceback for debugging
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
