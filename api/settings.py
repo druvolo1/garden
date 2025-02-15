@@ -59,56 +59,43 @@ def get_settings():
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
-    """
-    Update system settings. Expects JSON payload with updated values.
-    Example:
-        {
-            "relay_ports": {"ph_up": 1, "ph_down": 2},
-            "dosage_strength": {"ph_up": 1.0, "ph_down": 1.2},
-            "water_level_sensors": {
-                "sensor1": { "label": "Full", "pin": 22 },
-                "sensor2": { "label": "3 Gal", "pin": 23 },
-                ...
-            }
-            ...
-        }
-    """
     new_settings = request.json
     current_settings = load_settings()
 
-    # Check if auto_dosing_enabled or dosing_interval changed
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
         "dosing_interval" in new_settings
     )
 
-    # 1) Merge relay_ports if present
+    # Merge relay_ports if present
     if "relay_ports" in new_settings:
         if "relay_ports" not in current_settings:
             current_settings["relay_ports"] = {}
         current_settings["relay_ports"].update(new_settings["relay_ports"])
         del new_settings["relay_ports"]
 
-    # 2) Merge water_level_sensors if present
+    # Merge water_level_sensors if present
     if "water_level_sensors" in new_settings:
         if "water_level_sensors" not in current_settings:
             current_settings["water_level_sensors"] = {}
-        # Merge each sensor key (sensor1, sensor2, sensor3, etc.)
         for sensor_key, sensor_data in new_settings["water_level_sensors"].items():
             current_settings["water_level_sensors"][sensor_key] = sensor_data
         del new_settings["water_level_sensors"]
 
-    # Merge all remaining top-level keys
+        # RE-SETUP PINS WITH NEW ASSIGNMENTS
+        from services.water_level_service import setup_water_level_pins
+        setup_water_level_pins()
+
+    # Merge any remaining top-level keys
     current_settings.update(new_settings)
 
-    # Save
     save_settings(current_settings)
 
-    # If auto-dosing settings changed, reset the auto_dose_state
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
     return jsonify({"status": "success", "settings": current_settings})
+
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
