@@ -5,7 +5,6 @@ import subprocess
 from flask_socketio import emit  # Import emit from flask_socketio
 from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
 from services.auto_dose_utils import reset_auto_dose_timer
-from services.ph_service import get_latest_ph_reading
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
 from datetime import datetime
@@ -32,9 +31,7 @@ if not os.path.exists(SETTINGS_FILE):
             "usb_roles": {"ph_probe": None, "relay": None},
             "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
             "ph_target": 5.8,
-            # NEW: default relay_ports section
             "relay_ports": {"ph_up": 1, "ph_down": 2},
-            # NEW: default water_level_sensors section
             "water_level_sensors": {
                 "sensor1": {"label": "Full",  "pin": 22},
                 "sensor2": {"label": "3 Gal", "pin": 23},
@@ -54,6 +51,9 @@ def emit_status_update():
     """
     Emit a status_update event with the latest settings and system status.
     """
+    # Import get_latest_ph_reading locally to avoid circular imports
+    from services.ph_service import get_latest_ph_reading
+
     settings = load_settings()
 
     # Prepare the status update payload
