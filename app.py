@@ -119,29 +119,37 @@ def broadcast_ph_readings():
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 def broadcast_status():
-    """
-    Periodically build a full status update (settings, current pH, auto-dose state, and errors)
-    and emit it on the "/status" namespace.
-    """
     from api.settings import load_settings
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
             settings = load_settings()
+            current_ph = get_latest_ph_reading()
+
+            # Make a copy of auto_dose_state so we don’t mutate the original
+            auto_dose_copy = dict(auto_dose_state)
+
+            # Convert any datetime objects to strings
+            if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
+                auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
+            if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
+                auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
+
             status = {
                 "settings": settings,
-                "current_ph": get_latest_ph_reading(),
-                "auto_dose_state": auto_dose_state,
-                # Add an errors field if needed.
+                "current_ph": current_ph,
+                "auto_dose_state": auto_dose_copy,
                 "errors": []
             }
-            # Emit the status update on the '/status' namespace.
+
             socketio.emit("status_update", status, namespace="/status")
             log_with_timestamp("[Status] Emitting status update")
             eventlet.sleep(5)
+
         except Exception as e:
             log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
             eventlet.sleep(5)
+
 
 def start_threads():
     # Spawn all background threads.

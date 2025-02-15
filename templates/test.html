@@ -4,29 +4,43 @@
     <meta charset="utf-8">
     <title>Socket.IO Test</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        /* So the <pre> element can show scrollbars if the content is tall. */
+        #output {
+            width: 80%;
+            height: 800px;    /* or whatever you like */
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            white-space: pre-wrap; /* allows wrapping within <pre> */
+        }
+    </style>
 </head>
 <body>
     <h1>Socket.IO Test Client</h1>
     <pre id="output"></pre>
     <script>
         const output = document.getElementById('output');
+
         // Connect to the /status namespace
         const socket = io("http://172.16.1.219:8000/status", {
             transports: ["websocket"]
         });
-    
+
         socket.on("connect", () => {
-            output.textContent += "Connected to /status namespace\n";
+            output.textContent += "Connected to /status namespace\n\n";
         });
-    
+
         // Listen for the "status_update" event
         socket.on("status_update", (data) => {
-            output.textContent += "status_update event: " + JSON.stringify(data) + "\n";
+            // Pretty-print the JSON with 2 spaces of indentation
+            const prettyData = JSON.stringify(data, null, 2);
+            output.textContent += "status_update event:\n" + prettyData + "\n\n";
         });
-    
+
         socket.on("disconnect", () => {
-            output.textContent += "Disconnected\n";
+            output.textContent += "Disconnected\n\n";
         });
-    </script>   
+    </script>
 </body>
 </html>
