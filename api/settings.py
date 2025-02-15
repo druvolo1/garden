@@ -2,12 +2,12 @@ from flask import Blueprint, request, jsonify
 import json
 import os
 import subprocess
-from flask_socketio import emit  # Import emit from flask_socketio
-from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
+from status_namespace import emit_status_update  # Import from status_namespace
+from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
-from utils.settings_utils import load_settings, save_settings  # Import from utils
+from utils.settings_utils import load_settings, save_settings
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -39,54 +39,9 @@ if not os.path.exists(SETTINGS_FILE):
             }
         }, f, indent=4)
 
-def emit_status_update():
-    """
-    Emit a status_update event with the latest settings and system status.
-    """
-    try:
-        # Lazy import to avoid circular dependencies
-        from services.ph_service import get_latest_ph_reading
-        from services.water_level_service import get_water_level_status
-
-        settings = load_settings()
-
-        # Prepare the status update payload
-        auto_dose_copy = dict(auto_dose_state)
-        if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
-            auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
-        if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
-            auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
-
-        plant_info_raw = settings.get("plant_info", {})
-        weeks = get_weeks_since_start(plant_info_raw)
-        plant_info = {
-            "name": plant_info_raw.get("name", ""),
-            "start_date": plant_info_raw.get("start_date", ""),
-            "weeks_since_start": weeks
-        }
-
-        water_level_info = get_water_level_status()
-
-        status = {
-            "settings": settings,
-            "current_ph": get_latest_ph_reading(),
-            "auto_dose_state": auto_dose_copy,
-            "plant_info": plant_info,
-            "water_level": water_level_info,
-            "errors": []
-        }
-
-        # Emit the status_update event to all clients
-        emit("status_update", status, namespace="/status")
-    except Exception as e:
-        print(f"Error in emit_status_update: {e}")
-
 # API endpoint: Get all settings
 @settings_blueprint.route('/', methods=['GET'])
 def get_settings():
-    """
-    Get all system settings.
-    """
     settings = load_settings()
     return jsonify(settings)
 
@@ -143,9 +98,6 @@ def update_settings():
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
-    """
-    Reset settings to their default values.
-    """
     default_settings = {
         "ph_range": {"min": 5.5, "max": 6.5},
         "max_dosing_amount": 5,
@@ -175,9 +127,6 @@ def reset_settings():
 # API endpoint: List USB devices
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
-    """
-    List all USB devices connected to the Raspberry Pi, excluding disconnected devices.
-    """
     devices = []
     try:
         print("Executing command: ls /dev/serial/by-id")
@@ -203,20 +152,13 @@ def list_usb_devices():
     save_settings(settings)
 
     # Emit a status_update event to notify all clients
-    try:
-        emit_status_update()
-    except Exception as e:
-        print(f"Error emitting status update: {e}")
+    emit_status_update()
 
     return jsonify(devices)
 
 # API endpoint: Assign a USB device to a specific role
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
-    """
-    Assign a USB device to a specific role (e.g., ph_probe, relay).
-    Expects JSON payload with `role` and `device`.
-    """
     data = request.get_json()
     role = data.get("role")
     device = data.get("device")
