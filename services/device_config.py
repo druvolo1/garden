@@ -5,6 +5,7 @@ import subprocess
 
 def get_hostname():
     """Retrieve the current hostname."""
+    # Example: parse from 'hostnamectl status'
     return subprocess.check_output(["hostnamectl", "status"]).decode().split("Static hostname:")[1].splitlines()[0].strip()
 
 def set_hostname(hostname):
@@ -17,7 +18,17 @@ def clean_nmcli_field(value):
 
 def get_ip_config(interface):
     """
-    Retrieve the IP address, subnet mask, gateway, and DNS server for the specified interface.
+    Retrieve the IP address, subnet mask, gateway, and DNS server for the specified interface
+    using nmcli. Returns a dict with fields:
+      {
+        "status": "inactive" or "connected",
+        "dhcp": bool,
+        "ip_address": str,
+        "gateway": str,
+        "dns1": str or None,
+        "dns2": str or None,
+        "subnet_mask": "255.255.255.0" # fallback
+      }
     """
     try:
         # Check if the interface is active
@@ -40,8 +51,10 @@ def get_ip_config(interface):
             ["nmcli", "-t", "-f", "IP4.ADDRESS,IP4.GATEWAY,IP4.DNS", "device", "show", interface]
         ).decode()
 
-        # Parse the output
-        config = {"dhcp": dhcp}
+        config = {
+            "status": "connected",
+            "dhcp": dhcp
+        }
         dns_servers = []
         for line in ip_output.splitlines():
             key, value = line.split(":", 1)
@@ -52,20 +65,19 @@ def get_ip_config(interface):
             elif "IP4.DNS" in key:
                 dns_servers.append(value.strip())
 
-        # Assign individual DNS entries
         config["dns1"] = dns_servers[0] if len(dns_servers) > 0 else None
         config["dns2"] = dns_servers[1] if len(dns_servers) > 1 else None
-
-        # Add a default subnet mask if none is provided
-        config["subnet_mask"] = "255.255.255.0"  # Placeholder; customize if necessary
-
+        config["subnet_mask"] = "255.255.255.0"  # Placeholder
         return config
+
     except Exception as e:
         raise RuntimeError(f"Error retrieving configuration for {interface}: {e}")
 
 def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=None, dns1=None, dns2=None):
     """
     Set the IP configuration for a specific interface (e.g., eth0, wlan0).
+    If dhcp is True, set nmcli to "auto".
+    Otherwise, set manual with the provided IP, gateway, DNS, etc.
     """
     try:
         if dhcp:
@@ -75,23 +87,34 @@ def set_ip_config(interface, dhcp, ip_address=None, subnet_mask=None, gateway=No
                 check=True,
             )
         else:
-            # Configure Static IP
             dns_servers = ",".join(filter(None, [dns1, dns2]))
+            # Note: nmcli requires CIDR notation, so we might do 'ip_address/subnet_bits'.
+            # If subnet_mask="255.255.255.0", that is /24.
+            cidr = mask_to_cidr(subnet_mask or "255.255.255.0")
+            address_cidr = f"{ip_address}/{cidr}"
             subprocess.run(
                 [
                     "nmcli", "con", "mod", interface,
-                    "ipv4.addresses", f"{ip_address}/{subnet_mask}",
+                    "ipv4.addresses", address_cidr,
                     "ipv4.gateway", gateway,
                     "ipv4.dns", dns_servers,
                     "ipv4.method", "manual"
                 ],
                 check=True,
             )
-        # Apply the changes
-        subprocess.run(["nmcli", "con", "up", interface], check=True)
 
+        # Bring the interface up with new config
+        subprocess.run(["nmcli", "con", "up", interface], check=True)
     except Exception as e:
         raise RuntimeError(f"Failed to set IP configuration for {interface}: {e}")
+
+def mask_to_cidr(netmask):
+    """Convert dotted-decimal netmask to CIDR integer."""
+    parts = netmask.split('.')
+    bits = 0
+    for part in parts:
+        bits += bin(int(part)).count('1')
+    return bits
 
 def get_timezone():
     """Retrieve the current timezone."""
@@ -109,18 +132,21 @@ def set_timezone(timezone):
     subprocess.run(["timedatectl", "set-timezone", timezone], check=True)
 
 def is_daylight_savings():
-    """Check if daylight savings is enabled."""
+    """Check if daylight savings is currently active (based on local time)."""
+    # Typically, you'd rely on timezone data for auto-DST. This just checks timedatectl's status.
     return "yes" in subprocess.check_output(["timedatectl", "status"]).decode().lower()
 
 def get_ntp_server():
-    """Retrieve the configured NTP server."""
+    """Retrieve the configured NTP server from /etc/ntp.conf (if you use ntp)."""
+    ntp_conf_file = "/etc/ntp.conf"
     try:
-        with open("/etc/ntp.conf", "r") as file:
+        with open(ntp_conf_file, "r") as file:
             for line in file:
                 if line.startswith("server"):
                     return line.split()[1]
     except FileNotFoundError:
-        return "Not configured"
+        pass
+    return "Not configured"
 
 def set_ntp_server(ntp_server):
     """Set the NTP server."""
@@ -130,7 +156,7 @@ def set_ntp_server(ntp_server):
     subprocess.run(["systemctl", "restart", "ntp"], check=True)
 
 def get_wifi_config():
-    """Retrieve the current WiFi SSID."""
+    """Retrieve the current WiFi SSID from wpa_supplicant.conf."""
     wpa_conf_file = "/etc/wpa_supplicant/wpa_supplicant.conf"
     try:
         with open(wpa_conf_file, "r") as file:
@@ -138,10 +164,11 @@ def get_wifi_config():
                 if line.strip().startswith("ssid"):
                     return line.split("=")[1].strip().strip('"')
     except FileNotFoundError:
-        return "Not configured"
+        return None
+    return None
 
 def set_wifi_config(ssid, password):
-    """Set WiFi SSID and password."""
+    """Set WiFi SSID and password in /etc/wpa_supplicant/wpa_supplicant.conf."""
     wpa_conf_file = "/etc/wpa_supplicant/wpa_supplicant.conf"
     with open(wpa_conf_file, "w") as file:
         file.write(f"""
@@ -152,37 +179,4 @@ network={{
 """)
     subprocess.run(["wpa_cli", "-i", "wlan0", "reconfigure"], check=True)
 
-
-# Utility functions
-def extract_ip_address(ip_output):
-    """Extract the IP address from the `ip` command output."""
-    for line in ip_output.splitlines():
-        if "inet " in line:
-            return line.split()[1].split("/")[0]
-    return None
-
-def extract_subnet_mask(ip_output):
-    """Extract the subnet mask from the `ip` command output."""
-    for line in ip_output.splitlines():
-        if "inet " in line:
-            cidr = int(line.split()[1].split("/")[1])
-            return convert_cidr_to_netmask(cidr)
-    return None
-
-def convert_cidr_to_netmask(cidr):
-    """Convert CIDR notation to a subnet mask."""
-    mask = (0xffffffff >> (32 - cidr)) << (32 - cidr)
-    return ".".join(map(str, [(mask >> i) & 0xff for i in [24, 16, 8, 0]]))
-
-def read_resolv_conf():
-    """Read DNS server addresses from `/etc/resolv.conf`."""
-    dns_servers = []
-    try:
-        with open("/etc/resolv.conf", "r") as file:
-            for line in file:
-                if line.startswith("nameserver"):
-                    dns_servers.append(line.split()[1])
-    except FileNotFoundError:
-        pass
-    return dns_servers
-
+# Additional utility functions if needed...
