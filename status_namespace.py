@@ -1,7 +1,7 @@
 # File: status_namespace.py
 from flask_socketio import Namespace, emit
 from services.ph_service import get_latest_ph_reading
-from api.settings import load_settings
+from utils.settings_utils import load_settings  # Import from utils
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
