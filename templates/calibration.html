@@ -7,106 +7,89 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+
     <!-- Navigation Menu -->
     <nav>
         <ul>
             <li><a href="/">Home</a></li>
-            <li><a href="/calibration">Calibration</a></li>
+            <li><a href="/calibration" class="active">Calibration</a></li>
             <li><a href="/configuration">Configuration</a></li>
             <li><a href="/dosage">Dosage</a></li>
             <li><a href="/settings">Settings</a></li>
         </ul>
     </nav>
-    
 
-    <header>
-        <h1>pH Probe Calibration</h1>
-    </header>
     <main>
-        <div id="ph-display">
-            <h2>Current pH Value: <span id="current-ph">--</span></h2>
+        <h1>pH Probe Calibration</h1>
+        <p class="subtitle">Ensure accurate readings with proper calibration.</p>
+
+        <div class="data-container">
+            <h2>Current pH Value</h2>
+            <div id="ph-display" class="data-box"><span id="current-ph">--</span></div>
         </div>
-        <div id="calibration-controls">
-            <h3>Calibration Controls</h3>
+
+        <div class="data-container">
+            <h2>Calibration Controls</h2>
             <button id="calibrate-low">Calibrate Low (4.00)</button>
             <button id="calibrate-mid">Calibrate Mid (7.00)</button>
             <button id="calibrate-high">Calibrate High (10.00)</button>
-            <button id="clear-calibration">Clear Calibration</button>
+            <button id="clear-calibration" class="danger">Clear Calibration</button>
         </div>
-        <div id="calibration-log">
-            <h3>Calibration Log</h3>
+
+        <div class="data-container">
+            <h2>Calibration Log</h2>
             <ul id="log-list"></ul>
         </div>
     </main>
     
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const socket = io.connect('http://172.16.1.219:8000');
+            const socket = io.connect(window.location.origin);
 
             function appendToLog(message, isError = false) {
                 const logItem = document.createElement("li");
                 logItem.textContent = message;
-                if (isError) logItem.style.color = "red";
+                logItem.classList.add(isError ? "error-log" : "success-log");
                 document.getElementById("log-list").prepend(logItem);
             }
 
-            // Fetch the latest pH value asynchronously
             function fetchLatestPh() {
                 fetch('/api/ph/latest')
                     .then(response => response.json())
                     .then(data => {
-                        if (data && data.ph !== undefined) {
+                        if (data?.ph !== undefined) {
                             document.getElementById("current-ph").textContent = data.ph;
-                            appendToLog(`Initial pH value: ${data.ph}`);
+                            appendToLog(`Initial pH: ${data.ph}`);
                         } else {
                             document.getElementById("current-ph").textContent = "--";
-                            appendToLog("No initial pH value available.");
+                            appendToLog("No initial pH data available.");
                         }
                     })
                     .catch(() => {
                         document.getElementById("current-ph").textContent = "--";
-                        appendToLog("Error fetching the initial pH value.", true);
+                        appendToLog("Error fetching pH data.", true);
                     });
             }
 
-            setTimeout(fetchLatestPh, 0); // Ensures non-blocking execution
+            setTimeout(fetchLatestPh, 0);
 
-            // WebSocket connection handlers
             socket.on("connect", () => {
-                console.log("WebSocket connected successfully.");
-                appendToLog("WebSocket connected successfully.");
+                appendToLog("WebSocket connected.");
                 fetchLatestPh();
             });
 
             socket.on("ph_update", (data) => {
-                console.log("Received pH update:", data);
-                if (data && data.ph !== undefined) {
+                if (data?.ph !== undefined) {
                     document.getElementById("current-ph").textContent = data.ph;
-                    appendToLog(`Live pH update received: ${data.ph}`);
+                    appendToLog(`Live pH update: ${data.ph}`);
                 } else {
-                    appendToLog("No valid pH data received.", true);
+                    appendToLog("Invalid pH data received.", true);
                 }
             });
 
-            socket.on("reconnect", () => {
-                console.log("WebSocket reconnected.");
-                appendToLog("WebSocket reconnected.");
-                fetchLatestPh();
-            });
-
-            socket.on("connect_error", (error) => {
-                console.error("WebSocket connection error:", error);
-                appendToLog("WebSocket connection error.", true);
-            });
-
-            socket.on("disconnect", () => {
-                console.warn("WebSocket disconnected.");
-                appendToLog("WebSocket disconnected.", true);
-            });
-
-            // Send calibration command
             function sendCalibrationCommand(level) {
                 fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
                     .then(response => response.json())
@@ -117,17 +100,15 @@
                             appendToLog(`Calibration (${level}) failed: ${data.message}`, true);
                         }
                     })
-                    .catch(() => {
-                        appendToLog(`Failed to send ${level} calibration command.`, true);
-                    });
+                    .catch(() => appendToLog(`Failed to send ${level} calibration command.`, true));
             }
 
-            // Button click handlers
             document.getElementById("calibrate-low").addEventListener("click", () => sendCalibrationCommand("low"));
             document.getElementById("calibrate-mid").addEventListener("click", () => sendCalibrationCommand("mid"));
             document.getElementById("calibrate-high").addEventListener("click", () => sendCalibrationCommand("high"));
             document.getElementById("clear-calibration").addEventListener("click", () => sendCalibrationCommand("clear"));
         });
     </script>  
+
 </body>
 </html>

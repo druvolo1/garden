@@ -32,7 +32,8 @@ nav ul li a {
     transition: color 0.3s ease-in-out;
 }
 
-nav ul li a:hover {
+nav ul li a:hover, 
+nav ul li a.active {
     color: #ffffff;
 }
 
@@ -63,21 +64,23 @@ h1 {
     padding: 20px;
     margin-bottom: 20px;
     box-shadow: 0px 4px 10px rgba(255, 204, 0, 0.2);
+    text-align: left;
 }
 
-h2 {
-    font-size: 22px;
-    font-weight: 400;
-    margin-bottom: 10px;
-}
-
-.data-box {
-    font-size: 24px;
-    font-weight: bold;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.1);
+/* Input Fields */
+input, select {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    border: none;
     border-radius: 5px;
-    display: inline-block;
+    background: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    font-size: 16px;
+}
+
+input:focus, select:focus {
+    outline: 2px solid #f4c531;
 }
 
 /* Buttons */
@@ -91,6 +94,8 @@ button {
     border-radius: 5px;
     cursor: pointer;
     transition: 0.3s;
+    width: 100%;
+    margin-top: 10px;
 }
 
 button:hover {
@@ -98,13 +103,64 @@ button:hover {
     transform: scale(1.05);
 }
 
-/* Lists */
-ul {
-    list-style: none;
-    padding: 0;
+/* Secondary Buttons */
+.secondary-btn {
+    background: linear-gradient(to right, #b0b0b0, #757575);
+    color: white;
 }
 
-ul li {
+.secondary-btn:hover {
+    background: linear-gradient(to right, #757575, #505050);
+}
+
+/* Checkboxes */
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.checkbox-container input {
+    width: auto;
+}
+
+/* Static Config Visibility */
+.static-config {
+    display: none;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+.static-config input {
+    margin-bottom: 5px;
+}
+
+/* Dosage Page Styling */
+.dosage-section {
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    flex-wrap: wrap; /* Ensures responsiveness */
+}
+
+/* Error Message */
+.error-message {
+    color: #ff4c4c;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Fieldsets for Forms */
+fieldset {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+}
+
+legend {
     font-size: 18px;
-    margin: 5px 0;
+    font-weight: 600;
+    color: #f4c531;
 }

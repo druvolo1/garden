@@ -1,114 +1,119 @@
-<!-- templates/dosage.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Dosage Info</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <!-- Include socket.io client library -->
-  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <title>Dosage Info</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+
+    <!-- Navigation Menu -->
     <nav>
         <ul>
             <li><a href="/">Home</a></li>
             <li><a href="/calibration">Calibration</a></li>
             <li><a href="/configuration">Configuration</a></li>
-            <li><a href="/dosage">Dosage</a></li>
+            <li><a href="/dosage" class="active">Dosage</a></li>
             <li><a href="/settings">Settings</a></li>
         </ul>
     </nav>
-    
 
-  <h1>Dosage Status</h1>
+    <main>
+        <h1>Dosage Status</h1>
+        <p class="subtitle">Monitor and adjust pH dosing in real-time.</p>
 
-  <p><strong>Current pH:</strong> <span id="current-ph">{{ dosage_data.current_ph }}</span></p>
-  <p><strong>System Volume:</strong> <span id="system-volume">{{ dosage_data.system_volume }}</span></p>
-  <p><strong>Auto Dosing Enabled:</strong> <span id="auto-dosing">{{ dosage_data.auto_dosing_enabled }}</span></p>
-  <p><strong>pH Target:</strong> <span id="ph-target">{{ dosage_data.ph_target }}</span></p>
+        <div class="data-container">
+            <h2>Current Status</h2>
+            <p><strong>Current pH:</strong> <span id="current-ph">{{ dosage_data.current_ph }}</span></p>
+            <p><strong>System Volume:</strong> <span id="system-volume">{{ dosage_data.system_volume }}</span></p>
+            <p><strong>Auto Dosing:</strong> <span id="auto-dosing">{{ dosage_data.auto_dosing_enabled }}</span></p>
+            <p><strong>pH Target:</strong> <span id="ph-target">{{ dosage_data.ph_target }}</span></p>
+        </div>
 
-  <h2>Auto-Dose Info</h2>
-  <p><strong>Last Dose Time:</strong> <span id="last-dose-time">{{ dosage_data.last_dose_time }}</span></p>
-  <p><strong>Last Dose Type:</strong> <span id="last-dose-type">{{ dosage_data.last_dose_type }}</span></p>
-  <p><strong>Last Dose Amount (ml):</strong> <span id="last-dose-amount">{{ dosage_data.last_dose_amount }}</span></p>
-  <p><strong>Next Dose Time:</strong> <span id="next-dose-time">{{ dosage_data.next_dose_time }}</span></p>
+        <div class="data-container">
+            <h2>Auto-Dose Info</h2>
+            <p><strong>Last Dose Time:</strong> <span id="last-dose-time">{{ dosage_data.last_dose_time }}</span></p>
+            <p><strong>Last Dose Type:</strong> <span id="last-dose-type">{{ dosage_data.last_dose_type }}</span></p>
+            <p><strong>Last Dose Amount:</strong> <span id="last-dose-amount">{{ dosage_data.last_dose_amount }}</span> ml</p>
+            <p><strong>Next Dose Time:</strong> <span id="next-dose-time">{{ dosage_data.next_dose_time }}</span></p>
+        </div>
 
-  <hr>
+        <div class="dosage-section">
+            <div class="data-container">
+                <h2>pH Up Dosing</h2>
+                <p><strong>Calculated Amount:</strong> <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml</p>
+                {% if dosage_data.feedback_up %}
+                    <p class="error-message">{{ dosage_data.feedback_up|safe }}</p>
+                {% endif %}
+                <button id="ph-up-dispense">Dispense pH Up</button>
+            </div>
 
-  <h2>pH Up Dosing</h2>
-  <p>
-      <strong>Calculated Amount:</strong>
-      <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml
-  </p>
-  {% if dosage_data.feedback_up %}
-      <p style="color: red;">{{ dosage_data.feedback_up|safe }}</p>
-  {% endif %}
-  <button id="ph-up-dispense">Dispense pH Up</button>
+            <div class="data-container">
+                <h2>pH Down Dosing</h2>
+                <p><strong>Calculated Amount:</strong> <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml</p>
+                {% if dosage_data.feedback_down %}
+                    <p class="error-message">{{ dosage_data.feedback_down|safe }}</p>
+                {% endif %}
+                <button id="ph-down-dispense">Dispense pH Down</button>
+            </div>
+        </div>
+    </main>
 
-  <hr>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const socket = io.connect(window.location.origin);
 
-  <h2>pH Down Dosing</h2>
-  <p>
-      <strong>Calculated Amount:</strong>
-      <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml
-  </p>
-  {% if dosage_data.feedback_down %}
-      <p style="color: red;">{{ dosage_data.feedback_down|safe }}</p>
-  {% endif %}
-  <button id="ph-down-dispense">Dispense pH Down</button>
+            async function refreshDosageInfo() {
+                try {
+                    const response = await fetch('/api/dosage/info');
+                    const d = await response.json();
 
-  <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-        const socket = io.connect(window.location.origin);
-
-        async function refreshDosageInfo() {
-            try {
-                const response = await fetch('/api/dosage/info');
-                const d = await response.json();
-
-                document.getElementById('current-ph').textContent = d.current_ph;
-                document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
-                document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
-                document.getElementById('last-dose-time').textContent = d.last_dose_time;
-                document.getElementById('last-dose-type').textContent = d.last_dose_type;
-                document.getElementById('last-dose-amount').textContent = d.last_dose_amount;
-                document.getElementById('next-dose-time').textContent = d.next_dose_time;
-            } catch (err) {
-                console.error("Error refreshing dosage info:", err);
+                    document.getElementById('current-ph').textContent = d.current_ph;
+                    document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
+                    document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
+                    document.getElementById('last-dose-time').textContent = d.last_dose_time;
+                    document.getElementById('last-dose-type').textContent = d.last_dose_type;
+                    document.getElementById('last-dose-amount').textContent = d.last_dose_amount;
+                    document.getElementById('next-dose-time').textContent = d.next_dose_time;
+                } catch (err) {
+                    console.error("Error refreshing dosage info:", err);
+                }
             }
-        }
 
-        socket.on('ph_update', function(data) {
-            console.log("Received pH update via socket:", data.ph);
-            refreshDosageInfo();
-        });
-
-        await refreshDosageInfo();
-
-        async function dispensePh(type) {
-            const amount = parseFloat(document.getElementById(`ph-${type}-amount`).textContent) || 0;
-            if (amount === 0) {
-                alert(`No pH ${type.charAt(0).toUpperCase() + type.slice(1)} required (0 ml).`);
-                return;
-            }
-            try {
-                const response = await fetch('/api/dosage/manual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: type, amount: amount })
-                });
-                const data = await response.json();
-                alert(`Manual pH ${type.charAt(0).toUpperCase() + type.slice(1)} dispense triggered: ` + data.message);
+            socket.on('ph_update', function(data) {
+                console.log("Received pH update via socket:", data.ph);
                 refreshDosageInfo();
-            } catch (error) {
-                console.error(`Error dispensing pH ${type.charAt(0).toUpperCase() + type.slice(1)}:`, error);
-                alert(`Failed to dispense pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
-            }
-        }
+            });
 
-        document.getElementById('ph-up-dispense').addEventListener('click', () => dispensePh('up'));
-        document.getElementById('ph-down-dispense').addEventListener('click', () => dispensePh('down'));
-    });
-  </script>
+            await refreshDosageInfo();
+
+            async function dispensePh(type) {
+                const amount = parseFloat(document.getElementById(`ph-${type}-amount`).textContent) || 0;
+                if (amount === 0) {
+                    alert(`No pH ${type.charAt(0).toUpperCase() + type.slice(1)} required (0 ml).`);
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/dosage/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: type, amount: amount })
+                    });
+                    const data = await response.json();
+                    alert(`Manual pH ${type.charAt(0).toUpperCase() + type.slice(1)} dispense triggered: ` + data.message);
+                    refreshDosageInfo();
+                } catch (error) {
+                    console.error(`Error dispensing pH ${type.charAt(0).toUpperCase() + type.slice(1)}:`, error);
+                    alert(`Failed to dispense pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
+                }
+            }
+
+            document.getElementById('ph-up-dispense').addEventListener('click', () => dispensePh('up'));
+            document.getElementById('ph-down-dispense').addEventListener('click', () => dispensePh('down'));
+        });
+    </script>
+
 </body>
 </html>
