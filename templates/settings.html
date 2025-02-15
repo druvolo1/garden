@@ -200,7 +200,28 @@
             fetchUsbDevices();
         });
 
-        // Rest of the script remains the same as in the original file
+        // Function to update weeks since start
+        function updateWeeksSinceStart(startDateStr) {
+            const weeksSpan = document.getElementById('weeks-since-start');
+            if (!startDateStr) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const startDate = new Date(startDateStr);
+            if (isNaN(startDate)) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const now = new Date();
+            const diffMs = now - startDate;
+            if (diffMs < 0) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+            weeksSpan.textContent = weeks.toString();
+        }
+
         const fetchUsbDevices = () => {
             console.log('Rescanning USB devices...');
             Promise.all([
@@ -282,6 +303,8 @@
                     sensor3: { label: "Empty", pin: 24 }
                 };
 
+                console.log('Water Level Sensors:', sensors); // Debugging line
+
                 // Populate each sensor field
                 document.getElementById('sensor1-label').value = sensors.sensor1.label;
                 document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
@@ -305,7 +328,161 @@
             .catch(error => console.error('Error fetching USB devices or settings:', error));
         };
 
-        // Rest of the functions (updateWeeksSinceStart, saveUsbAssignment, saveSettings, etc.) remain unchanged
+        const saveUsbAssignment = (role, device) => {
+            fetch("/api/settings/assign_usb", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role, device })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`${role} assigned successfully.`);
+                    document.getElementById('status').textContent = `${role} assigned successfully.`;
+                } else {
+                    console.error(`Failed to assign ${role}:`, data.error);
+                    document.getElementById('status').textContent = `Failed to assign ${role}.`;
+                }
+            })
+            .catch(error => console.error(`Error saving ${role} assignment:`, error));
+        };
+
+        const saveSettings = (endpoint, payload) => {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                console.log('Settings saved successfully');
+                // Optionally re-fetch to refresh UI
+                fetchUsbDevices();
+            })
+            .catch(error => console.error('Error saving settings:', error));
+        };
+
+        // pH Probe assignment
+        document.getElementById('ph-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phDevice = document.getElementById('ph-device').value;
+            saveUsbAssignment('ph_probe', phDevice);
+        });
+
+        // Relay assignment
+        document.getElementById('relay-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const relayDevice = document.getElementById('relay-device').value;
+            saveUsbAssignment('relay', relayDevice);
+        });
+
+        // pH Range
+        document.getElementById('ph-range-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const minVal = parseFloat(document.getElementById('ph-min').value);
+            const maxVal = parseFloat(document.getElementById('ph-max').value);
+            const payload = {
+                ph_range: {
+                    min: minVal,
+                    max: maxVal
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        // General
+        document.getElementById('general-settings-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const payload = {
+                ph_target: parseFloat(document.getElementById('ph-target').value),
+                max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
+                dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
+                system_volume: parseFloat(document.getElementById('system-volume').value),
+                time_zone: document.getElementById('time-zone').value,
+                auto_dosing_enabled: document.getElementById('auto-dosing').checked
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        // Dosage Strength
+        document.getElementById('dosage-strength-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phUp = parseFloat(document.getElementById('ph-up-strength').value);
+            const phDown = parseFloat(document.getElementById('ph-down-strength').value);
+            const payload = {
+                dosage_strength: {
+                    ph_up: phUp,
+                    ph_down: phDown
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        // Pump Calibration
+        document.getElementById('pump-calibration-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const payload = {
+                pump_calibration: {
+                    pump1: parseFloat(document.getElementById('pump1-calibration').value),
+                    pump2: parseFloat(document.getElementById('pump2-calibration').value)
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        // Relay Ports
+        document.getElementById('relay-port-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const phUpPort = parseInt(document.getElementById('ph-up-relay-port').value, 10);
+            const phDownPort = parseInt(document.getElementById('ph-down-relay-port').value, 10);
+            const payload = {
+                relay_ports: {
+                    ph_up: phUpPort,
+                    ph_down: phDownPort
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        // Plant Info
+        document.getElementById('plant-info-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const plantName = document.getElementById('plant-name').value;
+            const startDate = document.getElementById('plant-start-date').value;
+            const payload = {
+                plant_info: {
+                    name: plantName,
+                    start_date: startDate
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
+
+        document.getElementById('plant-start-date').addEventListener('change', (e) => {
+            updateWeeksSinceStart(e.target.value);
+        });
+
+        // Water Level Sensors
+        document.getElementById('water-level-sensors-form').addEventListener('submit', event => {
+            event.preventDefault();
+
+            const sensor1Label = document.getElementById('sensor1-label').value;
+            const sensor1Pin = parseInt(document.getElementById('sensor1-pin').value, 10) || 22;
+
+            const sensor2Label = document.getElementById('sensor2-label').value;
+            const sensor2Pin = parseInt(document.getElementById('sensor2-pin').value, 10) || 23;
+
+            const sensor3Label = document.getElementById('sensor3-label').value;
+            const sensor3Pin = parseInt(document.getElementById('sensor3-pin').value, 10) || 24;
+
+            const payload = {
+                water_level_sensors: {
+                    sensor1: { label: sensor1Label, pin: sensor1Pin },
+                    sensor2: { label: sensor2Label, pin: sensor2Pin },
+                    sensor3: { label: sensor3Label, pin: sensor3Pin }
+                }
+            };
+            saveSettings("/api/settings", payload);
+        });
     </script>
 </body>
 </html>
