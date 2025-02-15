@@ -6,8 +6,8 @@ from flask_socketio import emit  # Import emit from flask_socketio
 from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
-from services.water_level_service import get_water_level_status
 from datetime import datetime
+from utils.settings_utils import load_settings, save_settings  # Import from utils
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -39,20 +39,13 @@ if not os.path.exists(SETTINGS_FILE):
             }
         }, f, indent=4)
 
-def load_settings():
-    with open(SETTINGS_FILE, "r") as f:
-        return json.load(f)
-
-def save_settings(new_settings):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(new_settings, f, indent=4)
-
 def emit_status_update():
     """
     Emit a status_update event with the latest settings and system status.
     """
-    # Import get_latest_ph_reading locally to avoid circular imports
+    # Lazy import to avoid circular dependencies
     from services.ph_service import get_latest_ph_reading
+    from services.water_level_service import get_water_level_status
 
     settings = load_settings()
 

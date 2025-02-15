@@ -11,7 +11,7 @@ from datetime import datetime
 from eventlet import tpool
 from services.error_service import set_error, clear_error
 
-from api.settings import load_settings
+from utils.settings_utils import load_settings
 
 # Shared queue for commands sent to the probe
 command_queue = Queue()

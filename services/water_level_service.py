@@ -7,7 +7,7 @@ except ImportError:
     GPIO = None
     print("RPi.GPIO not available. Using mock environment.")
 
-from api.settings import load_settings
+from utils.settings_utils import load_settings  # Import from utils
 
 # A global lock and a flag that indicates if we've fully initialized pins
 _pins_lock = threading.Lock()
