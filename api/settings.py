@@ -1,11 +1,14 @@
-# File: api/settings.py
-
 from flask import Blueprint, request, jsonify
 import json
 import os
 import subprocess
+from flask_socketio import emit  # Import emit from flask_socketio
 from services.auto_dose_state import auto_dose_state  # Import the shared dictionary
 from services.auto_dose_utils import reset_auto_dose_timer
+from services.ph_service import get_latest_ph_reading
+from services.plant_service import get_weeks_since_start
+from services.water_level_service import get_water_level_status
+from datetime import datetime
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -46,6 +49,41 @@ def load_settings():
 def save_settings(new_settings):
     with open(SETTINGS_FILE, "w") as f:
         json.dump(new_settings, f, indent=4)
+
+def emit_status_update():
+    """
+    Emit a status_update event with the latest settings and system status.
+    """
+    settings = load_settings()
+
+    # Prepare the status update payload
+    auto_dose_copy = dict(auto_dose_state)
+    if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
+        auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
+    if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
+        auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
+
+    plant_info_raw = settings.get("plant_info", {})
+    weeks = get_weeks_since_start(plant_info_raw)
+    plant_info = {
+        "name": plant_info_raw.get("name", ""),
+        "start_date": plant_info_raw.get("start_date", ""),
+        "weeks_since_start": weeks
+    }
+
+    water_level_info = get_water_level_status()
+
+    status = {
+        "settings": settings,
+        "current_ph": get_latest_ph_reading(),
+        "auto_dose_state": auto_dose_copy,
+        "plant_info": plant_info,
+        "water_level": water_level_info,
+        "errors": []
+    }
+
+    # Emit the status_update event to all clients
+    emit("status_update", status, namespace="/status")
 
 # API endpoint: Get all settings
 @settings_blueprint.route('/', methods=['GET'])
@@ -101,8 +139,10 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    return jsonify({"status": "success", "settings": current_settings})
+    # Emit a status_update event to notify all clients
+    emit_status_update()
 
+    return jsonify({"status": "success", "settings": current_settings})
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
@@ -130,6 +170,10 @@ def reset_settings():
         }
     }
     save_settings(default_settings)
+
+    # Emit a status_update event to notify all clients
+    emit_status_update()
+
     return jsonify({"status": "success", "settings": default_settings})
 
 # API endpoint: List USB devices
@@ -155,6 +199,9 @@ def list_usb_devices():
 
     settings["usb_roles"] = usb_roles
     save_settings(settings)
+
+    # Emit a status_update event to notify all clients
+    emit_status_update()
 
     return jsonify(devices)
 
@@ -184,4 +231,8 @@ def assign_usb_device():
         settings["usb_roles"][role] = device
 
     save_settings(settings)
+
+    # Emit a status_update event to notify all clients
+    emit_status_update()
+
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
