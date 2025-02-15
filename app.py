@@ -2,6 +2,7 @@
 
 import socket
 import eventlet
+import subprocess
 eventlet.monkey_patch()
 
 import sys
@@ -339,6 +340,27 @@ def device_config():
 
         except Exception as e:
             return jsonify({"status": "failure", "message": str(e)}), 500
+
+@app.route("/api/device/timezones", methods=["GET"])
+def device_timezones():
+    """
+    Return a list of all valid system timezones as JSON.
+    Example:
+      {
+        "status": "success",
+        "timezones": ["Africa/Abidjan", "Africa/Accra", ...]
+      }
+    """
+    try:
+        # Use timedatectl to list all timezones
+        output = subprocess.check_output(["timedatectl", "list-timezones"]).decode().splitlines()
+        # Sort or filter if you like, but typically returning all is fine
+        all_timezones = sorted(output)
+
+        return jsonify({"status": "success", "timezones": all_timezones}), 200
+
+    except Exception as e:
+        return jsonify({"status": "failure", "message": str(e)}), 500
 
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
