@@ -80,7 +80,7 @@
                     if (waterLevel.hasOwnProperty(key)) {
                         const sensor = waterLevel[key];
                         const li = document.createElement('li');
-                        li.textContent = `${sensor.label || key}: ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}`;
+                        li.textContent = `${sensor.label || key}: ${sensor.triggered ? "⚠️ Not Present" : "✅ Present"}`;
                         ul.appendChild(li);
                     }
                 }
