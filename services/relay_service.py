@@ -42,6 +42,22 @@ def get_relay_device_path():
         raise RuntimeError("No relay device configured in settings.")
     return relay_device
 
+def reinitialize_relay_service():
+    """
+    Reinitialize the relay service to use the updated USB device.
+    """
+    try:
+        device_path = get_relay_device_path()
+        with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
+            # Test communication with the relay module
+            ser.write(RELAY_OFF_COMMANDS[1])  # Turn off relay 1
+            ser.write(RELAY_OFF_COMMANDS[2])  # Turn off relay 2
+        print("Relay service reinitialized successfully.")
+        clear_error("PUMP_RELAY_OFFLINE")
+    except Exception as e:
+        print(f"Error reinitializing relay service: {e}")
+        set_error("PUMP_RELAY_OFFLINE")
+
 def turn_on_relay(relay_id):
     try:
         device_path = get_relay_device_path()

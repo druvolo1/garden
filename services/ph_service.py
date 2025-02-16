@@ -180,6 +180,13 @@ def enqueue_calibration(level):
     command_queue.put({"command": command, "type": "calibration"})
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
 
+def restart_serial_reader():
+    global stop_event
+    log_with_timestamp("Restarting serial reader...")
+    stop_serial_reader()  # Stop the existing thread
+    stop_event = eventlet.event.Event()  # Reset the stop event
+    start_serial_reader()  # Start a new thread
+
 def get_last_sent_command():
     global last_sent_command
     if last_sent_command:

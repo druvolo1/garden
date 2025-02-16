@@ -179,6 +179,16 @@ def assign_usb_device():
 
     save_settings(settings)
 
+    # Restart the pH probe service if the pH probe assignment changed
+    if role == "ph_probe":
+        from services.ph_service import restart_serial_reader
+        restart_serial_reader()
+
+    # Reinitialize the relay service if the relay assignment changed
+    if role == "relay":
+        from services.relay_service import reinitialize_relay_service
+        reinitialize_relay_service()
+
     # Emit a status_update event to notify all clients
     emit_status_update()
 
