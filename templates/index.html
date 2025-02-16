@@ -44,6 +44,21 @@
                 reconnectionDelay: 2000
             });
 
+            // Debugging: Log WebSocket connection status
+            socket.on('connect', () => {
+                console.log("WebSocket connected successfully.");
+                fetchInitialPh();
+                fetchWaterLevel();
+            });
+
+            socket.on('disconnect', () => {
+                console.log("WebSocket disconnected.");
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error("WebSocket connection error:", error);
+            });
+
             function updatePhDisplay(ph) {
                 const phDisplay = document.getElementById('ph-display');
                 phDisplay.textContent = ph ? `Current pH: ${parseFloat(ph).toFixed(2)}` : "pH data unavailable";
@@ -69,7 +84,13 @@
 
                 // Force a DOM update by clearing the container first
                 container.innerHTML = "";  // Clear the container
+                console.log("Container after clearing:", container.innerHTML);  // Debugging line
                 container.innerHTML = html;  // Set the new HTML
+                console.log("Container after update:", container.innerHTML);  // Debugging line
+
+                // Force a DOM reflow by temporarily modifying the container's style
+                container.style.display = "none";
+                container.style.display = "block";
             }
 
             async function fetchInitialPh() {
@@ -92,12 +113,10 @@
                 }
             }
 
-            socket.on('connect', () => {
-                fetchInitialPh();
-                fetchWaterLevel();
+            socket.on('ph_update', (data) => {
+                console.log("Received ph_update event:", data);
+                updatePhDisplay(data.ph);
             });
-
-            socket.on('ph_update', (data) => updatePhDisplay(data.ph));
 
             socket.on('status_update', (data) => {
                 console.log("Received status_update event:", data);  // Debugging line
