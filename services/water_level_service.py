@@ -59,6 +59,11 @@ def force_cleanup_and_init():
         GPIO.cleanup()
         _pins_inited = False
         # Now calling ensure_pins_inited() will do the new setup
+        ensure_pins_inited()
+
+    # Emit a status update to notify all clients immediately
+    from status_namespace import emit_status_update  # Import emit_status_update
+    emit_status_update()
 
 def get_water_level_status():
     """
