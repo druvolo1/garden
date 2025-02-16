@@ -39,9 +39,10 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async function () {
-            const socket = io.connect(window.location.origin, {
+            const socket = io("/status", {
                 reconnectionAttempts: 5,
-                reconnectionDelay: 2000
+                reconnectionDelay: 2000,
+                transports: ["websocket"]  // Force WebSocket transport
             });
 
             // Debugging: Log WebSocket connection status
@@ -121,6 +122,8 @@
                 if (data.water_level) {
                     console.log("Updating water level display:", data.water_level);  // Debugging line
                     renderWaterLevel(data.water_level);
+                } else {
+                    console.log("No water_level data in status_update event.");  // Debugging line
                 }
             });
         });
