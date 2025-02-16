@@ -25,6 +25,8 @@ last_sent_command = None
 COMMAND_TIMEOUT = 10
 MAX_BUFFER_LENGTH = 100
 
+ser = None  # Global variable to track the serial connection
+
 def log_with_timestamp(message):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
 
@@ -83,6 +85,7 @@ def parse_buffer(ser):
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 def serial_reader():
+    global ser  # Use the global serial connection
     print("DEBUG: Entered serial_reader() at all...")
 
     while not stop_event.ready():
@@ -107,32 +110,36 @@ def serial_reader():
         log_with_timestamp(f"Attempting to open pH probe device: {ph_probe_path}")
 
         try:
-            with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
-                clear_error("PH_USB_OFFLINE")
-                log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
+            ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)  # Assign to global ser
+            clear_error("PH_USB_OFFLINE")
+            log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
 
-                # Clear the buffer when connecting to a new device
-                with ph_lock:
-                    global buffer
-                    buffer = ""
-                    log_with_timestamp("Buffer cleared on new device connection.")
+            # Clear the buffer when connecting to a new device
+            with ph_lock:
+                global buffer
+                buffer = ""
+                log_with_timestamp("Buffer cleared on new device connection.")
 
-                while not stop_event.ready():
-                    raw_data = tpool.execute(ser.read, 100)
-                    if raw_data:
-                        decoded_data = raw_data.decode("utf-8", errors="replace")
-                        with ph_lock:
-                            buffer += decoded_data
-                            if len(buffer) > MAX_BUFFER_LENGTH:
-                                log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
-                                buffer = ""
-                        parse_buffer(ser)
-                    else:
-                        eventlet.sleep(0.05)
+            while not stop_event.ready():
+                raw_data = tpool.execute(ser.read, 100)
+                if raw_data:
+                    decoded_data = raw_data.decode("utf-8", errors="replace")
+                    with ph_lock:
+                        buffer += decoded_data
+                        if len(buffer) > MAX_BUFFER_LENGTH:
+                            log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
+                            buffer = ""
+                    parse_buffer(ser)
+                else:
+                    eventlet.sleep(0.05)
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
             set_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
+        finally:
+            if ser and ser.is_open:
+                ser.close()
+                log_with_timestamp("Serial connection closed.")
 
 def send_configuration_commands(ser):
     try:
@@ -195,6 +202,9 @@ def restart_serial_reader():
     # Stop the existing thread
     stop_serial_reader()
 
+    # Add a small delay to ensure the old thread is fully stopped
+    eventlet.sleep(1)  # 1-second delay
+
     # Reset the stop event
     stop_event = eventlet.event.Event()
 
@@ -212,7 +222,7 @@ def start_serial_reader():
     log_with_timestamp("Serial reader started.")
 
 def stop_serial_reader():
-    global buffer, latest_ph_value
+    global buffer, latest_ph_value, ser
     log_with_timestamp("Stopping serial reader...")
 
     # Clear the buffer and reset the latest pH value
@@ -220,6 +230,11 @@ def stop_serial_reader():
         buffer = ""
         latest_ph_value = None
         log_with_timestamp("Buffer and latest pH value cleared during stop.")
+
+    # Close the serial connection if it's open
+    if ser and ser.is_open:
+        ser.close()
+        log_with_timestamp("Serial connection closed.")
 
     # Fire the event to stop the thread
     stop_event.send()
