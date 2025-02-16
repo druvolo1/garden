@@ -13,6 +13,9 @@ from utils.settings_utils import load_settings  # Import from utils
 _pins_lock = threading.Lock()
 _pins_inited = False
 
+# Store the last known state of the sensors
+_last_sensor_state = {}
+
 def load_water_level_sensors():
     s = load_settings()
     default_sensors = {
@@ -86,3 +89,30 @@ def get_water_level_status():
             "triggered": triggered
         }
     return status
+
+def monitor_water_level_sensors():
+    """
+    Continuously monitor the water level sensors for changes.
+    If a change is detected, emit a WebSocket update immediately.
+    """
+    global _last_sensor_state
+
+    while True:
+        try:
+            current_state = get_water_level_status()
+
+            # Check if the state has changed
+            if current_state != _last_sensor_state:
+                _last_sensor_state = current_state
+
+                # Emit a status update to notify all clients immediately
+                from status_namespace import emit_status_update  # Import emit_status_update
+                emit_status_update()
+                print("Water level sensor state changed. Emitting status update.")
+
+        except Exception as e:
+            print(f"Error monitoring water level sensors: {e}")
+
+        # Add a small delay to avoid excessive CPU usage
+        import time
+        time.sleep(0.5)  # Check every 500ms

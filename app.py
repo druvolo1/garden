@@ -33,7 +33,7 @@ from services.device_config import (
     get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
     set_timezone, set_ntp_server, set_wifi_config
 )
-from services.water_level_service import get_water_level_status
+from services.water_level_service import get_water_level_status, monitor_water_level_sensors
 
 app = Flask(__name__)
 CORS(app)
@@ -196,6 +196,10 @@ def start_threads():
     log_with_timestamp("Spawning hardware error checker...")
     eventlet.spawn(check_for_hardware_errors)
     log_with_timestamp("Hardware error checker spawned.")
+
+    log_with_timestamp("Spawning water level sensor monitor...")
+    eventlet.spawn(monitor_water_level_sensors)
+    log_with_timestamp("Water level sensor monitor spawned.")
 
 # ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
 start_threads()
