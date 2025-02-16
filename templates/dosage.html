@@ -47,6 +47,8 @@
                 {% if dosage_data.feedback_up %}
                     <p class="error-message">{{ dosage_data.feedback_up|safe }}</p>
                 {% endif %}
+                <label for="ph-up-manual-amount">Manual Dose Amount (ml):</label>
+                <input type="number" id="ph-up-manual-amount" step="0.1" min="0" placeholder="Enter amount">
                 <button id="ph-up-dispense">Dispense pH Up</button>
             </div>
 
@@ -56,6 +58,8 @@
                 {% if dosage_data.feedback_down %}
                     <p class="error-message">{{ dosage_data.feedback_down|safe }}</p>
                 {% endif %}
+                <label for="ph-down-manual-amount">Manual Dose Amount (ml):</label>
+                <input type="number" id="ph-down-manual-amount" step="0.1" min="0" placeholder="Enter amount">
                 <button id="ph-down-dispense">Dispense pH Down</button>
             </div>
         </div>
@@ -90,11 +94,14 @@
             await refreshDosageInfo();
 
             async function dispensePh(type) {
-                const amount = parseFloat(document.getElementById(`ph-${type}-amount`).textContent) || 0;
-                if (amount === 0) {
-                    alert(`No pH ${type.charAt(0).toUpperCase() + type.slice(1)} required (0 ml).`);
+                const manualAmountInput = document.getElementById(`ph-${type}-manual-amount`);
+                const amount = parseFloat(manualAmountInput.value) || 0;
+
+                if (amount <= 0) {
+                    alert(`Please enter a valid amount for pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
                     return;
                 }
+
                 try {
                     const response = await fetch('/api/dosage/manual', {
                         method: 'POST',
