@@ -110,16 +110,18 @@ def serial_reader():
             with serial.Serial(ph_probe_path, baudrate=9600, timeout=1) as ser:
                 clear_error("PH_USB_OFFLINE")
                 log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
-                # Uncomment if the sensor requires a start command:
-                # ser.write(b'R\r')
+
+                # Clear the buffer when connecting to a new device
+                with ph_lock:
+                    global buffer
+                    buffer = ""
+                    log_with_timestamp("Buffer cleared on new device connection.")
+
                 while not stop_event.ready():
                     raw_data = tpool.execute(ser.read, 100)
                     if raw_data:
-                        #log_with_timestamp(f"Raw data received ({len(raw_data)} bytes): {raw_data!r}")
                         decoded_data = raw_data.decode("utf-8", errors="replace")
-                        #log_with_timestamp(f"Decoded data: {decoded_data!r}")
                         with ph_lock:
-                            global buffer
                             buffer += decoded_data
                             if len(buffer) > MAX_BUFFER_LENGTH:
                                 log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
@@ -181,11 +183,23 @@ def enqueue_calibration(level):
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
 
 def restart_serial_reader():
-    global stop_event
+    global stop_event, buffer, latest_ph_value
     log_with_timestamp("Restarting serial reader...")
-    stop_serial_reader()  # Stop the existing thread
-    stop_event = eventlet.event.Event()  # Reset the stop event
-    start_serial_reader()  # Start a new thread
+
+    # Clear the buffer and reset the latest pH value
+    with ph_lock:
+        buffer = ""
+        latest_ph_value = None
+        log_with_timestamp("Buffer and latest pH value cleared.")
+
+    # Stop the existing thread
+    stop_serial_reader()
+
+    # Reset the stop event
+    stop_event = eventlet.event.Event()
+
+    # Start a new thread
+    start_serial_reader()
 
 def get_last_sent_command():
     global last_sent_command
@@ -198,8 +212,17 @@ def start_serial_reader():
     log_with_timestamp("Serial reader started.")
 
 def stop_serial_reader():
+    global buffer, latest_ph_value
     log_with_timestamp("Stopping serial reader...")
-    stop_event.send()  # Fire the event so loops can break
+
+    # Clear the buffer and reset the latest pH value
+    with ph_lock:
+        buffer = ""
+        latest_ph_value = None
+        log_with_timestamp("Buffer and latest pH value cleared during stop.")
+
+    # Fire the event to stop the thread
+    stop_event.send()
     log_with_timestamp("Serial reader stopped.")
 
 def get_latest_ph_reading():
