@@ -92,7 +92,9 @@
             });
 
             socket.on('ph_update', (data) => updatePhDisplay(data.ph));
+
             socket.on('status_update', (data) => {
+                console.log("Received status_update event:", data);  // Debugging line
                 if (data.current_ph !== undefined) updatePhDisplay(data.current_ph);
                 if (data.water_level) renderWaterLevel(data.water_level);
             });
