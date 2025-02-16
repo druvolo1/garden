@@ -72,25 +72,22 @@
                     return;
                 }
                 console.log("Water level data:", waterLevel);  // Debugging line
-                let html = "<ul>";
+
+                // Create a new <ul> element
+                const ul = document.createElement('ul');
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
                         const sensor = waterLevel[key];
-                        html += `<li>${sensor.label || key}: ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}</li>`;
+                        const li = document.createElement('li');
+                        li.textContent = `${sensor.label || key}: ${sensor.triggered ? "⚠️ TRIGGERED" : "✅ NORMAL"}`;
+                        ul.appendChild(li);
                     }
                 }
-                html += "</ul>";
-                console.log("Generated HTML:", html);  // Debugging line
 
-                // Force a DOM update by clearing the container first
+                // Replace the container's content with the new <ul>
                 container.innerHTML = "";  // Clear the container
-                console.log("Container after clearing:", container.innerHTML);  // Debugging line
-                container.innerHTML = html;  // Set the new HTML
+                container.appendChild(ul);  // Add the new <ul>
                 console.log("Container after update:", container.innerHTML);  // Debugging line
-
-                // Force a DOM reflow by temporarily modifying the container's style
-                container.style.display = "none";
-                container.style.display = "block";
             }
 
             async function fetchInitialPh() {
