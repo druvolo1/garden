@@ -66,7 +66,10 @@
                 }
                 html += "</ul>";
                 console.log("Generated HTML:", html);  // Debugging line
-                container.innerHTML = html;
+
+                // Force a DOM update by clearing the container first
+                container.innerHTML = "";  // Clear the container
+                container.innerHTML = html;  // Set the new HTML
             }
 
             async function fetchInitialPh() {
