@@ -51,10 +51,12 @@
 
             function renderWaterLevel(waterLevel) {
                 const container = document.getElementById('water-level-status');
+                console.log("Container for water level:", container);  // Debugging line
                 if (!waterLevel) {
                     container.innerHTML = "<p>No water-level data.</p>";
                     return;
                 }
+                console.log("Water level data:", waterLevel);  // Debugging line
                 let html = "<ul>";
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
@@ -63,6 +65,7 @@
                     }
                 }
                 html += "</ul>";
+                console.log("Generated HTML:", html);  // Debugging line
                 container.innerHTML = html;
             }
 
@@ -96,7 +99,10 @@
             socket.on('status_update', (data) => {
                 console.log("Received status_update event:", data);  // Debugging line
                 if (data.current_ph !== undefined) updatePhDisplay(data.current_ph);
-                if (data.water_level) renderWaterLevel(data.water_level);
+                if (data.water_level) {
+                    console.log("Updating water level display:", data.water_level);  // Debugging line
+                    renderWaterLevel(data.water_level);
+                }
             });
         });
     </script>
