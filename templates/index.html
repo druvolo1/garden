@@ -23,6 +23,10 @@
     </nav>
 
     <main>
+        <!-- NEW: Display System Name -->
+        <h1 id="system-name-display" style="margin-bottom: 0.5rem;">Loading...</h1>
+
+        <!-- Existing Title -->
         <h1>pH Dosing System</h1>
         <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
@@ -45,7 +49,10 @@
                 transports: ["websocket"]  // Force WebSocket transport
             });
 
-            // Debugging: Log WebSocket connection status
+            // 1. Fetch system name immediately on DOM load
+            fetchSystemName();
+
+            // 2. Listen for WebSocket events
             socket.on('connect', () => {
                 console.log("WebSocket connected successfully.");
                 fetchInitialPh();
@@ -60,37 +67,27 @@
                 console.error("WebSocket connection error:", error);
             });
 
-            function updatePhDisplay(ph) {
-                const phDisplay = document.getElementById('ph-display');
-                phDisplay.textContent = ph ? `Current pH: ${parseFloat(ph).toFixed(2)}` : "pH data unavailable";
-            }
+            socket.on('ph_update', (data) => {
+                console.log("Received ph_update event:", data);
+                updatePhDisplay(data.ph);
+            });
 
-            function renderWaterLevel(waterLevel) {
-                const container = document.getElementById('water-level-status');
-                console.log("Container for water level:", container);  // Debugging line
-                if (!waterLevel) {
-                    container.innerHTML = "<p>No water-level data.</p>";
-                    return;
+            // If the server includes `system_name` in the status_update, we will update the display:
+            socket.on('status_update', (data) => {
+                console.log("Received status_update event:", data); 
+                if (data.current_ph !== undefined) {
+                    updatePhDisplay(data.current_ph);
                 }
-                console.log("Water level data:", waterLevel);  // Debugging line
-
-                // Create a new <ul> element
-                const ul = document.createElement('ul');
-                for (const key in waterLevel) {
-                    if (waterLevel.hasOwnProperty(key)) {
-                        const sensor = waterLevel[key];
-                        const li = document.createElement('li');
-                        li.textContent = `${sensor.label || key}: ${sensor.triggered ? "⚠️ Not Present" : "✅ Present"}`;
-                        ul.appendChild(li);
-                    }
+                if (data.water_level) {
+                    renderWaterLevel(data.water_level);
                 }
+                // NEW: Update system name if provided in the event
+                if (data.system_name !== undefined) {
+                    document.getElementById('system-name-display').textContent = data.system_name;
+                }
+            });
 
-                // Replace the container's content with the new <ul>
-                container.innerHTML = "";  // Clear the container
-                container.appendChild(ul);  // Add the new <ul>
-                console.log("Container after update:", container.innerHTML);  // Debugging line
-            }
-
+            // Helper: Fetch the current pH from the server
             async function fetchInitialPh() {
                 try {
                     const response = await fetch('/api/ph/latest');
@@ -101,6 +98,7 @@
                 }
             }
 
+            // Helper: Fetch water levels from the server
             async function fetchWaterLevel() {
                 try {
                     const response = await fetch('/api/water_level/');
@@ -111,21 +109,44 @@
                 }
             }
 
-            socket.on('ph_update', (data) => {
-                console.log("Received ph_update event:", data);
-                updatePhDisplay(data.ph);
-            });
-
-            socket.on('status_update', (data) => {
-                console.log("Received status_update event:", data);  // Debugging line
-                if (data.current_ph !== undefined) updatePhDisplay(data.current_ph);
-                if (data.water_level) {
-                    console.log("Updating water level display:", data.water_level);  // Debugging line
-                    renderWaterLevel(data.water_level);
-                } else {
-                    console.log("No water_level data in status_update event.");  // Debugging line
+            // Helper: Fetch system_name from the server
+            async function fetchSystemName() {
+                try {
+                    const response = await fetch('/api/settings/system_name');
+                    const data = await response.json();
+                    document.getElementById('system-name-display').textContent = data.system_name || 'Zone 1';
+                } catch (error) {
+                    console.error("Error fetching system name:", error);
+                    document.getElementById('system-name-display').textContent = 'Zone 1 (Error)';
                 }
-            });
+            }
+
+            // Update the PH display element
+            function updatePhDisplay(ph) {
+                const phDisplay = document.getElementById('ph-display');
+                phDisplay.textContent = ph ? `Current pH: ${parseFloat(ph).toFixed(2)}` : "pH data unavailable";
+            }
+
+            // Render water level sensor statuses
+            function renderWaterLevel(waterLevel) {
+                const container = document.getElementById('water-level-status');
+                if (!waterLevel) {
+                    container.innerHTML = "<p>No water-level data.</p>";
+                    return;
+                }
+
+                const ul = document.createElement('ul');
+                for (const key in waterLevel) {
+                    if (waterLevel.hasOwnProperty(key)) {
+                        const sensor = waterLevel[key];
+                        const li = document.createElement('li');
+                        li.textContent = `${sensor.label || key}: ${sensor.triggered ? "⚠️ Not Present" : "✅ Present"}`;
+                        ul.appendChild(li);
+                    }
+                }
+                container.innerHTML = "";
+                container.appendChild(ul);
+            }
         });
     </script>
 
