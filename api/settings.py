@@ -20,6 +20,7 @@ if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump({
+            "system_name": "Zone 1",
             "ph_range": {"min": 5.5, "max": 6.5},
             "max_dosing_amount": 5,
             "dosing_interval": 1.0,
@@ -75,7 +76,7 @@ def update_settings():
         del new_settings["water_level_sensors"]
         water_sensors_updated = True
 
-    # Merge all remaining top-level keys (ph_range, ph_target, etc.)
+    # Merge all remaining top-level keys (system_name, ph_range, ph_target, etc.)
     current_settings.update(new_settings)
 
     # Save the changes so that future load_settings() sees them
@@ -90,7 +91,7 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # Emit a status_update event to notify all clients
+    # Emit a status_update event to notify all clients (websocket)
     emit_status_update()
 
     return jsonify({"status": "success", "settings": current_settings})
@@ -99,6 +100,7 @@ def update_settings():
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
     default_settings = {
+        "system_name": "Zone 1",
         "ph_range": {"min": 5.5, "max": 6.5},
         "max_dosing_amount": 5,
         "dosing_interval": 1.0,
@@ -193,3 +195,29 @@ def assign_usb_device():
     emit_status_update()
 
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
+
+
+# -------------------
+# NEW ENDPOINTS BELOW
+# -------------------
+
+# API endpoint: Get System Name
+@settings_blueprint.route('/system_name', methods=['GET'])
+def get_system_name():
+    settings = load_settings()
+    return jsonify({"system_name": settings.get("system_name", "Zone 1")})
+
+# API endpoint: Set System Name
+@settings_blueprint.route('/system_name', methods=['POST'])
+def set_system_name():
+    data = request.get_json() or {}
+    system_name = data.get("system_name")
+    settings = load_settings()
+
+    if system_name:
+        settings["system_name"] = system_name
+        save_settings(settings)
+        # Emit a status_update event to notify all clients
+        emit_status_update()
+
+    return jsonify({"system_name": settings.get("system_name", "Zone 1")})
