@@ -1,44 +1,49 @@
 from zeroconf import Zeroconf, ServiceInfo
 import socket
 
-def register_mdns_service(service_name="MyGardenService", port=8000):
+def register_mdns_service(system_name="Zone1", port=8000):
     """
-    Registers an mDNS service so that it can be discovered as service_name.local on the network.
+    Registers an mDNS service so that it can be discovered as <system_name>.local on the network.
+    In mDNS tools, this may appear as "<system_name>._http._tcp.local." or similar.
     """
     zeroconf = Zeroconf()
     
-    # Service type for an HTTP server; change if needed.
+    # mDNS service type for an HTTP server (adjust if needed)
     service_type = "_http._tcp.local."
-    full_service_name = f"{service_name}.{service_type}"
-    
-    # Get your local hostname and IP address.
-    # The hostname for the mDNS advertisement should typically end in '.local.'
-    host_name = socket.gethostname()
-    local_hostname = f"{host_name}.local."
-    
-    # Get local IP address (you might need a more robust method if there are multiple interfaces)
-    ip_address = socket.gethostbyname(host_name)
-    ip_bytes = socket.inet_aton(ip_address)
-    
+
+    # The "instance name" in Zeroconf. Typically something like "MyGardenService._http._tcp.local."
+    # Here, we'll just use system_name for clarity.
+    full_service_name = f"{system_name}.{service_type}"
+
+    # Use system_name for the "server" field, appended with '.local.'
+    # This way, it will advertise itself as system_name.local instead of <actual-hostname>.local
+    server_hostname = f"{system_name}.local."
+
+    # Get your local IP address. If your machine has multiple interfaces, you may
+    # need a more robust approach than just gethostbyname.
+    # Or you could pass in the IP you want to advertise.
+    host_ip = socket.gethostbyname(socket.gethostname())
+    ip_bytes = socket.inet_aton(host_ip)
+
     info = ServiceInfo(
         type_=service_type,
         name=full_service_name,
         addresses=[ip_bytes],
         port=port,
         properties={},
-        server=local_hostname,
+        server=server_hostname,  # <--- The key part
     )
-    
-    # Register the service
+
+    # Register the service on the network
     zeroconf.register_service(info)
-    print(f"mDNS service registered: {full_service_name} at {local_hostname}:{port}")
-    
-    # Optionally, return the zeroconf instance and info so you can unregister later.
+    print(f"mDNS service registered: {full_service_name} at {server_hostname}:{port}")
+
+    # Return them if you want to manage them later.
     return zeroconf, info
 
 if __name__ == "__main__":
-    # For testing purposes: register the service until Enter is pressed.
-    zc, info = register_mdns_service()
+    # For testing: register using "MyCustomName" until Enter is pressed.
+    zc, info = register_mdns_service(system_name="MyCustomName", port=8000)
     try:
         input("Press Enter to unregister service and exit...\n")
     finally:
