@@ -10,7 +10,7 @@ def get_local_ip():
     finally:
         s.close()
 
-def register_mdns_service(system_name="Zone1", port=8000):
+def register_mdns_service(system_name="ZoneX", port=8000):
     zeroconf = Zeroconf()
     service_type = "_http._tcp.local."
     full_service_name = f"{system_name}.{service_type}"
