@@ -175,11 +175,16 @@ def broadcast_status():
             log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
             eventlet.sleep(5)
 
+from services.mdns_service import update_mdns_service
+from utils.settings_utils import load_settings
+
 def start_threads():
-    # Spawn all background threads.
-    from services.mdns_service import register_mdns_service
-    register_mdns_service(system_name="Zone1", port=8000)
-    log_with_timestamp("mDNS service registered from start_threads()!")
+    # Load the current system_name from settings
+    settings = load_settings()
+    system_name = settings.get("system_name", "Zone 1")
+
+    update_mdns_service(system_name=system_name, port=8000)
+    log_with_timestamp(f"mDNS service registered from start_threads()! (system_name={system_name})")
 
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
