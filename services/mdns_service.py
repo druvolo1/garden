@@ -1,26 +1,48 @@
 import socket
 from zeroconf import Zeroconf, ServiceInfo
 
+# We'll keep module-level references so we can unregister/re-register
+_zeroconf = None
+_service_info = None
+
 def get_local_ip():
+    """
+    Returns the primary IP address for outbound connections.
+    Useful for picking the correct LAN IP even if multiple interfaces exist.
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # We won't actually send any data to 8.8.8.8
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
     finally:
         s.close()
 
-def register_mdns_service(system_name="ZoneX", port=8000):
-    zeroconf = Zeroconf()
+def update_mdns_service(system_name="ZoneX", port=8000):
+    """
+    (Re)registers the mDNS service under the given system_name.
+    If an existing service is registered, it will be unregistered first.
+    """
+    global _zeroconf, _service_info
+
+    # If we've already registered a service, unregister it to remove the old name
+    if _zeroconf and _service_info:
+        _zeroconf.unregister_service(_service_info)
+        _service_info = None
+        print("[mDNS] Unregistered old service.")
+
+    # If we haven't created a Zeroconf instance yet, do so
+    if not _zeroconf:
+        _zeroconf = Zeroconf()
+
+    # Construct new service info
     service_type = "_http._tcp.local."
     full_service_name = f"{system_name}.{service_type}"
     server_hostname = f"{system_name}.local."
 
-    # Use the more robust method:
-    host_ip = get_local_ip()
+    host_ip = get_local_ip()            # e.g. "192.168.1.50"
     ip_bytes = socket.inet_aton(host_ip)
 
-    info = ServiceInfo(
+    service_info = ServiceInfo(
         type_=service_type,
         name=full_service_name,
         addresses=[ip_bytes],
@@ -29,17 +51,33 @@ def register_mdns_service(system_name="ZoneX", port=8000):
         server=server_hostname,
     )
 
-    zeroconf.register_service(info)
-    print(f"mDNS service registered: {full_service_name} at {server_hostname}:{port} (advertising {host_ip})")
+    # Register the new service
+    _zeroconf.register_service(service_info)
+    _service_info = service_info
 
-    return zeroconf, info
+    print(f"[mDNS] Registered service: {full_service_name} at {server_hostname}:{port} (IP: {host_ip})")
+
+def stop_mdns_service():
+    """
+    Unregisters and closes the Zeroconf service if running.
+    """
+    global _zeroconf, _service_info
+
+    if _zeroconf:
+        if _service_info:
+            _zeroconf.unregister_service(_service_info)
+            _service_info = None
+            print("[mDNS] Service unregistered.")
+        _zeroconf.close()
+        _zeroconf = None
+        print("[mDNS] Zeroconf closed.")
 
 
+# Optional: If you run mdns_service.py directly for testing
 if __name__ == "__main__":
-    # For testing: register using "MyCustomName" until Enter is pressed.
-    zc, info = register_mdns_service(system_name="MyCustomName", port=8000)
+    print("[mDNS] Testing direct run with 'MyCustomName' ...")
+    update_mdns_service(system_name="MyCustomName", port=8000)
     try:
-        input("Press Enter to unregister service and exit...\n")
+        input("Press Enter to unregister and exit...\n")
     finally:
-        zc.unregister_service(info)
-        zc.close()
+        stop_mdns_service()

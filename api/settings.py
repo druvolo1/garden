@@ -8,6 +8,9 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
+from services.mdns_service import update_mdns_service
+
+
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -46,11 +49,16 @@ def get_settings():
     settings = load_settings()
     return jsonify(settings)
 
+
+# API endpoint: Update settings
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
+
+    # Remember the old system_name to detect changes
+    old_system_name = current_settings.get("system_name", "Zone 1")
 
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
@@ -91,10 +99,17 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
+    # Check if system_name changed; if so, re-register mDNS
+    new_system_name = current_settings.get("system_name", "Zone 1")
+    if new_system_name != old_system_name:
+        # Example: re-register on port 8000
+        update_mdns_service(system_name=new_system_name, port=8000)
+
     # Emit a status_update event to notify all clients (websocket)
     emit_status_update()
 
     return jsonify({"status": "success", "settings": current_settings})
+
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
