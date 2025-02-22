@@ -177,6 +177,10 @@ def broadcast_status():
 
 def start_threads():
     # Spawn all background threads.
+    from services.mdns_service import register_mdns_service
+    register_mdns_service(system_name="Zone1", port=8000)
+    log_with_timestamp("mDNS service registered from start_threads()!")
+
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
     log_with_timestamp("Broadcast_ph_readings spawned.")
