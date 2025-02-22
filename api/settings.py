@@ -1,16 +1,16 @@
+# File: settings.py
+
 from flask import Blueprint, request, jsonify
 import json
 import os
 import subprocess
-from status_namespace import emit_status_update  # Import from status_namespace
+from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
 from services.mdns_service import update_mdns_service
-
-
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -23,7 +23,7 @@ if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump({
-            "system_name": "Zone 1",
+            "system_name": "ZoneX",
             "ph_range": {"min": 5.5, "max": 6.5},
             "max_dosing_amount": 5,
             "dosing_interval": 1.0,
@@ -49,16 +49,14 @@ def get_settings():
     settings = load_settings()
     return jsonify(settings)
 
-
-# API endpoint: Update settings
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
 
-    # Remember the old system_name to detect changes
-    old_system_name = current_settings.get("system_name", "Zone 1")
+    # Use ZoneX as fallback
+    old_system_name = current_settings.get("system_name", "ZoneX")
 
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
@@ -87,7 +85,7 @@ def update_settings():
     # Merge all remaining top-level keys (system_name, ph_range, ph_target, etc.)
     current_settings.update(new_settings)
 
-    # Save the changes so that future load_settings() sees them
+    # Save changes
     save_settings(current_settings)
 
     # If water-level pins changed, reinit them
@@ -100,22 +98,21 @@ def update_settings():
         reset_auto_dose_timer()
 
     # Check if system_name changed; if so, re-register mDNS
-    new_system_name = current_settings.get("system_name", "Zone 1")
+    new_system_name = current_settings.get("system_name", "ZoneX")
     if new_system_name != old_system_name:
-        # Example: re-register on port 8000
         update_mdns_service(system_name=new_system_name, port=8000)
 
-    # Emit a status_update event to notify all clients (websocket)
+    # Emit a status_update event to notify all clients
     emit_status_update()
 
     return jsonify({"status": "success", "settings": current_settings})
 
-
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
+    # Also changed "Zone 1" -> "ZoneX" here
     default_settings = {
-        "system_name": "Zone 1",
+        "system_name": "ZoneX",
         "ph_range": {"min": 5.5, "max": 6.5},
         "max_dosing_amount": 5,
         "dosing_interval": 1.0,
@@ -136,7 +133,7 @@ def reset_settings():
     }
     save_settings(default_settings)
 
-    # Emit a status_update event to notify all clients
+    # Emit a status_update event
     emit_status_update()
 
     return jsonify({"status": "success", "settings": default_settings})
@@ -196,21 +193,18 @@ def assign_usb_device():
 
     save_settings(settings)
 
-    # Restart the pH probe service if the pH probe assignment changed
+    # Restart services if changed
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
-
-    # Reinitialize the relay service if the relay assignment changed
     if role == "relay":
         from services.relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
-    # Emit a status_update event to notify all clients
+    # Emit a status_update event
     emit_status_update()
 
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
-
 
 # -------------------
 # NEW ENDPOINTS BELOW
@@ -220,7 +214,7 @@ def assign_usb_device():
 @settings_blueprint.route('/system_name', methods=['GET'])
 def get_system_name():
     settings = load_settings()
-    return jsonify({"system_name": settings.get("system_name", "Zone 1")})
+    return jsonify({"system_name": settings.get("system_name", "ZoneX")})
 
 # API endpoint: Set System Name
 @settings_blueprint.route('/system_name', methods=['POST'])
@@ -232,7 +226,9 @@ def set_system_name():
     if system_name:
         settings["system_name"] = system_name
         save_settings(settings)
-        # Emit a status_update event to notify all clients
+        # Re-register mDNS if you want immediate change
+        update_mdns_service(system_name=system_name, port=8000)
+        # Emit a status_update event
         emit_status_update()
 
-    return jsonify({"system_name": settings.get("system_name", "Zone 1")})
+    return jsonify({"system_name": settings.get("system_name", "ZoneX")})
