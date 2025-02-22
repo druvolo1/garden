@@ -4,7 +4,8 @@ import eventlet
 eventlet.monkey_patch()
 
 from app import app, start_threads
-from services.mdns_service import register_mdns_service
+# CHANGE THIS IMPORT to match the actual function name in mdns_service.py
+from services.mdns_service import update_mdns_service
 
 # -----------------------
 # GUNICORN HOOKS/CONFIG
@@ -21,9 +22,13 @@ def post_fork(server, worker):
         # Start any background threads in this worker
         start_threads()
 
-        # Register mDNS
+        # Register (update) the mDNS service
+        # If you want to store references, you can do so, but it's optional
         global mdns_zeroconf, mdns_info
-        mdns_zeroconf, mdns_info = register_mdns_service(system_name="MyGardenService", port=8000)
+        mdns_zeroconf, mdns_info = update_mdns_service(
+            system_name="MyGardenService", 
+            port=8000
+        )
         print(f"[Gunicorn] Worker {worker.pid} mDNS service registered successfully.")
     except Exception as e:
         print(f"[Gunicorn] Error starting threads or mDNS in worker {worker.pid}: {e}")
@@ -43,12 +48,6 @@ timeout = 60
 loglevel = "debug"
 preload_app = False    # So threads/mDNS start after fork, per best practice
 
-# This is the WSGI callable Gunicorn will use
-# (gunicorn wsgi:app --config wsgi.py)
-# or programmatically: app variable is imported from app.py
-# def app(environ, start_response):
-#     ...
-
 # -----------------------
 # STANDALONE (DEV) MODE
 # -----------------------
@@ -57,8 +56,8 @@ if __name__ == "__main__":
     try:
         # Start the same background threads
         start_threads()
-        # Also register the mDNS service locally
-        mdns_zeroconf, mdns_info = register_mdns_service(system_name="GardenMonitor", port=8000)
+        # Also register/update the mDNS service locally
+        mdns_zeroconf, mdns_info = update_mdns_service(system_name="GardenMonitor", port=8000)
         print("[WSGI] Background threads and mDNS service started successfully.")
     except Exception as e:
         print(f"[WSGI] Error starting background threads or mDNS: {e}")
