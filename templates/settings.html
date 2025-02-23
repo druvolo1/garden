@@ -297,7 +297,7 @@
                 });
 
                 //const relayWarning = document.getElementById('relay-warning');
-                relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
+                //relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
                 // pH Range
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
@@ -356,8 +356,8 @@
                 });
 
                 // Show warning if no relay
-                const relayWarning = document.getElementById('relay-warning');
-                relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
+                //const relayWarning = document.getElementById('relay-warning');
+                //relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
         }
