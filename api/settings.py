@@ -196,45 +196,41 @@ def assign_usb_device():
     role = data.get("role")
     device = data.get("device")
 
-    # UPDATED: Now also accept "valve_relay"
     if role not in ["ph_probe", "relay", "valve_relay"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
     settings = load_settings()
     if not device:
-        # Clear the role
+        # Clear the role if no device is provided
         settings["usb_roles"][role] = None
     else:
         # Ensure no duplication across roles
-        for other_role, assigned_device in settings["usb_roles"].items():
+        for other_role, assigned_device in settings.get("usb_roles", {}).items():
             if assigned_device == device and other_role != role:
                 return jsonify({"status": "failure", "error": f"Device already assigned to {other_role}"}), 400
-        settings["usb_roles"][role] = device
+        settings.setdefault("usb_roles", {})[role] = device
 
     save_settings(settings)
 
-    # If the role changed is "ph_probe", restart ph service
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
 
-    # If the role changed is "relay", reinit dosing relay
     if role == "relay":
         from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
-    # If the role changed is "valve_relay", reinit valve relay
     if role == "valve_relay":
-        from services.valve_relay_service import reinitialize_valve_relay_service
-        reinitialize_valve_relay_service()
+        from services.valve_relay_service import init_valve_thread, stop_valve_thread
+        if device:
+            # If a device is assigned, ensure the thread is started.
+            init_valve_thread()
+        else:
+            # If the assignment is removed, stop the thread.
+            stop_valve_thread()
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
-
-
-# -------------------
-# NEW ENDPOINTS BELOW
-# -------------------
 
 # API endpoint: Get System Name
 @settings_blueprint.route('/system_name', methods=['GET'])

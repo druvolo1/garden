@@ -1,20 +1,14 @@
 # File: services/valve_relay_service.py
 
-import serial
-import json
 import os
+import json
+import eventlet
+from eventlet.green import serial  # eventlet-friendly serial
+from eventlet.queue import Queue
+from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
 
-# 8-channel ON commands:
-#  A0 01 01 A2  -> Relay #1 ON
-#  A0 02 01 A3  -> Relay #2 ON
-#  A0 03 01 A4  -> Relay #3 ON
-#  A0 04 01 A5  -> Relay #4 ON
-#  A0 05 01 A6  -> Relay #5 ON
-#  A0 06 01 A7  -> Relay #6 ON
-#  A0 07 01 A8  -> Relay #7 ON
-#  A0 08 01 A9  -> Relay #8 ON
-
+# 8-channel ON commands
 VALVE_ON_COMMANDS = {
     1: b'\xA0\x01\x01\xA2',
     2: b'\xA0\x02\x01\xA3',
@@ -26,16 +20,7 @@ VALVE_ON_COMMANDS = {
     8: b'\xA0\x08\x01\xA9'
 }
 
-# 8-channel OFF commands:
-#  A0 01 00 A1  -> Relay #1 OFF
-#  A0 02 00 A2  -> Relay #2 OFF
-#  A0 03 00 A3  -> Relay #3 OFF
-#  A0 04 00 A4  -> Relay #4 OFF
-#  A0 05 00 A5  -> Relay #5 OFF
-#  A0 06 00 A6  -> Relay #6 OFF
-#  A0 07 00 A7  -> Relay #7 OFF
-#  A0 08 00 A8  -> Relay #8 OFF
-
+# 8-channel OFF commands
 VALVE_OFF_COMMANDS = {
     1: b'\xA0\x01\x00\xA1',
     2: b'\xA0\x02\x00\xA2',
@@ -47,7 +32,7 @@ VALVE_OFF_COMMANDS = {
     8: b'\xA0\x08\x00\xA8'
 }
 
-# Keeps track of on/off status for each relay
+# Local reflection of valve states
 valve_status = {
     1: "off",
     2: "off",
@@ -61,6 +46,12 @@ valve_status = {
 
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
+# Singleton objects to manage the relay thread
+serial_lock = semaphore.Semaphore()  # ensures only one read/write at a time
+command_queue = Queue()
+stop_event = event.Event()
+valve_thread_spawned = False  # track if we started the thread
+
 def get_valve_device_path():
     with open(SETTINGS_FILE, "r") as f:
         settings = json.load(f)
@@ -70,16 +61,137 @@ def get_valve_device_path():
         raise RuntimeError("No valve relay device configured in settings.")
     return valve_device
 
-def reinitialize_valve_relay_service():
+def valve_main_loop():
     """
-    Reinitialize (open/close) the valve relay device.
+    Runs in a dedicated Eventlet thread:
+      1) Open serial port once.
+      2) Process any on/off commands from command_queue.
+      3) Once per second, send 0xFF to read the hardware status & parse it.
     """
     try:
         device_path = get_valve_device_path()
-        with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
-            # Example: turn off all 8 valves as a quick test
-            for i in range(1, 9):
-                ser.write(VALVE_OFF_COMMANDS[i])
+    except Exception as e:
+        print(f"[Valve] Could not open valve device path: {e}")
+        set_error("VALVE_RELAY_OFFLINE")
+        return
+
+    print(f"[Valve] Starting main loop with device: {device_path}")
+    try:
+        with serial_lock:
+            ser = serial.Serial(device_path, baudrate=9600, timeout=1)
+
+        clear_error("VALVE_RELAY_OFFLINE")
+
+        while not stop_event.ready():
+            # 1) Process any queued commands
+            while not command_queue.empty():
+                cmd = command_queue.get()
+                # e.g. cmd = b'\xA0\x01\x01\xA2'
+                with serial_lock:
+                    ser.write(cmd)
+                eventlet.sleep(0.01)  # small gap
+
+            # 2) Send 0xFF to query the hardware states
+            with serial_lock:
+                ser.write(b'\xFF')
+                eventlet.sleep(0.05)
+                # Usually, we expect 8 or 9 bytes back (one byte per relay plus a trailing 0xFF)
+                # Let's read up to 10 bytes to be safe.
+                response = ser.read(10)
+
+            parse_hardware_response(response)
+
+            # Sleep ~1 second between polls
+            eventlet.sleep(1)
+
+    except Exception as e:
+        print(f"[Valve] Error in main loop: {e}")
+        set_error("VALVE_RELAY_OFFLINE")
+    finally:
+        # on exit, close the port
+        with serial_lock:
+            try:
+                ser.close()
+            except:
+                pass
+        print("[Valve] Exiting valve_main_loop()")
+
+def parse_hardware_response(response):
+    """
+    Example hardware response for 8 relays, with trailing 0xFF:
+      {0x01}{0x00}{0x00}{0x00}{0x00}{0x00}{0x00}{0x01}{0xFF}
+    Means relay 1 & 8 are ON, the rest are OFF.
+    If the device sends a 9th or 10th byte, we ignore or check for 0xFF trailing.
+    """
+    if not response:
+        return
+
+    # We might see up to 9 or 10 bytes, typically 8 data + 1 trailing 0xFF
+    # let's slice the first 8 for the states, ignoring trailing bytes
+    data = response[:8]
+    # If the board is consistent, the 9th byte is 0xFF. We'll just ignore or check it.
+
+    for i in range(1, 9):
+        # i => 1..8
+        idx = i - 1
+        if idx < len(data):
+            # If data[idx] == 1 => ON, else OFF
+            if data[idx] == 1:
+                valve_status[i] = "on"
+            else:
+                valve_status[i] = "off"
+    # Optionally, we could print debug info
+    # print(f"[Valve] Polled hardware: {valve_status}")
+
+def init_valve_thread():
+    """
+    Spawns the valve thread if a valve relay device is assigned.
+    """
+    from utils.settings_utils import load_settings
+    global valve_thread_spawned, stop_event
+    device_path = get_valve_device_path()
+    if not device_path:
+        print("[Valve] No valve relay device assigned. Not starting thread.")
+        return
+    if valve_thread_spawned:
+        print("[Valve] Valve thread already running.")
+        return
+    stop_event.reset()
+    valve_thread_spawned = True
+    eventlet.spawn(valve_main_loop)
+    print("[Valve] Valve thread spawned.")
+
+def stop_valve_thread():
+    """
+    Signals the valve thread to stop.
+    """
+    global valve_thread_spawned
+    if valve_thread_spawned:
+        print("[Valve] Stopping valve thread...")
+        stop_event.send()
+        eventlet.sleep(1)
+        valve_thread_spawned = False
+
+
+def reinitialize_valve_relay_service():
+    """
+    Stop the old thread, start a new one, and ensure all relays are OFF initially.
+    """
+    global valve_thread_spawned, stop_event
+    print("[Valve] reinitialize_valve_relay_service called.")
+    try:
+        stop_valve_thread()
+        # Clear queue
+        while not command_queue.empty():
+            command_queue.get()
+        # Enqueue commands to turn all off
+        for i in range(1, 9):
+            command_queue.put(VALVE_OFF_COMMANDS[i])
+
+        # Start fresh
+        valve_thread_spawned = False
+        init_valve_thread()
+
         print("Valve Relay service reinitialized successfully.")
         clear_error("VALVE_RELAY_OFFLINE")
     except Exception as e:
@@ -88,38 +200,30 @@ def reinitialize_valve_relay_service():
 
 def turn_on_valve(valve_id):
     """
-    Turns on the given channel (1-8) of the valve relay.
+    Enqueue command to turn on a specific valve channel.
+    We'll also set local valve_status to 'on' for immediate guess.
     """
-    try:
-        device_path = get_valve_device_path()
-        with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
-            ser.write(VALVE_ON_COMMANDS[valve_id])
-        print(f"Valve {valve_id} turned ON.")
-        valve_status[valve_id] = "on"
-        clear_error("VALVE_RELAY_OFFLINE")
-    except Exception as e:
-        print(f"Error turning on valve {valve_id}: {e}")
-        set_error("VALVE_RELAY_OFFLINE")
+    if valve_id < 1 or valve_id > 8:
+        raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
+
+    # Enqueue the actual command
+    command_queue.put(VALVE_ON_COMMANDS[valve_id])
+    # Locally set to "on" (the hardware poll will confirm or correct in next second)
+    valve_status[valve_id] = "on"
 
 def turn_off_valve(valve_id):
     """
-    Turns off the given channel (1-8) of the valve relay.
+    Enqueue command to turn off a specific valve channel.
+    We'll also set local valve_status to 'off' for immediate guess.
     """
-    try:
-        device_path = get_valve_device_path()
-        with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
-            ser.write(VALVE_OFF_COMMANDS[valve_id])
-        print(f"Valve {valve_id} turned OFF.")
-        valve_status[valve_id] = "off"
-        clear_error("VALVE_RELAY_OFFLINE")
-    except Exception as e:
-        print(f"Error turning off valve {valve_id}: {e}")
-        set_error("VALVE_RELAY_OFFLINE")
+    if valve_id < 1 or valve_id > 8:
+        raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
+
+    command_queue.put(VALVE_OFF_COMMANDS[valve_id])
+    valve_status[valve_id] = "off"
 
 def get_valve_status(valve_id):
     """
-    Returns the current 'on'/'off' status from our local dictionary.
-    Note: If you want actual hardware status, you can send 0xFF (0xFF in hex)
-    to query the relay, then parse the returned bytes.
+    Returns the last known 'on'/'off' state (based on the last poll).
     """
     return valve_status.get(valve_id, "unknown")

@@ -212,6 +212,11 @@ def start_threads():
     eventlet.spawn(monitor_water_level_sensors)
     log_with_timestamp("Water level sensor monitor spawned.")
 
+    # If there's a valve device assigned, start it
+    from services.valve_relay_service import init_valve_thread
+    init_valve_thread()
+
+
 # ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
 start_threads()
 
