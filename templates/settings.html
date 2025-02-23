@@ -296,14 +296,16 @@
                     }
                 });
 
-                //const relayWarning = document.getElementById('relay-warning');
-                //relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
+                // Show warning if no relay
+                const relayWarning = document.getElementById('relay-warning');
+                relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
                 // pH Range
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
                 // General
+                document.getElementById('system-name').value = settings.system_name || '';
                 document.getElementById('ph-target').value = settings.ph_target || '5.8';
                 document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
                 document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
@@ -346,18 +348,6 @@
                 document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
                 document.getElementById('sensor3-label').value = sensors.sensor3.label;
                 document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
-
-                // Enable/disable forms based on whether Relay is assigned
-                const isRelayAssigned = Boolean(assignedRelay);
-                document.querySelectorAll(
-                    '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
-                ).forEach(el => {
-                    el.disabled = !isRelayAssigned;
-                });
-
-                // Show warning if no relay
-                //const relayWarning = document.getElementById('relay-warning');
-                //relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
         }
@@ -382,6 +372,21 @@
             .catch(err => console.error(`Error assigning ${role}:`, err));
         }
 
+        // Helper to POST settings to the server
+        function saveSettings(endpoint, payload) {
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                console.log('Settings saved successfully');
+                // Optionally re-fetch to refresh UI
+                fetchUsbDevices();
+            })
+            .catch(error => console.error('Error saving settings:', error));
+        }
+
         // pH Probe
         document.getElementById('ph-form').addEventListener('submit', evt => {
             evt.preventDefault();
@@ -393,7 +398,6 @@
         document.getElementById('dosing-relay-form').addEventListener('submit', evt => {
             evt.preventDefault();
             const dev = document.getElementById('dosing-relay-device').value;
-            // The existing code in your backend expects role='relay' for the dosing relay
             saveUsbAssignment('relay', dev);
         });
 
@@ -401,7 +405,6 @@
         document.getElementById('valve-relay-form').addEventListener('submit', evt => {
             evt.preventDefault();
             const dev = document.getElementById('valve-relay-device').value;
-            // The new role for the valve relay is 'valve_relay'
             saveUsbAssignment('valve_relay', dev);
         });
 
@@ -423,7 +426,7 @@
         document.getElementById('general-settings-form').addEventListener('submit', event => {
             event.preventDefault();
             const payload = {
-                system_name: document.getElementById('system-name').value,  // NEW
+                system_name: document.getElementById('system-name').value,
                 ph_target: parseFloat(document.getElementById('ph-target').value),
                 max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
                 dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
