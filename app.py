@@ -242,6 +242,10 @@ def calibration():
 def configuration():
     return render_template('configuration.html')
 
+@app.route('/valves')
+def valves_page():
+    return render_template('valves.html')
+
 @socketio.on('connect')
 def handle_connect():
     log_with_timestamp("Client connected")

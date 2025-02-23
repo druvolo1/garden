@@ -36,6 +36,16 @@ if not os.path.exists(SETTINGS_FILE):
             "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
             "ph_target": 5.8,
             "relay_ports": {"ph_up": 1, "ph_down": 2},
+            "valve_labels": {
+                "1": "Valve #1",
+                "2": "Valve #2",
+                "3": "Valve #3",
+                "4": "Valve #4",
+                "5": "Valve #5",
+                "6": "Valve #6",
+                "7": "Valve #7",
+                "8": "Valve #8"
+            },
             "water_level_sensors": {
                 "sensor1": {"label": "Full",  "pin": 22},
                 "sensor2": {"label": "3 Gal", "pin": 23},
@@ -125,6 +135,16 @@ def reset_settings():
         "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
         "ph_target": 5.8,
         "relay_ports": {"ph_up": 1, "ph_down": 2},
+        "valve_labels": {
+            "1": "Valve #1",
+            "2": "Valve #2",
+            "3": "Valve #3",
+            "4": "Valve #4",
+            "5": "Valve #5",
+            "6": "Valve #6",
+            "7": "Valve #7",
+            "8": "Valve #8"
+        },
         "water_level_sensors": {
             "sensor1": {"label": "Full",  "pin": 22},
             "sensor2": {"label": "3 Gal", "pin": 23},

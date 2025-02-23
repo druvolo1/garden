@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Valve Control</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/configuration">Configuration</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/valves" class="active">Valves</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Valve Control</h1>
+    <p>This page allows you to name each valve and turn them on/off.</p>
+
+    <table id="valve-table" border="1" cellpadding="8" cellspacing="0">
+      <thead>
+        <tr>
+          <th>Valve ID</th>
+          <th>Label</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Rows will be populated by JavaScript -->
+      </tbody>
+    </table>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        fetchValveStatus();
+      });
+
+      function fetchValveStatus() {
+        fetch("/api/valve_relay/all_status")
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === "success") {
+              populateTable(data.valves);
+            } else {
+              console.error("Failed to fetch valve status:", data.error);
+            }
+          })
+          .catch(err => {
+            console.error("Error fetching valve status:", err);
+          });
+      }
+
+      function populateTable(valves) {
+        const tbody = document.querySelector("#valve-table tbody");
+        tbody.innerHTML = ""; // Clear existing rows
+
+        // valves is an object: { "1": {label: "Fill", status: "on"}, "2": {...}, ... }
+        Object.keys(valves).forEach(valveId => {
+          const info = valves[valveId];
+          const label = info.label || "";
+          const status = info.status || "unknown";
+
+          // Create a table row
+          const tr = document.createElement('tr');
+
+          // Valve ID cell
+          const idCell = document.createElement('td');
+          idCell.textContent = valveId;
+          tr.appendChild(idCell);
+
+          // Label cell (with input + Save Label button)
+          const labelCell = document.createElement('td');
+          const labelInput = document.createElement('input');
+          labelInput.type = "text";
+          labelInput.value = label;
+          labelInput.id = `valve-label-${valveId}`;
+          labelCell.appendChild(labelInput);
+
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = "Save Label";
+          saveBtn.onclick = () => saveLabel(valveId);
+          labelCell.appendChild(saveBtn);
+
+          tr.appendChild(labelCell);
+
+          // Status cell
+          const statusCell = document.createElement('td');
+          statusCell.id = `valve-status-${valveId}`;
+          statusCell.textContent = status;
+          tr.appendChild(statusCell);
+
+          // Actions cell (On/Off)
+          const actionCell = document.createElement('td');
+          const onBtn = document.createElement('button');
+          onBtn.textContent = "ON";
+          onBtn.onclick = () => turnValveOn(valveId);
+
+          const offBtn = document.createElement('button');
+          offBtn.textContent = "OFF";
+          offBtn.onclick = () => turnValveOff(valveId);
+
+          actionCell.appendChild(onBtn);
+          actionCell.appendChild(offBtn);
+          tr.appendChild(actionCell);
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      function saveLabel(valveId) {
+        const newLabel = document.getElementById(`valve-label-${valveId}`).value;
+        fetch(`/api/valve_relay/label/${valveId}`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({label: newLabel})
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.status === "success") {
+              console.log(`Label saved for valve ${valveId}: ${newLabel}`);
+            } else {
+              console.error("Failed to save label:", data.error);
+            }
+          })
+          .catch(err => console.error("Error saving label:", err));
+      }
+
+      function turnValveOn(valveId) {
+        fetch(`/api/valve_relay/${valveId}/on`, {method: "POST"})
+          .then(r => r.json())
+          .then(data => {
+            if (data.status === "success") {
+              // Update the status cell
+              document.getElementById(`valve-status-${valveId}`).textContent = "on";
+            } else {
+              console.error("Failed to turn valve on:", data.error);
+            }
+          })
+          .catch(err => console.error("Error turning valve on:", err));
+      }
+
+      function turnValveOff(valveId) {
+        fetch(`/api/valve_relay/${valveId}/off`, {method: "POST"})
+          .then(r => r.json())
+          .then(data => {
+            if (data.status === "success") {
+              // Update the status cell
+              document.getElementById(`valve-status-${valveId}`).textContent = "off";
+            } else {
+              console.error("Failed to turn valve off:", data.error);
+            }
+          })
+          .catch(err => console.error("Error turning valve off:", err));
+      }
+    </script>
+
+  </main>
+</body>
+</html>
