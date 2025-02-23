@@ -3,7 +3,7 @@
 import os
 import json
 import eventlet
-from eventlet.green import serial  # eventlet-friendly serial
+import serial
 from eventlet.queue import Queue
 from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
