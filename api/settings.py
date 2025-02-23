@@ -170,14 +170,14 @@ def list_usb_devices():
 
     return jsonify(devices)
 
-# API endpoint: Assign a USB device to a specific role
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
     data = request.get_json()
     role = data.get("role")
     device = data.get("device")
 
-    if role not in ["ph_probe", "relay"]:
+    # UPDATED: Now also accept "valve_relay"
+    if role not in ["ph_probe", "relay", "valve_relay"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
     settings = load_settings()
@@ -193,18 +193,24 @@ def assign_usb_device():
 
     save_settings(settings)
 
-    # Restart services if changed
+    # If the role changed is "ph_probe", restart ph service
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
+
+    # If the role changed is "relay", reinit dosing relay
     if role == "relay":
         from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
-    # Emit a status_update event
-    emit_status_update()
+    # If the role changed is "valve_relay", reinit valve relay
+    if role == "valve_relay":
+        from services.valve_relay_service import reinitialize_valve_relay_service
+        reinitialize_valve_relay_service()
 
+    emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
+
 
 # -------------------
 # NEW ENDPOINTS BELOW

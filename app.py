@@ -14,7 +14,7 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 
 from api.ph import ph_blueprint
-from api.relay import relay_blueprint
+from api.pump_relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
@@ -34,6 +34,8 @@ from services.device_config import (
     set_timezone, set_ntp_server, set_wifi_config
 )
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
+from api.valve_relay import valve_relay_blueprint
+
 
 app = Flask(__name__)
 CORS(app)
@@ -211,7 +213,7 @@ def start_threads():
     log_with_timestamp("Water level sensor monitor spawned.")
 
 # ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
-start_threads()
+#start_threads()
 
 # Register our Blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
@@ -220,6 +222,7 @@ app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
 app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
+app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 
 @app.route('/')
 def index():

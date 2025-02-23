@@ -6,6 +6,7 @@ eventlet.monkey_patch()
 from app import app, start_threads
 # CHANGE THIS IMPORT to match the actual function name in mdns_service.py
 from services.mdns_service import update_mdns_service
+from api.valve_relay import valve_relay_blueprint
 
 # -----------------------
 # GUNICORN HOOKS/CONFIG
