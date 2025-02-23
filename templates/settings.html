@@ -218,6 +218,28 @@
         document.addEventListener('DOMContentLoaded', () => {
             fetchUsbDevices();
         });
+        
+        // Function to update weeks since start
+        function updateWeeksSinceStart(startDateStr) {
+            const weeksSpan = document.getElementById('weeks-since-start');
+            if (!startDateStr) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const startDate = new Date(startDateStr);
+            if (isNaN(startDate)) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const now = new Date();
+            const diffMs = now - startDate;
+            if (diffMs < 0) {
+                weeksSpan.textContent = '0';
+                return;
+            }
+            const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+            weeksSpan.textContent = weeks.toString();
+        }
 
         // Fetch devices + settings
         function fetchUsbDevices() {
@@ -274,11 +296,68 @@
                     }
                 });
 
-                const relayWarning = document.getElementById('relay-warning');
+                //const relayWarning = document.getElementById('relay-warning');
                 relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
-                // Fill in other settings fields (ph-range, system-name, etc.)
-                // left out for brevity since your original code handles that
+                // pH Range
+                document.getElementById('ph-min').value = settings.ph_range?.min || '';
+                document.getElementById('ph-max').value = settings.ph_range?.max || '';
+
+                // General
+                document.getElementById('ph-target').value = settings.ph_target || '5.8';
+                document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
+                document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
+                document.getElementById('system-volume').value = settings.system_volume || '';
+                document.getElementById('time-zone').value = settings.time_zone || '';
+                document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+
+                // Dosage Strength
+                document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
+                document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+
+                // Pump Calibration
+                document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
+                document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
+
+                // Relay Ports
+                const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
+                document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
+                document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
+
+                // PLANT INFO:
+                const plantInfo = settings.plant_info || {};
+                document.getElementById('plant-name').value = plantInfo.name || '';
+                document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+                updateWeeksSinceStart(plantInfo.start_date);
+
+                // WATER LEVEL SENSORS
+                const sensors = settings.water_level_sensors || {
+                    sensor1: { label: "Full", pin: 22 },
+                    sensor2: { label: "3 Gal", pin: 23 },
+                    sensor3: { label: "Empty", pin: 24 }
+                };
+
+                console.log('Water Level Sensors:', sensors); // Debugging line
+
+                // Populate each sensor field
+                document.getElementById('sensor1-label').value = sensors.sensor1.label;
+                document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
+                document.getElementById('sensor2-label').value = sensors.sensor2.label;
+                document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
+                document.getElementById('sensor3-label').value = sensors.sensor3.label;
+                document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
+
+                // Enable/disable forms based on whether Relay is assigned
+                const isRelayAssigned = Boolean(assignedRelay);
+                document.querySelectorAll(
+                    '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
+                ).forEach(el => {
+                    el.disabled = !isRelayAssigned;
+                });
+
+                // Show warning if no relay
+                const relayWarning = document.getElementById('relay-warning');
+                relayWarning.style.display = isRelayAssigned ? 'none' : 'block';
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
         }
