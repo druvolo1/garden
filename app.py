@@ -213,7 +213,7 @@ def start_threads():
     log_with_timestamp("Water level sensor monitor spawned.")
 
 # ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
-#start_threads()
+start_threads()
 
 # Register our Blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
