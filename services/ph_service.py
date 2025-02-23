@@ -88,10 +88,6 @@ def parse_buffer(ser):
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 def serial_reader():
-    """
-    Continuously checks if there's a ph_probe assigned, tries to open/read serial data, 
-    and updates latest_ph_value. If no device is assigned, quietly sleeps and re-checks. 
-    """
     global ser  # Use the global serial connection
     print("DEBUG: Entered serial_reader() at all...")
 
@@ -99,8 +95,15 @@ def serial_reader():
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
+        # If no pH device is assigned, quietly wait 5s and skip connecting.
+        if not ph_probe_path:
+            # Clear any "offline" error if you consider "no device assigned" normal
+            clear_error("PH_USB_OFFLINE")
+            eventlet.sleep(5)
+            continue
+
+        # Only if we have a device assigned, let's list devices for debugging
         try:
-            # Attempt to list devices just once, mostly for debugging info
             dev_list = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
             dev_list_str = ", ".join(dev_list) if dev_list else "No devices found"
             log_with_timestamp(f"Devices in /dev/serial/by-id: {dev_list_str}")
@@ -109,15 +112,7 @@ def serial_reader():
 
         log_with_timestamp(f"Currently assigned pH probe device in settings: {ph_probe_path}")
 
-        if not ph_probe_path:
-            # No device is assigned; do NOT spam logs or attempt to connect
-            clear_error("PH_USB_OFFLINE")  # Clear error if we consider 'no device assigned' not an error
-            eventlet.sleep(1)
-            continue
-
-        # We have a device assigned, let's try connecting
-        log_with_timestamp(f"Attempting to open pH probe device: {ph_probe_path}")
-
+        # Now attempt to open the assigned device
         try:
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
             clear_error("PH_USB_OFFLINE")
@@ -129,7 +124,7 @@ def serial_reader():
                 buffer = ""
                 log_with_timestamp("Buffer cleared on new device connection.")
 
-            # Read loop
+            # Main read loop
             while not stop_event.ready():
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
@@ -147,10 +142,12 @@ def serial_reader():
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
             set_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
+
         finally:
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("Serial connection closed.")
+
 
 def send_configuration_commands(ser):
     try:
