@@ -1,3 +1,4 @@
+# File: ph_service.py
 print(f"LOADED ph_service.py from {__file__}", flush=True)
 
 import eventlet
@@ -43,13 +44,15 @@ def send_command_to_probe(ser, command):
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
 def parse_buffer(ser):
+    """
+    Parses any complete line(s) in 'buffer', updates latest_ph_value if a valid pH reading is found.
+    If the response is *OK or *ER, handle the command queue logic.
+    """
     global buffer, latest_ph_value, last_sent_command
 
     while '\r' in buffer:
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
-
-        #log_with_timestamp(f"parse_buffer found line: {line!r}")
 
         if not line:
             log_with_timestamp("Skipping empty line from parse_buffer.")
@@ -69,6 +72,7 @@ def parse_buffer(ser):
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
+        # Attempt to parse a pH reading from the line
         try:
             ph_value = round(float(line), 2)
             if not (0.0 <= ph_value <= 14.0):
@@ -77,7 +81,6 @@ def parse_buffer(ser):
             with ph_lock:
                 latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
-
         except ValueError as e:
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
@@ -85,6 +88,10 @@ def parse_buffer(ser):
         log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
 
 def serial_reader():
+    """
+    Continuously checks if there's a ph_probe assigned, tries to open/read serial data, 
+    and updates latest_ph_value. If no device is assigned, quietly sleeps and re-checks. 
+    """
     global ser  # Use the global serial connection
     print("DEBUG: Entered serial_reader() at all...")
 
@@ -93,6 +100,7 @@ def serial_reader():
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
         try:
+            # Attempt to list devices just once, mostly for debugging info
             dev_list = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
             dev_list_str = ", ".join(dev_list) if dev_list else "No devices found"
             log_with_timestamp(f"Devices in /dev/serial/by-id: {dev_list_str}")
@@ -102,24 +110,26 @@ def serial_reader():
         log_with_timestamp(f"Currently assigned pH probe device in settings: {ph_probe_path}")
 
         if not ph_probe_path:
-            log_with_timestamp("No pH probe assigned. Retrying in 5s...")
-            set_error("PH_USB_OFFLINE")
-            eventlet.sleep(5)
+            # No device is assigned; do NOT spam logs or attempt to connect
+            clear_error("PH_USB_OFFLINE")  # Clear error if we consider 'no device assigned' not an error
+            eventlet.sleep(1)
             continue
 
+        # We have a device assigned, let's try connecting
         log_with_timestamp(f"Attempting to open pH probe device: {ph_probe_path}")
 
         try:
-            ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)  # Assign to global ser
+            ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
             clear_error("PH_USB_OFFLINE")
             log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
 
-            # Clear the buffer when connecting to a new device
+            # Clear the buffer on new device connection
             with ph_lock:
                 global buffer
                 buffer = ""
                 log_with_timestamp("Buffer cleared on new device connection.")
 
+            # Read loop
             while not stop_event.ready():
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
@@ -132,6 +142,7 @@ def serial_reader():
                     parse_buffer(ser)
                 else:
                     eventlet.sleep(0.05)
+
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
             set_error("PH_USB_OFFLINE")
@@ -150,6 +161,11 @@ def send_configuration_commands(ser):
         log_with_timestamp(f"Error sending configuration commands: {e}")
 
 def calibrate_ph(ser, level):
+    """
+    Directly sends calibration commands to the pH probe. 
+    It's recommended to use enqueue_calibration(...) if you want them queued up 
+    instead of immediate direct send.
+    """
     valid_levels = {
         'low': 'Cal,low,4.00',
         'mid': 'Cal,mid,7.00',
@@ -175,6 +191,10 @@ def calibrate_ph(ser, level):
             return {"status": "failure", "message": "A command is already in progress"}
 
 def enqueue_calibration(level):
+    """
+    Places a calibration command into the queue for subsequent sending once 
+    the probe responds to prior commands.
+    """
     valid_levels = {
         'low': 'Cal,low,4.00',
         'mid': 'Cal,mid,7.00',
@@ -183,32 +203,34 @@ def enqueue_calibration(level):
     }
 
     if level not in valid_levels:
-        return {"status": "failure", "message": f"Invalid calibration level: {level}. Must be one of {list(valid_levels.keys())}."}
+        return {
+            "status": "failure",
+            "message": f"Invalid calibration level: {level}. Must be one of {list(valid_levels.keys())}."
+        }
 
     command = valid_levels[level]
     command_queue.put({"command": command, "type": "calibration"})
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
 
 def restart_serial_reader():
+    """
+    Stops the current serial_reader thread (if any), clears buffer/state, and spawns a new one.
+    """
     global stop_event, buffer, latest_ph_value
     log_with_timestamp("Restarting serial reader...")
 
-    # Clear the buffer and reset the latest pH value
+    # Clear buffer & reading
     with ph_lock:
         buffer = ""
         latest_ph_value = None
         log_with_timestamp("Buffer and latest pH value cleared.")
 
-    # Stop the existing thread
     stop_serial_reader()
 
-    # Add a small delay to ensure the old thread is fully stopped
-    eventlet.sleep(1)  # 1-second delay
+    # Small delay to ensure the old thread is done
+    eventlet.sleep(1)
 
-    # Reset the stop event
     stop_event = eventlet.event.Event()
-
-    # Start a new thread
     start_serial_reader()
 
 def get_last_sent_command():
@@ -218,37 +240,57 @@ def get_last_sent_command():
     return "No command has been sent yet."
 
 def start_serial_reader():
+    """
+    Spawns the background serial_reader thread using Eventlet.
+    """
     eventlet.spawn(serial_reader)
     log_with_timestamp("Serial reader started.")
 
 def stop_serial_reader():
+    """
+    Signals the serial_reader thread to stop, closes the serial port, and clears buffer/state.
+    """
     global buffer, latest_ph_value, ser
     log_with_timestamp("Stopping serial reader...")
 
-    # Clear the buffer and reset the latest pH value
     with ph_lock:
         buffer = ""
         latest_ph_value = None
         log_with_timestamp("Buffer and latest pH value cleared during stop.")
 
-    # Close the serial connection if it's open
     if ser and ser.is_open:
         ser.close()
         log_with_timestamp("Serial connection closed.")
 
-    # Fire the event to stop the thread
     stop_event.send()
     log_with_timestamp("Serial reader stopped.")
 
 def get_latest_ph_reading():
+    """
+    Returns the most recent pH reading if a pH device is assigned.
+    - If no pH device assigned, returns None with NO log message.
+    - If a device is assigned but no reading, logs "No pH reading available." once and returns None.
+    """
     global latest_ph_value
+
+    settings = load_settings()
+    ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
+    if not ph_probe_path:
+        # No device assigned -> return None, no log
+        return None
+
     with ph_lock:
         if latest_ph_value is not None:
             return latest_ph_value
+
+    # If we have a device assigned but haven't gotten a reading yet
     log_with_timestamp("No pH reading available.")
     return None
 
 def graceful_exit(signum, frame):
+    """
+    Called on SIGINT/SIGTERM. Cleans up serial_reader then exits.
+    """
     log_with_timestamp(f"Received signal {signum}. Cleaning up...")
     try:
         stop_serial_reader()
@@ -258,10 +300,13 @@ def graceful_exit(signum, frame):
     raise SystemExit()
 
 def handle_stop_signal(signum, frame):
+    """
+    Called on SIGTSTP. You could decide if you want to handle that differently.
+    """
     log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
     graceful_exit(signum, frame)
 
-# Uncomment and add proper signal handling if needed.
+# Uncomment and add proper signal handling if needed:
 # signal.signal(signal.SIGINT, graceful_exit)
 # signal.signal(signal.SIGTERM, graceful_exit)
 # signal.signal(signal.SIGTSTP, handle_stop_signal)
