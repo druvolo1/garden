@@ -28,7 +28,7 @@ def check_relay_offline():
     Attempt to open the relay device path. If it fails, mark `RELAY_USB_OFFLINE`.
     If it succeeds, clear that error.
     """
-    from services.relay_service import get_relay_device_path
+    from services.pump_relay_service import get_relay_device_path
     try:
         device_path = get_relay_device_path()  # from relay_service
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:

@@ -2,7 +2,7 @@
 
 import eventlet
 from services.ph_service import get_latest_ph_reading
-from services.relay_service import turn_on_relay, turn_off_relay
+from services.pump_relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
 
 def get_dosage_info():

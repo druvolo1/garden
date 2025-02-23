@@ -198,7 +198,7 @@ def assign_usb_device():
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
     if role == "relay":
-        from services.relay_service import reinitialize_relay_service
+        from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
     # Emit a status_update event
