@@ -432,36 +432,53 @@
             const dev = document.getElementById('valve-relay-device').value;
             saveUsbAssignment('valve_relay', dev);
         });
+
         // Water Valve Assignment Handling
         document.getElementById('retrieve-valves').addEventListener('click', () => {
-            const ip = document.getElementById('water-valve-ip').value;
-            if (!ip) {
+            const ipInput = document.getElementById('water-valve-ip').value.trim();
+            
+            if (!ipInput) {
                 alert('Please enter an IP address');
                 return;
             }
 
-            fetch(`http://${ip}:8000/api/valve_relay/list_names`)
-                .then(response => response.json())
-                .then(valves => {
+            // Parse IP and port (handle cases with/without port)
+            let [host, port] = ipInput.split(':');
+            port = port || '8000'; // Default to port 8000 if not specified
+
+            const url = `http://${host}:${port}/api/valve_relay/list_names`;
+            console.log('Attempting to fetch from:', url);
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Handle different response formats
+                    const valves = Array.isArray(data) ? data : data.valves || data.data || [];
+                    
+                    if (!valves.length) {
+                        throw new Error('No valves found in response');
+                    }
+
                     const fillSelect = document.getElementById('fill-valve');
                     const drainSelect = document.getElementById('drain-valve');
                     
-                    // Clear existing options
                     fillSelect.innerHTML = '<option value="">Select Fill Valve</option>';
                     drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
 
-                    // Populate new options
                     valves.forEach(valve => {
-                        const option = document.createElement('option');
-                        option.value = valve;
-                        option.textContent = valve;
-                        fillSelect.appendChild(option.cloneNode(true));
-                        drainSelect.appendChild(option.cloneNode(true));
+                        const option = new Option(valve, valve);
+                        fillSelect.add(option);
+                        drainSelect.add(option.cloneNode());
                     });
                 })
                 .catch(error => {
-                    console.error('Error fetching valves:', error);
-                    alert('Failed to retrieve valves. Check IP and connection.');
+                    console.error('Fetch error:', error);
+                    alert(`Error retrieving valves: ${error.message}\nCheck:\n1. Controller is online\n2. Port ${port} is open\n3. Correct API endpoint`);
                 });
         });
 
