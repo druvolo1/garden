@@ -173,8 +173,24 @@
                         document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
 
                         // Fetch each valve’s status
-                        fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  'fill-valve-toggle');
-                        fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', 'drain-valve-toggle');
+                        // Inside the .then(settings => {...}) block where you show drainFillSection:
+
+                        // Event listeners for Fill
+                        document.getElementById('fill-valve-on').addEventListener('click', () => {
+                            setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
+                        });
+                        document.getElementById('fill-valve-off').addEventListener('click', () => {
+                            setValveState(settings.water_fill_valve, 'fill-valve-status', 'off');
+                        });
+
+                        // Event listeners for Drain
+                        document.getElementById('drain-valve-on').addEventListener('click', () => {
+                            setValveState(settings.water_drain_valve, 'drain-valve-status', 'on');
+                        });
+                        document.getElementById('drain-valve-off').addEventListener('click', () => {
+                            setValveState(settings.water_drain_valve, 'drain-valve-status', 'off');
+                        });
+
 
                         // Attach click handlers for toggling
                         document.getElementById('fill-valve-toggle').addEventListener('click', () => {
@@ -192,7 +208,24 @@
                 })
                 .catch(err => console.error('Error fetching settings:', err));
 
-        
+                async function setValveState(valveName, statusId, action) {
+                    try {
+                        // e.g. "/api/valve_relay/Zone%201%20Supply/on" or "/off"
+                        const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+                        const response = await fetch(url, { method: 'POST' });
+                        const data = await response.json();
+
+                        if (data.status === 'success' && data.action) {
+                            // data.action is "on"/"off"
+                            updateValveDisplay(statusId, null, data.action);
+                        } else {
+                            console.error('Error setting valve state:', data.error || 'unknown');
+                        }
+                    } catch (err) {
+                        console.error('Error setting valve state:', err);
+                    }
+                }
+
             // Helper to fetch a valve’s current status
             async function fetchValveStatus(valveName, statusId, buttonId) {
                 try {
