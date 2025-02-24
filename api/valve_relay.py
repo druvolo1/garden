@@ -3,6 +3,8 @@ from services.valve_relay_service import (
     turn_on_valve, turn_off_valve, get_valve_status
 )
 from utils.settings_utils import load_settings, save_settings
+# NEW: Import emit_status_update
+from status_namespace import emit_status_update
 
 valve_relay_blueprint = Blueprint('valve_relay', __name__)
 
@@ -13,6 +15,8 @@ valve_relay_blueprint = Blueprint('valve_relay', __name__)
 def valve_on(valve_id):
     try:
         turn_on_valve(valve_id)
+        # Emit status_update so clients see changes immediately
+        emit_status_update()
         return jsonify({"status": "success", "valve_id": valve_id, "action": "on"})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
@@ -21,6 +25,7 @@ def valve_on(valve_id):
 def valve_off(valve_id):
     try:
         turn_off_valve(valve_id)
+        emit_status_update()
         return jsonify({"status": "success", "valve_id": valve_id, "action": "off"})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
@@ -43,6 +48,7 @@ def valve_on_by_name(valve_name):
         if valve_id is None:
             return jsonify({"status": "failure", "error": f"No valve found with name '{valve_name}'"}), 404
         turn_on_valve(valve_id)
+        emit_status_update()
         return jsonify({"status": "success", "valve_name": valve_name, "action": "on"})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
@@ -54,6 +60,7 @@ def valve_off_by_name(valve_name):
         if valve_id is None:
             return jsonify({"status": "failure", "error": f"No valve found with name '{valve_name}'"}), 404
         turn_off_valve(valve_id)
+        emit_status_update()
         return jsonify({"status": "success", "valve_name": valve_name, "action": "off"})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
