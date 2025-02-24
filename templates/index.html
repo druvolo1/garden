@@ -152,7 +152,7 @@
                 try {
                     // GET /valve_relay/<valve_name>/status
                     // e.g. /valve_relay/"Zone 1 Supply"/status
-                    const url = '/valve_relay/' + encodeURIComponent(valveName) + '/status';
+                    const url = '/api/valve_relay/' + encodeURIComponent(valveName) + '/status';
                     const res = await fetch(url);
                     const data = await res.json();
 
@@ -178,7 +178,7 @@
                     // We have two distinct endpoints:
                     //    POST /valve_relay/<valve_name>/on
                     //    POST /valve_relay/<valve_name>/off
-                    const url = `/valve_relay/${encodeURIComponent(valveName)}/${nextAction}`;
+                    const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${nextAction}`;
 
                     const response = await fetch(url, {
                         method: 'POST'
