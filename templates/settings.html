@@ -287,8 +287,8 @@
                 valveDevSelect.innerHTML = '<option value="">Select a device</option>';
 
                 document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
-                document.getElementById('fill-valve').value = settings.fill_valve || '';
-                document.getElementById('drain-valve').value = settings.drain_valve || '';
+                document.getElementById('fill-valve').value = settings.water_fill_valve || '';
+                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
 
                 devices.forEach(dev => {
                     const phOption = document.createElement('option');
@@ -491,18 +491,10 @@
 
         document.getElementById('water-valve-form').addEventListener('submit', event => {
             event.preventDefault();
-            const fillValve = document.getElementById('fill-valve').value;
-            const drainValve = document.getElementById('drain-valve').value;
-            
-            if (fillValve && fillValve === drainValve) {
-                alert('Fill and Drain valves cannot be the same');
-                return;
-            }
-            
             const payload = {
                 water_valve_ip: document.getElementById('water-valve-ip').value,
-                water_fill_valve: fillValve,
-                water_drain_valve: drainValve
+                water_fill_valve: document.getElementById('fill-valve').value,
+                water_drain_valve: document.getElementById('drain-valve').value
             };
             saveSettings("/api/settings", payload);
         });
