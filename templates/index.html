@@ -24,13 +24,14 @@
     </nav>
 
     <main>
-        <!-- NEW: Display System Name -->
+        <!-- Display System Name -->
         <h1 id="system-name-display" style="margin-bottom: 0.5rem;">Loading...</h1>
 
         <!-- Existing Title -->
         <h1>pH Dosing System</h1>
         <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
+        <!-- pH Reading Container (hidden if no pH probe) -->
         <div class="data-container" id="ph-reading-section" style="display: none;">
             <h2>Current pH Reading</h2>
             <div id="ph-display" class="data-box">Loading...</div>
@@ -41,6 +42,7 @@
             <div id="water-level-status" class="data-box"></div>
         </div>
 
+        <!-- Drain and Fill Section (hidden if no valve_relay assigned) -->
         <div class="data-container" id="drain-fill-section" style="display: none;">
             <h2>Drain and Fill</h2>
             <div style="display: flex; flex-wrap: wrap; gap: 20px;">
@@ -54,7 +56,7 @@
                         <button id="fill-valve-off" disabled style="flex: 1;">Off</button>
                     </div>
                 </div>
-        
+
                 <!-- Drain Valve -->
                 <div style="flex: 1;">
                     <p>Drain Valve (<span id="drain-valve-name"></span>) Status:
@@ -67,7 +69,6 @@
                 </div>
             </div>
         </div>
-        
     </main>
 
     <script>
@@ -77,46 +78,42 @@
                 reconnectionDelay: 2000,
                 transports: ["websocket"]  // Force WebSocket transport
             });
-        
-            // ======================
-            // 1. Fetch System Name Immediately
-            // ======================
+
+            // 1. Fetch system name
             fetchSystemName();
-        
-            // ======================
-            // 2. WebSocket Setup
-            // ======================
+
+            // 2. Socket setup
             socket.on('connect', () => {
                 console.log("WebSocket connected successfully.");
                 fetchWaterLevel();
-                
-                // If you prefer to conditionally fetch pH here:
+
+                // Conditionally fetch pH if assigned
                 fetch('/api/settings')
                     .then(r => r.json())
                     .then(settings => {
-                    if (settings.usb_roles && settings.usb_roles.ph_probe) {
-                        fetchInitialPh();
-                    }
+                        if (settings.usb_roles && settings.usb_roles.ph_probe) {
+                            fetchInitialPh();
+                        }
                     });
-                });
+            });
 
             socket.on('disconnect', () => {
                 console.log("WebSocket disconnected.");
             });
-        
+
             socket.on('connect_error', (error) => {
                 console.error("WebSocket connection error:", error);
             });
-        
-            // pH updated in real-time
+
+            // pH real-time updates
             socket.on('ph_update', (data) => {
-                console.log("Received ph_update event:", data);
+                console.log("Received ph_update:", data);
                 updatePhDisplay(data.ph);
             });
-        
-            // General status updates (might include pH, water_level, system_name, etc.)
+
+            // General status updates (may include pH, water_level, system_name, etc.)
             socket.on('status_update', (data) => {
-                console.log("Received status_update event:", data); 
+                console.log("Received status_update:", data);
                 if (data.current_ph !== undefined) {
                     updatePhDisplay(data.current_ph);
                 }
@@ -127,63 +124,56 @@
                     document.getElementById('system-name-display').textContent = data.system_name;
                 }
             });
-        
-            // ======================
+
             // 3. Drain/Fill Logic
-            // ======================
-            let fillValveName = "";
-            let drainValveName = "";
-        
-            // Fetch settings to see if water_valve_ip and fill/drain valves are defined
             fetch('/api/settings')
                 .then(res => res.json())
                 .then(settings => {
-                    // =========== pH Container Logic ===========
+                    // pH Container Logic
                     const phSection = document.getElementById('ph-reading-section');
-                    
-                    // If there's no usb_roles or ph_probe is null/empty, hide the container
                     if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
-                    console.log("No pH probe assigned. Hiding pH reading section.");
-                    phSection.style.display = 'none';
+                        console.log("No pH probe assigned. Hiding pH reading section.");
+                        phSection.style.display = 'none';
                     } else {
-                    console.log("pH probe assigned. Showing pH section and fetching data...");
-                    phSection.style.display = 'block';
-                    // Now that we know ph_probe is assigned, fetch pH data
-                    fetchInitialPh();
+                        console.log("pH probe assigned. Showing pH section...");
+                        phSection.style.display = 'block';
+                        fetchInitialPh();
                     }
-                    
-                    // =========== Drain/Fill Logic  ===========
+
+                    // Drain/Fill Container
                     const drainFillSection = document.getElementById('drain-fill-section');
 
-                    // 1) Check if a valve_relay device is assigned
+                    // Check if valve_relay is assigned
                     if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
-                        console.log("No valve_relay device assigned. Hiding Drain and Fill section.");
-                        // Ensure it remains hidden
+                        console.log("No valve_relay device assigned. Hiding Drain and Fill.");
                         drainFillSection.style.display = 'none';
                         return;
                     }
 
-                    // 2) Also check if water_valve_ip + fill_valve + drain_valve are defined
+                    // Check if water_valve_ip + fill_valve + drain_valve exist
                     if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
-                        // Show the Drain/Fill section
                         drainFillSection.style.display = 'block';
 
-                        // Update the label names for Fill/Drain
                         document.getElementById('fill-valve-name').textContent  = settings.water_fill_valve;
                         document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
 
-                        // Fetch each valve’s status
-                        // Inside the .then(settings => {...}) block where you show drainFillSection:
+                        // Enable On/Off buttons
+                        document.getElementById('fill-valve-on').disabled  = false;
+                        document.getElementById('fill-valve-off').disabled = false;
+                        document.getElementById('drain-valve-on').disabled  = false;
+                        document.getElementById('drain-valve-off').disabled = false;
 
-                        // Event listeners for Fill
+                        // Fetch initial statuses
+                        fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  null);
+                        fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', null);
+
+                        // Attach On/Off listeners
                         document.getElementById('fill-valve-on').addEventListener('click', () => {
                             setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
                         });
                         document.getElementById('fill-valve-off').addEventListener('click', () => {
                             setValveState(settings.water_fill_valve, 'fill-valve-status', 'off');
                         });
-
-                        // Event listeners for Drain
                         document.getElementById('drain-valve-on').addEventListener('click', () => {
                             setValveState(settings.water_drain_valve, 'drain-valve-status', 'on');
                         });
@@ -191,52 +181,36 @@
                             setValveState(settings.water_drain_valve, 'drain-valve-status', 'off');
                         });
 
-
-                        // Attach click handlers for toggling
-                        document.getElementById('fill-valve-toggle').addEventListener('click', () => {
-                            toggleValve(settings.water_fill_valve, 'fill-valve-status');
-                        });
-                        document.getElementById('drain-valve-toggle').addEventListener('click', () => {
-                            toggleValve(settings.water_drain_valve, 'drain-valve-status');
-                        });
-
                     } else {
-                        // If water_valve_ip or fill/drain valve names are missing
-                        console.log("No fill/drain config found. Hiding Drain and Fill section.");
+                        console.log("No fill/drain config found. Hiding Drain and Fill.");
                         drainFillSection.style.display = 'none';
                     }
                 })
                 .catch(err => console.error('Error fetching settings:', err));
 
-                async function setValveState(valveName, statusId, action) {
-                    try {
-                        // e.g. "/api/valve_relay/Zone%201%20Supply/on" or "/off"
-                        const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
-                        const response = await fetch(url, { method: 'POST' });
-                        const data = await response.json();
-
-                        if (data.status === 'success' && data.action) {
-                            // data.action is "on"/"off"
-                            updateValveDisplay(statusId, null, data.action);
-                        } else {
-                            console.error('Error setting valve state:', data.error || 'unknown');
-                        }
-                    } catch (err) {
-                        console.error('Error setting valve state:', err);
+            // Helper to set valve on/off
+            async function setValveState(valveName, statusId, action) {
+                try {
+                    const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+                    const response = await fetch(url, { method: 'POST' });
+                    const data = await response.json();
+                    if (data.status === 'success' && data.action) {
+                        updateValveDisplay(statusId, null, data.action);
+                    } else {
+                        console.error('Error setting valve state:', data.error || 'unknown');
                     }
+                } catch (err) {
+                    console.error('Error setting valve state:', err);
                 }
+            }
 
             // Helper to fetch a valve’s current status
             async function fetchValveStatus(valveName, statusId, buttonId) {
                 try {
-                    // GET /valve_relay/<valve_name>/status
-                    // e.g. /valve_relay/"Zone 1 Supply"/status
                     const url = '/api/valve_relay/' + encodeURIComponent(valveName) + '/status';
                     const res = await fetch(url);
                     const data = await res.json();
-
                     if (data.status === 'success') {
-                        // data.valve_status is "on" or "off"
                         updateValveDisplay(statusId, buttonId, data.valve_status);
                     } else {
                         console.error('Valve status error:', data.error || 'Unknown error');
@@ -246,50 +220,13 @@
                 }
             }
 
-        
-            // Helper to toggle a valve on/off
-            async function toggleValve(valveName, statusId) {
-                try {
-                    const currentSpan = document.getElementById(statusId);
-                    const currentStatus = currentSpan.textContent.toLowerCase(); // "on" or "off"
-                    const nextAction = (currentStatus === 'on') ? 'off' : 'on';
-
-                    // We have two distinct endpoints:
-                    //    POST /valve_relay/<valve_name>/on
-                    //    POST /valve_relay/<valve_name>/off
-                    const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${nextAction}`;
-
-                    const response = await fetch(url, {
-                        method: 'POST'
-                    });
-                    const data = await response.json();
-
-                    if (data.status === 'success' && data.action) {
-                        // The server returns { "status": "success", "valve_name": "...", "action": "on" }
-                        // So data.action is "on"/"off"
-                        updateValveDisplay(statusId, null, data.action);
-                    } else {
-                        console.error('Error toggling valve:', data.error || 'unknown');
-                    }
-                } catch (err) {
-                    console.error('Error toggling valve:', err);
-                }
-            }
-
-            // Update the display with new status
+            // Update the display for On/Off
             function updateValveDisplay(statusId, buttonId, newStatus) {
                 const statusSpan = document.getElementById(statusId);
                 statusSpan.textContent = (newStatus.toLowerCase() === 'on') ? 'On' : 'Off';
-
-                if (buttonId) {
-                    const toggleBtn = document.getElementById(buttonId);
-                    toggleBtn.disabled = false;
-                }
             }
 
-            // ======================
             // 4. Existing Helpers
-            // ======================
             async function fetchInitialPh() {
                 try {
                     const response = await fetch('/api/ph/latest');
@@ -299,7 +236,7 @@
                     console.error("Error fetching pH data:", error);
                 }
             }
-        
+
             async function fetchWaterLevel() {
                 try {
                     const response = await fetch('/api/water_level/');
@@ -309,7 +246,7 @@
                     console.error("Error fetching water level:", error);
                 }
             }
-        
+
             async function fetchSystemName() {
                 try {
                     const response = await fetch('/api/settings/system_name');
@@ -320,21 +257,21 @@
                     document.getElementById('system-name-display').textContent = 'Zone 1 (Error)';
                 }
             }
-        
+
             function updatePhDisplay(ph) {
                 const phDisplay = document.getElementById('ph-display');
-                phDisplay.textContent = ph 
-                    ? `Current pH: ${parseFloat(ph).toFixed(2)}` 
+                phDisplay.textContent = ph
+                    ? `Current pH: ${parseFloat(ph).toFixed(2)}`
                     : "pH data unavailable";
             }
-        
+
             function renderWaterLevel(waterLevel) {
                 const container = document.getElementById('water-level-status');
                 if (!waterLevel) {
                     container.innerHTML = "<p>No water-level data.</p>";
                     return;
                 }
-        
+
                 const ul = document.createElement('ul');
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
@@ -348,6 +285,6 @@
                 container.appendChild(ul);
             }
         });
-        </script>
-    </body>
+    </script>
+</body>
 </html>
