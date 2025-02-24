@@ -1,4 +1,3 @@
-# File: status_namespace.py
 from flask_socketio import Namespace, SocketIO
 from services.ph_service import get_latest_ph_reading
 from utils.settings_utils import load_settings  # Import from utils
@@ -6,11 +5,6 @@ from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
 from datetime import datetime
-
-# Initialize SocketIO (ensure this is consistent with your app initialization)
-# Note: You should initialize `socketio` in your main app file and import it here.
-# For example:
-# from app import socketio  # Assuming `socketio` is initialized in `app.py`
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -20,16 +14,19 @@ def emit_status_update():
     Emit a status_update event with the latest settings and system status.
     """
     try:
+        from app import socketio  # Import socketio from your main app file
+
+        # 1. Load main settings
         settings = load_settings()
 
-        # Copy auto_dose_state and convert datetimes
+        # 2. Copy/format auto_dose_state
         auto_dose_copy = dict(auto_dose_state)
         if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
             auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
 
-        # Plant info
+        # 3. Prepare plant info
         plant_info_raw = settings.get("plant_info", {})
         weeks = get_weeks_since_start(plant_info_raw)
         plant_info = {
@@ -38,26 +35,41 @@ def emit_status_update():
             "weeks_since_start": weeks
         }
 
-        # Water level
+        # 4. Water level
         water_level_info = get_water_level_status()
 
+        # 5. Valve relay statuses
+        valve_info = {}
+        valve_labels = settings.get("valve_labels", {})
+        from services.valve_relay_service import get_valve_status
+
+        for valve_id_str, label in valve_labels.items():
+            valve_id = int(valve_id_str)
+            current_state = get_valve_status(valve_id)  # "on", "off", or "unknown"
+            valve_info[valve_id_str] = {
+                "label": label,
+                "status": current_state
+            }
+
+        # 6. Construct the final status payload
         status = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
             "auto_dose_state": auto_dose_copy,
             "plant_info": plant_info,
             "water_level": water_level_info,
+            "valve_relays": valve_info,   # <--- new key
             "errors": []
         }
 
-        # Emit the status_update event to all clients
-        from app import socketio  # Import socketio from your main app file
+        # 7. Emit via SocketIO
         socketio.emit("status_update", status, namespace="/status")
-        log_with_timestamp("Status update emitted successfully.")  # Debugging line
+        log_with_timestamp("Status update emitted successfully.")
+
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
-        traceback.print_exc()  # Print the full traceback for debugging
+        traceback.print_exc()
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
