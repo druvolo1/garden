@@ -1,5 +1,3 @@
-# File: api/valve_relay.py
-
 from flask import Blueprint, request, jsonify
 from services.valve_relay_service import (
     turn_on_valve, turn_off_valve, get_valve_status
@@ -122,6 +120,25 @@ def set_valve_label(valve_id):
         return jsonify({"status": "success", "valve_id": valve_id, "label": new_label})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
+
+# -------------------------
+# New API: List Valve Names
+# -------------------------
+@valve_relay_blueprint.route('/list_names', methods=['GET'])
+def list_valve_names():
+    """
+    Returns a list of all valve names/labels.
+    Example:
+      {
+        "status": "success",
+        "valve_names": ["Fill Valve", "Drain Valve", ...]
+      }
+    """
+    settings = load_settings()
+    valve_labels = settings.get("valve_labels", {})  # e.g. {"1": "Fill", "2": "Drain"}
+    valve_names = list(valve_labels.values())  # Extract the names/labels
+
+    return jsonify({"status": "success", "valve_names": valve_names})
 
 # -------------------------
 # Helpers
