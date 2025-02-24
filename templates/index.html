@@ -120,32 +120,45 @@
             fetch('/api/settings')
                 .then(res => res.json())
                 .then(settings => {
+                    const drainFillSection = document.getElementById('drain-fill-section');
+
+                    // 1) Check if a valve_relay device is assigned
+                    if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
+                        console.log("No valve_relay device assigned. Hiding Drain and Fill section.");
+                        // Ensure it remains hidden
+                        drainFillSection.style.display = 'none';
+                        return;
+                    }
+
+                    // 2) Also check if water_valve_ip + fill_valve + drain_valve are defined
                     if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
-                        fillValveName  = settings.water_fill_valve;
-                        drainValveName = settings.water_drain_valve;
-        
                         // Show the Drain/Fill section
-                        const drainFillSection = document.getElementById('drain-fill-section');
                         drainFillSection.style.display = 'block';
-        
+
                         // Update the label names for Fill/Drain
-                        document.getElementById('fill-valve-name').textContent  = fillValveName;
-                        document.getElementById('drain-valve-name').textContent = drainValveName;
-        
+                        document.getElementById('fill-valve-name').textContent  = settings.water_fill_valve;
+                        document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
+
                         // Fetch each valve’s status
-                        fetchValveStatus(fillValveName,  'fill-valve-status',  'fill-valve-toggle');
-                        fetchValveStatus(drainValveName, 'drain-valve-status', 'drain-valve-toggle');
-        
+                        fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  'fill-valve-toggle');
+                        fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', 'drain-valve-toggle');
+
                         // Attach click handlers for toggling
                         document.getElementById('fill-valve-toggle').addEventListener('click', () => {
-                            toggleValve(fillValveName, 'fill-valve-status');
+                            toggleValve(settings.water_fill_valve, 'fill-valve-status');
                         });
                         document.getElementById('drain-valve-toggle').addEventListener('click', () => {
-                            toggleValve(drainValveName, 'drain-valve-status');
+                            toggleValve(settings.water_drain_valve, 'drain-valve-status');
                         });
+
+                    } else {
+                        // If water_valve_ip or fill/drain valve names are missing
+                        console.log("No fill/drain config found. Hiding Drain and Fill section.");
+                        drainFillSection.style.display = 'none';
                     }
                 })
                 .catch(err => console.error('Error fetching settings:', err));
+
         
             // Helper to fetch a valve’s current status
             async function fetchValveStatus(valveName, statusId, buttonId) {
