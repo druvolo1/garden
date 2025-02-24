@@ -150,56 +150,64 @@
             // Helper to fetch a valve’s current status
             async function fetchValveStatus(valveName, statusId, buttonId) {
                 try {
-                    const res = await fetch('/api/valves/status?valve=' + encodeURIComponent(valveName));
+                    // GET /valve_relay/<valve_name>/status
+                    // e.g. /valve_relay/"Zone 1 Supply"/status
+                    const url = '/valve_relay/' + encodeURIComponent(valveName) + '/status';
+                    const res = await fetch(url);
                     const data = await res.json();
-                    // Expects { "status": "on" } or { "status": "off" }
-                    if (data && typeof data.status === 'string') {
-                        updateValveDisplay(statusId, buttonId, data.status);
+
+                    if (data.status === 'success') {
+                        // data.valve_status is "on" or "off"
+                        updateValveDisplay(statusId, buttonId, data.valve_status);
+                    } else {
+                        console.error('Valve status error:', data.error || 'Unknown error');
                     }
                 } catch (err) {
-                    console.error('Error fetching valve status for', valveName, err);
+                    console.error('Error fetching valve status:', err);
                 }
             }
+
         
             // Helper to toggle a valve on/off
             async function toggleValve(valveName, statusId) {
                 try {
-                    // Get current status from the DOM to decide next action
                     const currentSpan = document.getElementById(statusId);
-                    const currentStatus = currentSpan.textContent.toLowerCase(); // "On" or "Off"
+                    const currentStatus = currentSpan.textContent.toLowerCase(); // "on" or "off"
                     const nextAction = (currentStatus === 'on') ? 'off' : 'on';
-        
-                    const response = await fetch('/api/valves/toggle', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            valve: valveName,
-                            action: nextAction
-                        })
+
+                    // We have two distinct endpoints:
+                    //    POST /valve_relay/<valve_name>/on
+                    //    POST /valve_relay/<valve_name>/off
+                    const url = `/valve_relay/${encodeURIComponent(valveName)}/${nextAction}`;
+
+                    const response = await fetch(url, {
+                        method: 'POST'
                     });
-        
                     const data = await response.json();
-                    if (data && typeof data.status === 'string') {
-                        // Update the UI with the new status
-                        updateValveDisplay(statusId, null, data.status);
+
+                    if (data.status === 'success' && data.action) {
+                        // The server returns { "status": "success", "valve_name": "...", "action": "on" }
+                        // So data.action is "on"/"off"
+                        updateValveDisplay(statusId, null, data.action);
+                    } else {
+                        console.error('Error toggling valve:', data.error || 'unknown');
                     }
                 } catch (err) {
                     console.error('Error toggling valve:', err);
                 }
             }
-        
+
             // Update the display with new status
             function updateValveDisplay(statusId, buttonId, newStatus) {
                 const statusSpan = document.getElementById(statusId);
                 statusSpan.textContent = (newStatus.toLowerCase() === 'on') ? 'On' : 'Off';
-        
-                // Enable the toggle button once we know the status
+
                 if (buttonId) {
                     const toggleBtn = document.getElementById(buttonId);
                     toggleBtn.disabled = false;
                 }
             }
-        
+
             // ======================
             // 4. Existing Helpers
             // ======================
