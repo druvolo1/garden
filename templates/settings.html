@@ -285,11 +285,7 @@
                 phDevSelect.innerHTML = '<option value="">Select a device</option>';
                 dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
                 valveDevSelect.innerHTML = '<option value="">Select a device</option>';
-
-                document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
-                document.getElementById('fill-valve').value = settings.water_fill_valve || '';
-                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
-
+                
                 devices.forEach(dev => {
                     const phOption = document.createElement('option');
                     phOption.value = dev.device;
@@ -367,8 +363,9 @@
                 console.log('Water Level Sensors:', sensors); // Debugging line
 
                 //Water fill and drain valves
-                document.getElementById('fill-valve').value = settings.water_fill_valve || '';
-                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
+                document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
+                document.getElementById('fill-valve').value = settings.water_fill_valve || 'x';
+                document.getElementById('drain-valve').value = settings.water_drain_valve || 'y';
 
                 // Populate each sensor field
                 document.getElementById('sensor1-label').value = sensors.sensor1.label;
