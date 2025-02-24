@@ -209,6 +209,8 @@ def list_usb_devices():
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
+    from services.valve_relay_service import init_valve_thread, stop_valve_thread
+
     data = request.get_json()
     role = data.get("role")
     device = data.get("device")
@@ -217,6 +219,15 @@ def assign_usb_device():
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
     settings = load_settings()
+    old_device = settings.get("usb_roles", {}).get(role)
+
+    # If the assignment is changing (including going from non‐None to None or vice versa),
+    # for the valve_relay role, we want to stop the old thread.
+    if role == "valve_relay" and old_device != device:
+        # Stop the currently running thread (if any)
+        stop_valve_thread()
+
+    # Now update the assignment in the settings
     if not device:
         # Clear the role if no device is provided
         settings["usb_roles"][role] = None
@@ -229,6 +240,7 @@ def assign_usb_device():
 
     save_settings(settings)
 
+    # For pH probe or Dosing relay, you might re-init their logic too if needed
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
@@ -237,17 +249,13 @@ def assign_usb_device():
         from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
-    if role == "valve_relay":
-        from services.valve_relay_service import init_valve_thread, stop_valve_thread
-        if device:
-            # If a device is assigned, ensure the thread is started.
-            init_valve_thread()
-        else:
-            # If the assignment is removed, stop the thread.
-            stop_valve_thread()
+    # If the new device is non‐empty for valve_relay, start the thread
+    if role == "valve_relay" and device:
+        init_valve_thread()
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
+
 
 # API endpoint: Get System Name
 @settings_blueprint.route('/system_name', methods=['GET'])
