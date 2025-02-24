@@ -161,6 +161,27 @@
                 </form>
             </div>
 
+            <div class="data-container">
+                <h2>Water Valve Assignment</h2>
+                <form id="water-valve-form">
+                    <label for="water-valve-ip">Valve Controller IP:</label>
+                    <input type="text" id="water-valve-ip" name="water-valve-ip" required>
+                    <button type="button" id="retrieve-valves">Retrieve Valves</button>
+            
+                    <label for="fill-valve">Fill Valve:</label>
+                    <select id="fill-valve" name="fill-valve">
+                        <option value="">Select Fill Valve</option>
+                    </select>
+            
+                    <label for="drain-valve">Drain Valve:</label>
+                    <select id="drain-valve" name="drain-valve">
+                        <option value="">Select Drain Valve</option>
+                    </select>
+            
+                    <button type="submit">Save Valve Assignments</button>
+                </form>
+            </div>
+
             <!-- Plant Info Section -->
             <div class="data-container">
                 <h2>Plant Info</h2>
@@ -264,6 +285,10 @@
                 phDevSelect.innerHTML = '<option value="">Select a device</option>';
                 dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
                 valveDevSelect.innerHTML = '<option value="">Select a device</option>';
+
+                document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
+                document.getElementById('fill-valve').value = settings.fill_valve || '';
+                document.getElementById('drain-valve').value = settings.drain_valve || '';
 
                 devices.forEach(dev => {
                     const phOption = document.createElement('option');
@@ -406,6 +431,48 @@
             evt.preventDefault();
             const dev = document.getElementById('valve-relay-device').value;
             saveUsbAssignment('valve_relay', dev);
+        });
+        // Water Valve Assignment Handling
+        document.getElementById('retrieve-valves').addEventListener('click', () => {
+            const ip = document.getElementById('water-valve-ip').value;
+            if (!ip) {
+                alert('Please enter an IP address');
+                return;
+            }
+
+            fetch(`http://${ip}:8000/api/valve_relay/list_names`)
+                .then(response => response.json())
+                .then(valves => {
+                    const fillSelect = document.getElementById('fill-valve');
+                    const drainSelect = document.getElementById('drain-valve');
+                    
+                    // Clear existing options
+                    fillSelect.innerHTML = '<option value="">Select Fill Valve</option>';
+                    drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
+
+                    // Populate new options
+                    valves.forEach(valve => {
+                        const option = document.createElement('option');
+                        option.value = valve;
+                        option.textContent = valve;
+                        fillSelect.appendChild(option.cloneNode(true));
+                        drainSelect.appendChild(option.cloneNode(true));
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching valves:', error);
+                    alert('Failed to retrieve valves. Check IP and connection.');
+                });
+        });
+
+        document.getElementById('water-valve-form').addEventListener('submit', event => {
+            event.preventDefault();
+            const payload = {
+                water_valve_ip: document.getElementById('water-valve-ip').value,
+                fill_valve: document.getElementById('fill-valve').value,
+                drain_valve: document.getElementById('drain-valve').value
+            };
+            saveSettings("/api/settings", payload);
         });
 
         // pH Range
