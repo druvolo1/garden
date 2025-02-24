@@ -273,7 +273,7 @@
                 console.log('Devices:', devices);
                 console.log('Settings:', settings);
 
-                // Populate dropdowns
+                // Populate USB device dropdowns for pH, Dosing Relay, Valve Relay
                 const phDevSelect = document.getElementById('ph-device');
                 const dosingDevSelect = document.getElementById('dosing-relay-device');
                 const valveDevSelect = document.getElementById('valve-relay-device');
@@ -285,47 +285,63 @@
                 phDevSelect.innerHTML = '<option value="">Select a device</option>';
                 dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
                 valveDevSelect.innerHTML = '<option value="">Select a device</option>';
-                
+
                 devices.forEach(dev => {
+                    // pH Probe
                     const phOption = document.createElement('option');
                     phOption.value = dev.device;
                     phOption.textContent = dev.device;
-                    if (phOption.value === assignedPh) phOption.selected = true;
+                    if (phOption.value === assignedPh) {
+                        phOption.selected = true;
+                    }
                     phDevSelect.appendChild(phOption);
 
+                    // Dosing Relay
                     const dosingOption = document.createElement('option');
                     dosingOption.value = dev.device;
                     dosingOption.textContent = dev.device;
-                    if (dosingOption.value === assignedDosing) dosingOption.selected = true;
+                    if (dosingOption.value === assignedDosing) {
+                        dosingOption.selected = true;
+                    }
                     dosingDevSelect.appendChild(dosingOption);
 
+                    // Valve Relay
                     const valveOption = document.createElement('option');
                     valveOption.value = dev.device;
                     valveOption.textContent = dev.device;
-                    if (valveOption.value === assignedValve) valveOption.selected = true;
+                    if (valveOption.value === assignedValve) {
+                        valveOption.selected = true;
+                    }
                     valveDevSelect.appendChild(valveOption);
                 });
 
-                // Example: enable or disable fields if dosing relay isn't assigned
+                // Enable or disable fields depending on whether a dosing relay is assigned
                 const isDosingRelayAssigned = Boolean(assignedDosing);
                 document.querySelectorAll(
-                    '#general-settings-form input, #dosage-strength-form input, #pump-calibration-form input, #general-save-btn, #dosage-save-btn, #pump-calibration-save-btn, #relay-port-form select, #relay-port-save-btn'
+                    '#general-settings-form input, #dosage-strength-form input, ' +
+                    '#pump-calibration-form input, #general-save-btn, ' +
+                    '#dosage-save-btn, #pump-calibration-save-btn, ' +
+                    '#relay-port-form select, #relay-port-save-btn'
                 ).forEach(el => {
-                    // Keep system-name always enabled; the rest depends on the Dosing Relay
+                    // Keep 'system-name' enabled always; the rest depends on the Dosing Relay
                     if (el.id !== 'system-name') {
                         el.disabled = !isDosingRelayAssigned;
                     }
                 });
 
-                // Show warning if no relay
+                // Show warning if no dosing relay is assigned
                 const relayWarning = document.getElementById('relay-warning');
                 relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
-                // pH Range
+                // -----------------------
+                // pH Min/Max Range
+                // -----------------------
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
-                // General
+                // -----------------------
+                // General Settings
+                // -----------------------
                 document.getElementById('system-name').value = settings.system_name || '';
                 document.getElementById('ph-target').value = settings.ph_target || '5.8';
                 document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
@@ -334,48 +350,128 @@
                 document.getElementById('time-zone').value = settings.time_zone || '';
                 document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
 
+                // -----------------------
                 // Dosage Strength
+                // -----------------------
                 document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
                 document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
 
+                // -----------------------
                 // Pump Calibration
+                // -----------------------
                 document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
                 document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
 
-                // Relay Ports
+                // -----------------------
+                // Relay Port Assignments (for Dosing)
+                // -----------------------
                 const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
                 document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
                 document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
 
-                // PLANT INFO:
+                // -----------------------
+                // Plant Info
+                // -----------------------
                 const plantInfo = settings.plant_info || {};
                 document.getElementById('plant-name').value = plantInfo.name || '';
                 document.getElementById('plant-start-date').value = plantInfo.start_date || '';
                 updateWeeksSinceStart(plantInfo.start_date);
 
-                // WATER LEVEL SENSORS
+                // -----------------------
+                // Water Level Sensors
+                // -----------------------
                 const sensors = settings.water_level_sensors || {
                     sensor1: { label: "Full", pin: 22 },
                     sensor2: { label: "3 Gal", pin: 23 },
                     sensor3: { label: "Empty", pin: 24 }
                 };
+                console.log('Water Level Sensors:', sensors); // Debug
 
-                console.log('Water Level Sensors:', sensors); // Debugging line
-
-                //Water fill and drain valves
-                document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
-                document.getElementById('fill-valve').value = settings.water_fill_valve || '';
-                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
-
-                // Populate each sensor field
                 document.getElementById('sensor1-label').value = sensors.sensor1.label;
                 document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
                 document.getElementById('sensor2-label').value = sensors.sensor2.label;
                 document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
                 document.getElementById('sensor3-label').value = sensors.sensor3.label;
                 document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
+
+                // -----------------------
+                // Water Valve IP & Assignments
+                // -----------------------
+                document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
+
+                // If we have a saved IP, automatically retrieve the valves
+                if (settings.water_valve_ip) {
+                    retrieveValvesFromIP(settings.water_valve_ip)
+                        .then(() => {
+                            // Once the <select> is populated, set the saved fill & drain
+                            document.getElementById('fill-valve').value  = settings.water_fill_valve  || '';
+                            document.getElementById('drain-valve').value = settings.water_drain_valve || '';
+                        })
+                        .catch(err => {
+                            console.error('Auto-retrieve error:', err);
+                            // Optionally show a message if the controller is offline or invalid
+                        });
+                } else {
+                    // No IP saved — clear out the selects
+                    document.getElementById('fill-valve').innerHTML = '<option value="">Select Fill Valve</option>';
+                    document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
+                }
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
+        }
+
+
+        function retrieveValvesFromIP(ipInput) {
+            return new Promise((resolve, reject) => {
+                if (!ipInput) {
+                    reject(new Error('No IP address provided'));
+                    return;
+                }
+
+                // Split host:port
+                let [host, port] = ipInput.split(':');
+                port = port || '8000'; // default port if not provided
+
+                const url = `http://${host}:${port}/api/valve_relay/list_names`;
+                console.log('Attempting to fetch from:', url);
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Different controllers may return valves in various property names:
+                        const valves = Array.isArray(data) 
+                            ? data 
+                            : data.valves || data.valve_names || data.data || [];
+
+                        if (!valves.length) {
+                            throw new Error('No valves found in response');
+                        }
+
+                        // Populate the <select> elements
+                        const fillSelect = document.getElementById('fill-valve');
+                        const drainSelect = document.getElementById('drain-valve');
+
+                        fillSelect.innerHTML = '<option value="">Select Fill Valve</option>';
+                        drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
+
+                        // Add each valve name as an <option> to both selects
+                        valves.forEach(valve => {
+                            fillSelect.add(new Option(valve, valve));
+                            drainSelect.add(new Option(valve, valve));
+                        });
+
+                        // We’re done; resolve successfully
+                        resolve(valves);
+                    })
+                    .catch(err => {
+                        reject(err);
+                    });
+            });
         }
 
         // Helper to POST usb assignment to the server
@@ -438,53 +534,19 @@
         // Water Valve Assignment Handling
         document.getElementById('retrieve-valves').addEventListener('click', () => {
             const ipInput = document.getElementById('water-valve-ip').value.trim();
-            
-            if (!ipInput) {
-                alert('Please enter an IP address');
-                return;
-            }
-
-            // Parse IP and port (handle cases with/without port)
-            let [host, port] = ipInput.split(':');
-            port = port || '8000'; // Default to port 8000 if not specified
-
-            const url = `http://${host}:${port}/api/valve_relay/list_names`;
-            console.log('Attempting to fetch from:', url);
-
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Handle different response formats
-                    const valves = Array.isArray(data) ? data : data.valves || data.valve_names || data.data || [];
-                    
-                    if (!valves.length) {
-                        throw new Error('No valves found in response');
-                    }
-
-                    const fillSelect = document.getElementById('fill-valve');
-                    const drainSelect = document.getElementById('drain-valve');
-                    
-                    fillSelect.innerHTML = '<option value="">Select Fill Valve</option>';
-                    drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
-
-                    // Fix: Create separate options for each select
-                    valves.forEach(valve => {
-                        const fillOption = new Option(valve, valve);
-                        const drainOption = new Option(valve, valve);
-                        fillSelect.add(fillOption);
-                        drainSelect.add(drainOption);
-                    });
+            retrieveValvesFromIP(ipInput)
+                .then(() => {
+                    console.log('Valves retrieved successfully');
+                    // Optionally set the <select> values if you want to re‐apply the saved fill/drain
+                    // But typically, after "Retrieve," the user will choose from the new valves,
+                    // so you may not need to force any existing assignment here.
                 })
                 .catch(error => {
                     console.error('Fetch error:', error);
-                    alert(`Error retrieving valves: ${error.message}\nCheck:\n1. Controller is online\n2. Port ${port} is open\n3. Correct API endpoint`);
+                    alert(`Error retrieving valves: ${error.message}\nCheck:\n1. Controller is online\n2. Port is correct\n3. Correct API endpoint`);
                 });
         });
+
 
         document.getElementById('water-valve-form').addEventListener('submit', event => {
             event.preventDefault();
