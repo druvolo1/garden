@@ -458,7 +458,7 @@
                 })
                 .then(data => {
                     // Handle different response formats
-                    const valves = Array.isArray(data) ? data : data.valves || data.data || [];
+                    const valves = Array.isArray(data) ? data : data.valves || data.valve_names || data.data || [];
                     
                     if (!valves.length) {
                         throw new Error('No valves found in response');
