@@ -40,6 +40,24 @@
             <h2>Water Level Sensors</h2>
             <div id="water-level-status" class="data-box"></div>
         </div>
+
+        <div class="data-container" id="drain-fill-section" style="display: none;">
+            <h2>Drain and Fill</h2>
+    
+            <div>
+                <p>Fill Valve (<span id="fill-valve-name"></span>) Status:
+                    <span id="fill-valve-status">Unknown</span>
+                </p>
+                <button id="fill-valve-toggle" disabled>Toggle Fill Valve</button>
+            </div>
+    
+            <div style="margin-top: 1em;">
+                <p>Drain Valve (<span id="drain-valve-name"></span>) Status:
+                    <span id="drain-valve-status">Unknown</span>
+                </p>
+                <button id="drain-valve-toggle" disabled>Toggle Drain Valve</button>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -49,31 +67,36 @@
                 reconnectionDelay: 2000,
                 transports: ["websocket"]  // Force WebSocket transport
             });
-
-            // 1. Fetch system name immediately on DOM load
+        
+            // ======================
+            // 1. Fetch System Name Immediately
+            // ======================
             fetchSystemName();
-
-            // 2. Listen for WebSocket events
+        
+            // ======================
+            // 2. WebSocket Setup
+            // ======================
             socket.on('connect', () => {
                 console.log("WebSocket connected successfully.");
                 fetchInitialPh();
                 fetchWaterLevel();
             });
-
+        
             socket.on('disconnect', () => {
                 console.log("WebSocket disconnected.");
             });
-
+        
             socket.on('connect_error', (error) => {
                 console.error("WebSocket connection error:", error);
             });
-
+        
+            // pH updated in real-time
             socket.on('ph_update', (data) => {
                 console.log("Received ph_update event:", data);
                 updatePhDisplay(data.ph);
             });
-
-            // If the server includes `system_name` in the status_update, we will update the display:
+        
+            // General status updates (might include pH, water_level, system_name, etc.)
             socket.on('status_update', (data) => {
                 console.log("Received status_update event:", data); 
                 if (data.current_ph !== undefined) {
@@ -82,13 +105,104 @@
                 if (data.water_level) {
                     renderWaterLevel(data.water_level);
                 }
-                // NEW: Update system name if provided in the event
                 if (data.system_name !== undefined) {
                     document.getElementById('system-name-display').textContent = data.system_name;
                 }
             });
-
-            // Helper: Fetch the current pH from the server
+        
+            // ======================
+            // 3. Drain/Fill Logic
+            // ======================
+            let fillValveName = "";
+            let drainValveName = "";
+        
+            // Fetch settings to see if water_valve_ip and fill/drain valves are defined
+            fetch('/api/settings')
+                .then(res => res.json())
+                .then(settings => {
+                    if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
+                        fillValveName  = settings.water_fill_valve;
+                        drainValveName = settings.water_drain_valve;
+        
+                        // Show the Drain/Fill section
+                        const drainFillSection = document.getElementById('drain-fill-section');
+                        drainFillSection.style.display = 'block';
+        
+                        // Update the label names for Fill/Drain
+                        document.getElementById('fill-valve-name').textContent  = fillValveName;
+                        document.getElementById('drain-valve-name').textContent = drainValveName;
+        
+                        // Fetch each valve’s status
+                        fetchValveStatus(fillValveName,  'fill-valve-status',  'fill-valve-toggle');
+                        fetchValveStatus(drainValveName, 'drain-valve-status', 'drain-valve-toggle');
+        
+                        // Attach click handlers for toggling
+                        document.getElementById('fill-valve-toggle').addEventListener('click', () => {
+                            toggleValve(fillValveName, 'fill-valve-status');
+                        });
+                        document.getElementById('drain-valve-toggle').addEventListener('click', () => {
+                            toggleValve(drainValveName, 'drain-valve-status');
+                        });
+                    }
+                })
+                .catch(err => console.error('Error fetching settings:', err));
+        
+            // Helper to fetch a valve’s current status
+            async function fetchValveStatus(valveName, statusId, buttonId) {
+                try {
+                    const res = await fetch('/api/valves/status?valve=' + encodeURIComponent(valveName));
+                    const data = await res.json();
+                    // Expects { "status": "on" } or { "status": "off" }
+                    if (data && typeof data.status === 'string') {
+                        updateValveDisplay(statusId, buttonId, data.status);
+                    }
+                } catch (err) {
+                    console.error('Error fetching valve status for', valveName, err);
+                }
+            }
+        
+            // Helper to toggle a valve on/off
+            async function toggleValve(valveName, statusId) {
+                try {
+                    // Get current status from the DOM to decide next action
+                    const currentSpan = document.getElementById(statusId);
+                    const currentStatus = currentSpan.textContent.toLowerCase(); // "On" or "Off"
+                    const nextAction = (currentStatus === 'on') ? 'off' : 'on';
+        
+                    const response = await fetch('/api/valves/toggle', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            valve: valveName,
+                            action: nextAction
+                        })
+                    });
+        
+                    const data = await response.json();
+                    if (data && typeof data.status === 'string') {
+                        // Update the UI with the new status
+                        updateValveDisplay(statusId, null, data.status);
+                    }
+                } catch (err) {
+                    console.error('Error toggling valve:', err);
+                }
+            }
+        
+            // Update the display with new status
+            function updateValveDisplay(statusId, buttonId, newStatus) {
+                const statusSpan = document.getElementById(statusId);
+                statusSpan.textContent = (newStatus.toLowerCase() === 'on') ? 'On' : 'Off';
+        
+                // Enable the toggle button once we know the status
+                if (buttonId) {
+                    const toggleBtn = document.getElementById(buttonId);
+                    toggleBtn.disabled = false;
+                }
+            }
+        
+            // ======================
+            // 4. Existing Helpers
+            // ======================
             async function fetchInitialPh() {
                 try {
                     const response = await fetch('/api/ph/latest');
@@ -98,8 +212,7 @@
                     console.error("Error fetching pH data:", error);
                 }
             }
-
-            // Helper: Fetch water levels from the server
+        
             async function fetchWaterLevel() {
                 try {
                     const response = await fetch('/api/water_level/');
@@ -109,8 +222,7 @@
                     console.error("Error fetching water level:", error);
                 }
             }
-
-            // Helper: Fetch system_name from the server
+        
             async function fetchSystemName() {
                 try {
                     const response = await fetch('/api/settings/system_name');
@@ -121,21 +233,21 @@
                     document.getElementById('system-name-display').textContent = 'Zone 1 (Error)';
                 }
             }
-
-            // Update the PH display element
+        
             function updatePhDisplay(ph) {
                 const phDisplay = document.getElementById('ph-display');
-                phDisplay.textContent = ph ? `Current pH: ${parseFloat(ph).toFixed(2)}` : "pH data unavailable";
+                phDisplay.textContent = ph 
+                    ? `Current pH: ${parseFloat(ph).toFixed(2)}` 
+                    : "pH data unavailable";
             }
-
-            // Render water level sensor statuses
+        
             function renderWaterLevel(waterLevel) {
                 const container = document.getElementById('water-level-status');
                 if (!waterLevel) {
                     container.innerHTML = "<p>No water-level data.</p>";
                     return;
                 }
-
+        
                 const ul = document.createElement('ul');
                 for (const key in waterLevel) {
                     if (waterLevel.hasOwnProperty(key)) {
@@ -149,7 +261,6 @@
                 container.appendChild(ul);
             }
         });
-    </script>
-
-</body>
+        </script>
+    </body>
 </html>
