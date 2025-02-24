@@ -180,12 +180,9 @@ def reset_settings():
 def list_usb_devices():
     devices = []
     try:
--       print("Executing command: ls /dev/serial/by-id")
--       result = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
--       devices = [{"device": f"/dev/serial/by-id/{dev}"} for dev in result]
-+       print("Executing command: ls /dev/serial/by-path")
-+       result = subprocess.check_output("ls /dev/serial/by-path", shell=True).decode().splitlines()
-+       devices = [{"device": f"/dev/serial/by-path/{dev}"} for dev in result]
+        print("Executing command: ls /dev/serial/by-path")
+        result = subprocess.check_output("ls /dev/serial/by-path", shell=True).decode().splitlines()
+        devices = [{"device": f"/dev/serial/by-path/{dev}"} for dev in result]
 
         print("USB devices found:", devices)
     except subprocess.CalledProcessError as e:
@@ -210,6 +207,7 @@ def list_usb_devices():
     emit_status_update()
 
     return jsonify(devices)
+
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
