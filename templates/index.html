@@ -43,21 +43,31 @@
 
         <div class="data-container" id="drain-fill-section" style="display: none;">
             <h2>Drain and Fill</h2>
-    
-            <div>
-                <p>Fill Valve (<span id="fill-valve-name"></span>) Status:
-                    <span id="fill-valve-status">Unknown</span>
-                </p>
-                <button id="fill-valve-toggle" disabled>Toggle Fill Valve</button>
-            </div>
-    
-            <div style="margin-top: 1em;">
-                <p>Drain Valve (<span id="drain-valve-name"></span>) Status:
-                    <span id="drain-valve-status">Unknown</span>
-                </p>
-                <button id="drain-valve-toggle" disabled>Toggle Drain Valve</button>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <!-- Fill Valve -->
+                <div style="flex: 1;">
+                    <p>Fill Valve (<span id="fill-valve-name"></span>) Status:
+                        <span id="fill-valve-status">Unknown</span>
+                    </p>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="fill-valve-on"  disabled style="flex: 1;">On</button>
+                        <button id="fill-valve-off" disabled style="flex: 1;">Off</button>
+                    </div>
+                </div>
+        
+                <!-- Drain Valve -->
+                <div style="flex: 1;">
+                    <p>Drain Valve (<span id="drain-valve-name"></span>) Status:
+                        <span id="drain-valve-status">Unknown</span>
+                    </p>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="drain-valve-on"  disabled style="flex: 1;">On</button>
+                        <button id="drain-valve-off" disabled style="flex: 1;">Off</button>
+                    </div>
+                </div>
             </div>
         </div>
+        
     </main>
 
     <script>
