@@ -31,7 +31,7 @@
         <h1>pH Dosing System</h1>
         <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-        <div class="data-container">
+        <div class="data-container" id="ph-reading-section" style="display: none;">
             <h2>Current pH Reading</h2>
             <div id="ph-display" class="data-box">Loading...</div>
         </div>
@@ -78,10 +78,18 @@
             // ======================
             socket.on('connect', () => {
                 console.log("WebSocket connected successfully.");
-                fetchInitialPh();
                 fetchWaterLevel();
-            });
-        
+                
+                // If you prefer to conditionally fetch pH here:
+                fetch('/api/settings')
+                    .then(r => r.json())
+                    .then(settings => {
+                    if (settings.usb_roles && settings.usb_roles.ph_probe) {
+                        fetchInitialPh();
+                    }
+                    });
+                });
+
             socket.on('disconnect', () => {
                 console.log("WebSocket disconnected.");
             });
@@ -120,6 +128,21 @@
             fetch('/api/settings')
                 .then(res => res.json())
                 .then(settings => {
+                    // =========== pH Container Logic ===========
+                    const phSection = document.getElementById('ph-reading-section');
+                    
+                    // If there's no usb_roles or ph_probe is null/empty, hide the container
+                    if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
+                    console.log("No pH probe assigned. Hiding pH reading section.");
+                    phSection.style.display = 'none';
+                    } else {
+                    console.log("pH probe assigned. Showing pH section and fetching data...");
+                    phSection.style.display = 'block';
+                    // Now that we know ph_probe is assigned, fetch pH data
+                    fetchInitialPh();
+                    }
+                    
+                    // =========== Drain/Fill Logic  ===========
                     const drainFillSection = document.getElementById('drain-fill-section');
 
                     // 1) Check if a valve_relay device is assigned
