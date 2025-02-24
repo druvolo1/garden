@@ -366,6 +366,10 @@
 
                 console.log('Water Level Sensors:', sensors); // Debugging line
 
+                //Water fill and drain valves
+                document.getElementById('fill-valve').value = settings.water_fill_valve || '';
+                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
+
                 // Populate each sensor field
                 document.getElementById('sensor1-label').value = sensors.sensor1.label;
                 document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
@@ -387,14 +391,15 @@
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'success') {
+                    // Fix: Add backticks for template literal
                     document.getElementById('status').textContent = `${role} assigned successfully.`;
                 } else {
+                    // Fix: Add backticks for template literal
                     document.getElementById('status').textContent = `Failed to assign ${role}: ${data.error}`;
                 }
-                // Re-fetch devices + settings to update UI
                 fetchUsbDevices();
             })
-            .catch(err => console.error(`Error assigning ${role}:`, err));
+            .catch(err => console.error(`Error assigning ${role}:`, err)); // Fix: Add backticks
         }
 
         // Helper to POST settings to the server
@@ -470,10 +475,12 @@
                     fillSelect.innerHTML = '<option value="">Select Fill Valve</option>';
                     drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
 
+                    // Fix: Create separate options for each select
                     valves.forEach(valve => {
-                        const option = new Option(valve, valve);
-                        fillSelect.add(option);
-                        drainSelect.add(option.cloneNode());
+                        const fillOption = new Option(valve, valve);
+                        const drainOption = new Option(valve, valve);
+                        fillSelect.add(fillOption);
+                        drainSelect.add(drainOption);
                     });
                 })
                 .catch(error => {
@@ -484,10 +491,18 @@
 
         document.getElementById('water-valve-form').addEventListener('submit', event => {
             event.preventDefault();
+            const fillValve = document.getElementById('fill-valve').value;
+            const drainValve = document.getElementById('drain-valve').value;
+            
+            if (fillValve && fillValve === drainValve) {
+                alert('Fill and Drain valves cannot be the same');
+                return;
+            }
+            
             const payload = {
                 water_valve_ip: document.getElementById('water-valve-ip').value,
-                fill_valve: document.getElementById('fill-valve').value,
-                drain_valve: document.getElementById('drain-valve').value
+                water_fill_valve: fillValve,
+                water_drain_valve: drainValve
             };
             saveSettings("/api/settings", payload);
         });
