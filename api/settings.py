@@ -1,5 +1,3 @@
-# File: settings.py
-
 from flask import Blueprint, request, jsonify
 import json
 import os
@@ -22,35 +20,45 @@ SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
+        # NEW default settings now include water_valve_ip, fill, drain, etc.
         json.dump({
-            "system_name": "ZoneX",
-            "ph_range": {"min": 5.5, "max": 6.5},
-            "max_dosing_amount": 5,
-            "dosing_interval": 1.0,
-            "system_volume": 5.5,
-            "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-            "auto_dosing_enabled": True,
-            "time_zone": "America/New_York",
-            "daylight_savings_enabled": True,
-            "usb_roles": {"ph_probe": None, "relay": None},
-            "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
-            "ph_target": 5.8,
-            "relay_ports": {"ph_up": 1, "ph_down": 2},
-            "valve_labels": {
-                "1": "Valve #1",
-                "2": "Valve #2",
-                "3": "Valve #3",
-                "4": "Valve #4",
-                "5": "Valve #5",
-                "6": "Valve #6",
-                "7": "Valve #7",
-                "8": "Valve #8"
-            },
-            "water_level_sensors": {
-                "sensor1": {"label": "Full",  "pin": 22},
-                "sensor2": {"label": "3 Gal", "pin": 23},
-                "sensor3": {"label": "Empty", "pin": 24}
-            }
+           "system_name": "ZoneX",
+        "ph_range": {"min": 5.5, "max": 6.5},
+        "ph_target": 5.8,
+        "max_dosing_amount": 5,
+        "dosing_interval": 1.0,
+        "system_volume": 5.5,
+        "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
+        "auto_dosing_enabled": True,
+        "time_zone": "America/New_York",
+        "daylight_savings_enabled": True,
+        "usb_roles": {
+            "ph_probe": None,
+            "relay": None,
+            "valve_relay": None
+        },
+        "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+        "relay_ports": {"ph_up": 1, "ph_down": 2},
+        "water_valve_ip": "",
+        "water_fill_valve": "",
+        "water_drain_valve": "",
+        "valve_labels": {
+            "1": "Valve #1",
+            "2": "Valve #2",
+            "3": "Valve #3",
+            "4": "Valve #4",
+            "5": "Valve #5",
+            "6": "Valve #6",
+            "7": "Valve #7",
+            "8": "Valve #8"
+        },
+        "water_level_sensors": {
+            "sensor1": {"label": "Full",  "pin": 22},
+            "sensor2": {"label": "3 Gal", "pin": 23},
+            "sensor3": {"label": "Empty", "pin": 24}
+        },
+        # NEW fields
+        "plant_info": {}
         }, f, indent=4)
 
 # API endpoint: Get all settings
@@ -120,10 +128,11 @@ def update_settings():
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
-    # Also changed "Zone 1" -> "ZoneX" here
+    # NEW default settings including water_valve_ip, fill, drain, etc.
     default_settings = {
         "system_name": "ZoneX",
         "ph_range": {"min": 5.5, "max": 6.5},
+        "ph_target": 5.8,
         "max_dosing_amount": 5,
         "dosing_interval": 1.0,
         "system_volume": 5.5,
@@ -131,10 +140,16 @@ def reset_settings():
         "auto_dosing_enabled": True,
         "time_zone": "America/New_York",
         "daylight_savings_enabled": True,
-        "usb_roles": {"ph_probe": None, "relay": None},
+        "usb_roles": {
+            "ph_probe": None,
+            "relay": None,
+            "valve_relay": None
+        },
         "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
-        "ph_target": 5.8,
         "relay_ports": {"ph_up": 1, "ph_down": 2},
+        "water_valve_ip": "",
+        "water_fill_valve": "",
+        "water_drain_valve": "",
         "valve_labels": {
             "1": "Valve #1",
             "2": "Valve #2",
@@ -149,7 +164,9 @@ def reset_settings():
             "sensor1": {"label": "Full",  "pin": 22},
             "sensor2": {"label": "3 Gal", "pin": 23},
             "sensor3": {"label": "Empty", "pin": 24}
-        }
+        },
+        # NEW fields
+        "plant_info": {}
     }
     save_settings(default_settings)
 
