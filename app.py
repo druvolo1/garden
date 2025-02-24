@@ -20,7 +20,7 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
 
-from status_namespace import StatusNamespace
+from status_namespace import StatusNamespace, emit_status_update
 
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
@@ -140,41 +140,16 @@ def broadcast_status():
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
-            settings = load_settings()
-
-            # Convert auto_dose_state datetimes...
-            auto_dose_copy = dict(auto_dose_state)
-            if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
-                auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
-            if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
-                auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
-
-            # Insert weeks_since_start into settings["plant_info"]
-            plant_info = settings.get("plant_info", {})
-            weeks = get_weeks_since_start(plant_info)
-            plant_info["weeks_since_start"] = weeks
-            settings["plant_info"] = plant_info
-
-            # Gather active errors
-            current_errors = get_current_errors()
-
-            # NEW: Water level info
-            water_level_info = get_water_level_status()
-
-            status = {
-                "settings": settings,
-                "current_ph": get_latest_ph_reading(),
-                "auto_dose_state": auto_dose_copy,
-                "water_level": water_level_info,      # <--- ADDED
-                "errors": current_errors
-            }
-
-            socketio.emit("status_update", status, namespace="/status")
-            log_with_timestamp("[Status] Emitting status update")
+            # Use the same emit_status_update() you already updated
+            # to include valve_relays, water_level, etc.
+            emit_status_update()
+            
+            # Wait 5 seconds before sending again
             eventlet.sleep(5)
 
         except Exception as e:
-            log_with_timestamp(f"[Status] Error broadcasting status update: {e}")
+            log_with_timestamp(f"[broadcast_status] Error: {e}")
+            # Sleep a bit before retrying
             eventlet.sleep(5)
 
 from services.mdns_service import update_mdns_service
