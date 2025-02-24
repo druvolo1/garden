@@ -493,6 +493,7 @@
             event.preventDefault();
             const payload = {
                 water_valve_ip: document.getElementById('water-valve-ip').value,
+                // Only use the water_ prefixed fields
                 water_fill_valve: document.getElementById('fill-valve').value,
                 water_drain_valve: document.getElementById('drain-valve').value
             };
