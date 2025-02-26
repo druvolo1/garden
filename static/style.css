@@ -146,14 +146,6 @@ button:hover {
     margin-bottom: 5px;
 }
 
-/* Dosage Page Styling */
-.dosage-section {
-    display: flex;
-    gap: 20px;
-    justify-content: space-between;
-    flex-wrap: wrap; /* Ensures responsiveness */
-}
-
 /* Error Message */
 .error-message {
     color: #ff4c4c;
@@ -199,13 +191,18 @@ legend {
 }
 .dosage-section {
     display: flex;
-    gap: 20px;        /* space between the two columns */
-    flex-wrap: wrap;  /* ensure it wraps on smaller screens */
+    gap: 20px;
+    /* Use flex-wrap if you want them to stack on smaller screens:
+    flex-wrap: wrap;
+    */
+    align-items: stretch; /* force children to stretch to the max height */
 }
+
 
 /* If you want them narrower, you can limit the width: */
 .dosage-section .data-container {
-    flex: 1;           /* let them expand evenly */
-    max-width: 300px;  /* or 350px, etc. */
-    margin: auto;      /* optional if you want them centered */
+    flex: 1; /* so they share available width equally */
+    display: flex;           /* so internal elements can flow normally */
+    flex-direction: column;  /* keep your content stacked top-to-bottom */
 }
+
