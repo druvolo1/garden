@@ -1,4 +1,4 @@
-#File: app.py
+# File: app.py
 
 import socket
 import eventlet
@@ -14,18 +14,26 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
 
+# Import your other blueprints
 from api.ph import ph_blueprint
 from api.pump_relay import relay_blueprint
 from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
+from api.valve_relay import valve_relay_blueprint
+
+# <-- IMPORTANT: Import the update_code blueprint
+from api.update_code import update_code_blueprint
 
 from status_namespace import StatusNamespace, emit_status_update
 
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
-from services.ph_service import get_latest_ph_reading, start_serial_reader, stop_serial_reader, latest_ph_value, serial_reader
+from services.ph_service import (
+    get_latest_ph_reading, start_serial_reader, stop_serial_reader,
+    latest_ph_value, serial_reader
+)
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.plant_service import get_weeks_since_start
 from services.error_service import check_for_hardware_errors
@@ -35,8 +43,6 @@ from services.device_config import (
     set_timezone, set_ntp_server, set_wifi_config
 )
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
-from api.valve_relay import valve_relay_blueprint
-
 
 app = Flask(__name__)
 CORS(app)
@@ -85,7 +91,7 @@ def auto_dosing_loop():
 
             now = datetime.now()
 
-            # If the interval has changed, reset next_dose_time.
+            # If the interval changed, reset next_dose_time.
             if auto_dose_state.get("last_interval") != interval_hours:
                 auto_dose_state["last_interval"] = interval_hours
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
@@ -104,10 +110,15 @@ def auto_dosing_loop():
                     auto_dose_state["last_dose_type"] = dose_type
                     auto_dose_state["last_dose_amount"] = dose_amount
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                    log_with_timestamp(f"Auto-dose performed: {dose_type} {dose_amount} ml; next dose at {auto_dose_state['next_dose_time']}")
+                    log_with_timestamp(
+                        f"Auto-dose performed: {dose_type} {dose_amount} ml; "
+                        f"next dose at {auto_dose_state['next_dose_time']}"
+                    )
                 else:
                     auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                    log_with_timestamp(f"No dose performed; next dose rescheduled for {auto_dose_state['next_dose_time']}")
+                    log_with_timestamp(
+                        f"No dose performed; next dose rescheduled for {auto_dose_state['next_dose_time']}"
+                    )
 
             eventlet.sleep(5)
         except Exception as e:
@@ -130,8 +141,6 @@ def broadcast_ph_readings():
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 
-
-
 def broadcast_status():
     from api.settings import load_settings
     from services.plant_service import get_weeks_since_start
@@ -141,16 +150,12 @@ def broadcast_status():
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
-            # Use the same emit_status_update() you already updated
-            # to include valve_relays, water_level, etc.
+            # Use the same emit_status_update() that includes valve_relays, water_level, etc.
             emit_status_update()
-            
             # Wait 5 seconds before sending again
             eventlet.sleep(5)
-
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
-            # Sleep a bit before retrying
             eventlet.sleep(5)
 
 from services.mdns_service import update_mdns_service
@@ -161,9 +166,11 @@ def start_threads():
     settings = load_settings()
     system_name = settings.get("system_name", "Zone 1")
 
+    # Register mDNS
     update_mdns_service(system_name=system_name, port=8000)
     log_with_timestamp(f"mDNS service registered from start_threads()! (system_name={system_name})")
 
+    # Start background tasks
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
     log_with_timestamp("Broadcast_ph_readings spawned.")
@@ -193,10 +200,10 @@ def start_threads():
     init_valve_thread()
 
 
-# ***** IMPORTANT: Start threads at module level so Gunicorn sees them *****
+# IMPORTANT: Start threads at module level so Gunicorn sees them
 start_threads()
 
-# Register our Blueprints
+# Register all Blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
@@ -204,6 +211,8 @@ app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
+
+# <-- IMPORTANT: Add this line to register the update_code blueprint
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 
 @app.route('/')
@@ -278,11 +287,10 @@ def api_manual_dosage():
 def device_config():
     if request.method == 'GET':
         try:
-            # Build config dict from your device_config.py functions
             hostname = get_hostname()
             eth0 = get_ip_config("eth0")
             wlan0 = get_ip_config("wlan0")
-            wlan0["ssid"] = get_wifi_config()  # add the WiFi SSID to the wlan0 dict
+            wlan0["ssid"] = get_wifi_config()  # add WiFi SSID to the wlan0 dict
 
             tz = get_timezone()
             dls = is_daylight_savings()
@@ -307,11 +315,9 @@ def device_config():
         try:
             data = request.get_json() or {}
 
-            # If the request has a 'hostname', set it
             if "hostname" in data:
                 set_hostname(data["hostname"])
 
-            # If there's interface data for eth0 or wlan0
             if "interface" in data:
                 iface = data["interface"]
                 dhcp = data.get("dhcp", False)
@@ -326,21 +332,16 @@ def device_config():
                     gateway, dns1, dns2
                 )
 
-                # If it's wlan0, also handle WiFi SSID/pwd
                 if iface == "wlan0":
                     ssid = data.get("wifi_ssid", "")
                     password = data.get("wifi_password", "")
                     if ssid and password:
                         set_wifi_config(ssid, password)
 
-            # Time / NTP
             if "timezone" in data:
                 set_timezone(data["timezone"])
             if "ntp_server" in data:
                 set_ntp_server(data["ntp_server"])
-
-            # If "daylight_savings" is provided, you might do more logic here,
-            # but typically DST is automatic by region/timezone.
 
             return jsonify({"status": "success", "message": "Settings updated."}), 200
 
@@ -349,20 +350,9 @@ def device_config():
 
 @app.route("/api/device/timezones", methods=["GET"])
 def device_timezones():
-    """
-    Return a list of all valid system timezones as JSON.
-    Example:
-      {
-        "status": "success",
-        "timezones": ["Africa/Abidjan", "Africa/Accra", ...]
-      }
-    """
     try:
-        # Use timedatectl to list all timezones
         output = subprocess.check_output(["timedatectl", "list-timezones"]).decode().splitlines()
-        # Sort or filter if you like, but typically returning all is fine
         all_timezones = sorted(output)
-
         return jsonify({"status": "success", "timezones": all_timezones}), 200
 
     except Exception as e:
@@ -370,26 +360,13 @@ def device_timezones():
 
 @app.route('/api/system/update_code', methods=['POST'])
 def update_code_and_restart():
-    """
-    Performs a 'git pull' in your repo, then restarts the application (Gunicorn).
-    """
-    REPO_DIR = os.path.join(os.getcwd())  # or the absolute path to your code repository
+    REPO_DIR = os.path.join(os.getcwd())
     try:
         # 1) GIT PULL
         pull_output = subprocess.check_output(["git", "pull"], cwd=REPO_DIR, stderr=subprocess.STDOUT)
         pull_output_str = pull_output.decode("utf-8", errors="replace")
 
-        # 2) RESTART
-        # If you're running under systemd, for example:
-        # subprocess.check_output(["sudo", "systemctl", "restart", "gunicorn"])
-        # Or if you want to gracefully kill gunicorn workers:
-        # subprocess.check_output(["pkill", "-f", "gunicorn"])
-
-        # For dev mode, you might just exit the process so systemd/Docker restarts it:
-        # os._exit(1)  # but do note this kills the entire process
-
-        # Example approach (systemd with your service name):
-        # Adjust "my-gunicorn-service" to your actual systemd service
+        # 2) RESTART (systemd service example)
         subprocess.check_output(["sudo", "systemctl", "restart", "my-gunicorn-service"], stderr=subprocess.STDOUT)
 
         return jsonify({
