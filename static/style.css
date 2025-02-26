@@ -183,12 +183,18 @@ legend {
     padding: 20px;
 }
 
-.btn-active {
-    background-color: green; /* or your chosen color */
+.btn-on-active {
+    background-color: #28a745; /* a green shade */
     color: white;
 }
-
+ 
+.btn-off-active {
+    background-color: #dc3545; /* a red shade */
+    color: white;
+}
+  
 .btn-inactive {
-    background-color: #ccc;
+    background-color: #ccc;  /* grey or your normal “inactive” color */
     color: #000;
 }
+  
