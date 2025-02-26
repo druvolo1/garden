@@ -80,16 +80,24 @@
 
         // Label cell (with input + Save Label button)
         const labelCell = document.createElement('td');
+
+        // Optional: a small wrapper so the input + button can be side by side
+        const labelWrapper = document.createElement('div');
+        labelWrapper.style.display = "inline-flex";
+        labelWrapper.style.gap = "8px";
+
         const labelInput = document.createElement('input');
         labelInput.type = "text";
         labelInput.value = label;
         labelInput.id = `valve-label-${valveId}`;
-        labelCell.appendChild(labelInput);
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = "Save Label";
         saveBtn.onclick = () => saveLabel(valveId);
-        labelCell.appendChild(saveBtn);
+
+        labelWrapper.appendChild(labelInput);
+        labelWrapper.appendChild(saveBtn);
+        labelCell.appendChild(labelWrapper);
 
         tr.appendChild(labelCell);
 
@@ -102,13 +110,11 @@
         // Actions cell (On/Off)
         const actionCell = document.createElement('td');
 
-        // Create ON button w/ unique ID (e.g. "valve-1-on")
         const onBtn = document.createElement('button');
         onBtn.textContent = "ON";
         onBtn.id = `valve-${valveId}-on`;
         onBtn.onclick = () => turnValveOn(valveId);
 
-        // Create OFF button w/ unique ID (e.g. "valve-1-off")
         const offBtn = document.createElement('button');
         offBtn.textContent = "OFF";
         offBtn.id = `valve-${valveId}-off`;

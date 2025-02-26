@@ -78,6 +78,7 @@ input, select {
     color: #e0e0e0;
     font-size: 16px;
 }
+
 select {
     background-color: #2a2a2a; /* more solid, higher contrast */
     color: #f8f8f8;
@@ -166,6 +167,7 @@ legend {
     font-weight: 600;
     color: #f4c531;
 }
+
 .settings-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
@@ -175,6 +177,7 @@ legend {
     padding: 20px;
 }
 
+/* On/Off Button Colors */
 .btn-on-active {
     background: #28a745 !important; /* force green */
     color: white !important;
@@ -189,20 +192,19 @@ legend {
     background: #ccc !important;    /* force grey */
     color: #000 !important;
 }
+
+/* For the dosage page layout, optional */
 .dosage-section {
     display: flex;
     gap: 20px;
     /* Use flex-wrap if you want them to stack on smaller screens:
-    flex-wrap: wrap;
+       flex-wrap: wrap;
     */
     align-items: stretch; /* force children to stretch to the max height */
 }
 
-
-/* If you want them narrower, you can limit the width: */
 .dosage-section .data-container {
     flex: 1; /* so they share available width equally */
     display: flex;           /* so internal elements can flow normally */
     flex-direction: column;  /* keep your content stacked top-to-bottom */
 }
-
