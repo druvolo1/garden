@@ -208,3 +208,10 @@ legend {
     display: flex;           /* so internal elements can flow normally */
     flex-direction: column;  /* keep your content stacked top-to-bottom */
 }
+#valve-table {
+    width: 80%;        
+    margin: 0 auto;    /* center it */
+    border-collapse: collapse; 
+    /* optional: text-align: center; if you want centered text in cells, 
+       but you already do that via table cells or JavaScript code */
+  }
