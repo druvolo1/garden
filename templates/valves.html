@@ -10,12 +10,12 @@
 
   <nav>
     <ul>
-        <li><a href="/">Home</a></li>
-        <li><a href="/calibration">Calibration</a></li>
-        <li><a href="/configuration">Configuration</a></li>
-        <li><a href="/dosage">Dosage</a></li>
-        <li><a href="/settings">Settings</a></li>
-        <li><a href="/valves">Valves</a></li>
+      <li><a href="/">Home</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/configuration">Configuration</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/valves">Valves</a></li>
     </ul>
   </nav>
 
@@ -36,131 +36,167 @@
         <!-- Rows will be populated by JavaScript -->
       </tbody>
     </table>
-
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        fetchValveStatus();
-      });
-
-      function fetchValveStatus() {
-        fetch("/api/valve_relay/all_status")
-          .then(response => response.json())
-          .then(data => {
-            if (data.status === "success") {
-              populateTable(data.valves);
-            } else {
-              console.error("Failed to fetch valve status:", data.error);
-            }
-          })
-          .catch(err => {
-            console.error("Error fetching valve status:", err);
-          });
-      }
-
-      function populateTable(valves) {
-        const tbody = document.querySelector("#valve-table tbody");
-        tbody.innerHTML = ""; // Clear existing rows
-
-        // valves is an object: { "1": {label: "Fill", status: "on"}, "2": {...}, ... }
-        Object.keys(valves).forEach(valveId => {
-          const info = valves[valveId];
-          const label = info.label || "";
-          const status = info.status || "unknown";
-
-          // Create a table row
-          const tr = document.createElement('tr');
-
-          // Valve ID cell
-          const idCell = document.createElement('td');
-          idCell.textContent = valveId;
-          tr.appendChild(idCell);
-
-          // Label cell (with input + Save Label button)
-          const labelCell = document.createElement('td');
-          const labelInput = document.createElement('input');
-          labelInput.type = "text";
-          labelInput.value = label;
-          labelInput.id = `valve-label-${valveId}`;
-          labelCell.appendChild(labelInput);
-
-          const saveBtn = document.createElement('button');
-          saveBtn.textContent = "Save Label";
-          saveBtn.onclick = () => saveLabel(valveId);
-          labelCell.appendChild(saveBtn);
-
-          tr.appendChild(labelCell);
-
-          // Status cell
-          const statusCell = document.createElement('td');
-          statusCell.id = `valve-status-${valveId}`;
-          statusCell.textContent = status;
-          tr.appendChild(statusCell);
-
-          // Actions cell (On/Off)
-          const actionCell = document.createElement('td');
-          const onBtn = document.createElement('button');
-          onBtn.textContent = "ON";
-          onBtn.onclick = () => turnValveOn(valveId);
-
-          const offBtn = document.createElement('button');
-          offBtn.textContent = "OFF";
-          offBtn.onclick = () => turnValveOff(valveId);
-
-          actionCell.appendChild(onBtn);
-          actionCell.appendChild(offBtn);
-          tr.appendChild(actionCell);
-
-          tbody.appendChild(tr);
-        });
-      }
-
-      function saveLabel(valveId) {
-        const newLabel = document.getElementById(`valve-label-${valveId}`).value;
-        fetch(`/api/valve_relay/label/${valveId}`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({label: newLabel})
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              console.log(`Label saved for valve ${valveId}: ${newLabel}`);
-            } else {
-              console.error("Failed to save label:", data.error);
-            }
-          })
-          .catch(err => console.error("Error saving label:", err));
-      }
-
-      function turnValveOn(valveId) {
-        fetch(`/api/valve_relay/${valveId}/on`, {method: "POST"})
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              // Update the status cell
-              document.getElementById(`valve-status-${valveId}`).textContent = "on";
-            } else {
-              console.error("Failed to turn valve on:", data.error);
-            }
-          })
-          .catch(err => console.error("Error turning valve on:", err));
-      }
-
-      function turnValveOff(valveId) {
-        fetch(`/api/valve_relay/${valveId}/off`, {method: "POST"})
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              // Update the status cell
-              document.getElementById(`valve-status-${valveId}`).textContent = "off";
-            } else {
-              console.error("Failed to turn valve off:", data.error);
-            }
-          })
-          .catch(err => console.error("Error turning valve off:", err));
-      }
-    </script>
-
   </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchValveStatus();
+    });
+
+    // 1) Fetch all valve statuses + labels from /api/valve_relay/all_status
+    function fetchValveStatus() {
+      fetch("/api/valve_relay/all_status")
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            populateTable(data.valves);
+          } else {
+            console.error("Failed to fetch valve status:", data.error);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching valve status:", err);
+        });
+    }
+
+    // 2) Build the table rows dynamically
+    function populateTable(valves) {
+      const tbody = document.querySelector("#valve-table tbody");
+      tbody.innerHTML = ""; // Clear existing rows
+
+      // valves is an object: { "1": {label: "Fill", status: "on"}, "2": {...}, ... }
+      Object.keys(valves).forEach(valveId => {
+        const info = valves[valveId];
+        const label = info.label || "";
+        const status = info.status || "unknown";
+
+        // Create a table row
+        const tr = document.createElement('tr');
+
+        // Valve ID cell
+        const idCell = document.createElement('td');
+        idCell.textContent = valveId;
+        tr.appendChild(idCell);
+
+        // Label cell (with input + Save Label button)
+        const labelCell = document.createElement('td');
+        const labelInput = document.createElement('input');
+        labelInput.type = "text";
+        labelInput.value = label;
+        labelInput.id = `valve-label-${valveId}`;
+        labelCell.appendChild(labelInput);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = "Save Label";
+        saveBtn.onclick = () => saveLabel(valveId);
+        labelCell.appendChild(saveBtn);
+
+        tr.appendChild(labelCell);
+
+        // Status cell
+        const statusCell = document.createElement('td');
+        statusCell.id = `valve-status-${valveId}`;
+        statusCell.textContent = status;
+        tr.appendChild(statusCell);
+
+        // Actions cell (On/Off)
+        const actionCell = document.createElement('td');
+
+        // Create ON button w/ unique ID (e.g. "valve-1-on")
+        const onBtn = document.createElement('button');
+        onBtn.textContent = "ON";
+        onBtn.id = `valve-${valveId}-on`;
+        onBtn.onclick = () => turnValveOn(valveId);
+
+        // Create OFF button w/ unique ID (e.g. "valve-1-off")
+        const offBtn = document.createElement('button');
+        offBtn.textContent = "OFF";
+        offBtn.id = `valve-${valveId}-off`;
+        offBtn.onclick = () => turnValveOff(valveId);
+
+        actionCell.appendChild(onBtn);
+        actionCell.appendChild(offBtn);
+        tr.appendChild(actionCell);
+
+        tbody.appendChild(tr);
+
+        // Now that row is created, color-code the On/Off buttons
+        updateValveDisplay(valveId, status.toLowerCase());
+      });
+    }
+
+    // 3) Save label to /api/valve_relay/label/<valve_id>
+    function saveLabel(valveId) {
+      const newLabel = document.getElementById(`valve-label-${valveId}`).value;
+      fetch(`/api/valve_relay/label/${valveId}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({label: newLabel})
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "success") {
+            console.log(`Label saved for valve ${valveId}: ${newLabel}`);
+          } else {
+            console.error("Failed to save label:", data.error);
+          }
+        })
+        .catch(err => console.error("Error saving label:", err));
+    }
+
+    // 4) Turn valve ON
+    function turnValveOn(valveId) {
+      fetch(`/api/valve_relay/${valveId}/on`, {method: "POST"})
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "success") {
+            // Update the status cell + button colors
+            document.getElementById(`valve-status-${valveId}`).textContent = "on";
+            updateValveDisplay(valveId, "on");
+          } else {
+            console.error("Failed to turn valve on:", data.error);
+          }
+        })
+        .catch(err => console.error("Error turning valve on:", err));
+    }
+
+    // 5) Turn valve OFF
+    function turnValveOff(valveId) {
+      fetch(`/api/valve_relay/${valveId}/off`, {method: "POST"})
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "success") {
+            // Update the status cell + button colors
+            document.getElementById(`valve-status-${valveId}`).textContent = "off";
+            updateValveDisplay(valveId, "off");
+          } else {
+            console.error("Failed to turn valve off:", data.error);
+          }
+        })
+        .catch(err => console.error("Error turning valve off:", err));
+    }
+
+    // 6) Color-code the On/Off buttons based on the valve's state
+    function updateValveDisplay(valveId, newStatus) {
+      // newStatus is "on" or "off"
+      const onButton  = document.getElementById(`valve-${valveId}-on`);
+      const offButton = document.getElementById(`valve-${valveId}-off`);
+      if (!onButton || !offButton) return;
+
+      // Remove old classes
+      onButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+      offButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+
+      if (newStatus === "on") {
+        // On is green, Off is grey
+        onButton.classList.add("btn-on-active");
+        offButton.classList.add("btn-inactive");
+      } else {
+        // On is grey, Off is red
+        onButton.classList.add("btn-inactive");
+        offButton.classList.add("btn-off-active");
+      }
+    }
+  </script>
 </body>
 </html>
