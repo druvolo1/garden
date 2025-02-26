@@ -184,17 +184,17 @@ legend {
 }
 
 .btn-on-active {
-    background-color: #28a745; /* a green shade */
-    color: white;
+    background: #28a745 !important; /* force green */
+    color: white !important;
 }
- 
+
 .btn-off-active {
-    background-color: #dc3545; /* a red shade */
-    color: white;
+    background: #dc3545 !important; /* force red */
+    color: white !important;
 }
-  
+
 .btn-inactive {
-    background-color: #ccc;  /* grey or your normal “inactive” color */
-    color: #000;
+    background: #ccc !important;    /* force grey */
+    color: #000 !important;
 }
   
