@@ -223,8 +223,27 @@
             // Update the display for On/Off
             function updateValveDisplay(statusId, buttonId, newStatus) {
                 const statusSpan = document.getElementById(statusId);
-                statusSpan.textContent = (newStatus.toLowerCase() === 'on') ? 'On' : 'Off';
+                statusSpan.textContent = newStatus.toLowerCase() === 'on' ? 'On' : 'Off';
+
+                // figure out if it's fill-valve or drain-valve
+                const prefix = statusId.replace('-status', '');
+                const onButton = document.getElementById(prefix + '-on');
+                const offButton = document.getElementById(prefix + '-off');
+
+                if (!onButton || !offButton) return;
+
+                onButton.classList.remove('btn-active', 'btn-inactive');
+                offButton.classList.remove('btn-active', 'btn-inactive');
+
+                if (newStatus.toLowerCase() === 'on') {
+                    onButton.classList.add('btn-active');
+                    offButton.classList.add('btn-inactive');
+                } else {
+                    onButton.classList.add('btn-inactive');
+                    offButton.classList.add('btn-active');
+                }
             }
+
 
             // 4. Existing Helpers
             async function fetchInitialPh() {
