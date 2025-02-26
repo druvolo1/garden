@@ -204,6 +204,7 @@ app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
+app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 
 @app.route('/')
 def index():
