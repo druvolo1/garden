@@ -197,4 +197,15 @@ legend {
     background: #ccc !important;    /* force grey */
     color: #000 !important;
 }
-  
+.dosage-section {
+    display: flex;
+    gap: 20px;        /* space between the two columns */
+    flex-wrap: wrap;  /* ensure it wraps on smaller screens */
+}
+
+/* If you want them narrower, you can limit the width: */
+.dosage-section .data-container {
+    flex: 1;           /* let them expand evenly */
+    max-width: 300px;  /* or 350px, etc. */
+    margin: auto;      /* optional if you want them centered */
+}
