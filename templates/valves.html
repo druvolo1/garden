@@ -78,10 +78,10 @@
         idCell.textContent = valveId;
         tr.appendChild(idCell);
 
-        // Label cell (with input + Save Label button)
+        // Label cell (with input + Save button)
         const labelCell = document.createElement('td');
 
-        // Optional: a small wrapper so the input + button can be side by side
+        // Optional: a small wrapper so input + button are side by side
         const labelWrapper = document.createElement('div');
         labelWrapper.style.display = "inline-flex";
         labelWrapper.style.gap = "8px";
@@ -90,9 +90,12 @@
         labelInput.type = "text";
         labelInput.value = label;
         labelInput.id = `valve-label-${valveId}`;
+        // Increase width
+        labelInput.style.width = "180px";
 
         const saveBtn = document.createElement('button');
-        saveBtn.textContent = "Save Label";
+        // Change text from “Save Label” to “Save”
+        saveBtn.textContent = "Save";
         saveBtn.onclick = () => saveLabel(valveId);
 
         labelWrapper.appendChild(labelInput);
@@ -126,7 +129,7 @@
 
         tbody.appendChild(tr);
 
-        // Now that row is created, color-code the On/Off buttons
+        // Now color-code the On/Off buttons
         updateValveDisplay(valveId, status.toLowerCase());
       });
     }
@@ -184,21 +187,17 @@
 
     // 6) Color-code the On/Off buttons based on the valve's state
     function updateValveDisplay(valveId, newStatus) {
-      // newStatus is "on" or "off"
       const onButton  = document.getElementById(`valve-${valveId}-on`);
       const offButton = document.getElementById(`valve-${valveId}-off`);
       if (!onButton || !offButton) return;
 
-      // Remove old classes
       onButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
       offButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
 
       if (newStatus === "on") {
-        // On is green, Off is grey
         onButton.classList.add("btn-on-active");
         offButton.classList.add("btn-inactive");
       } else {
-        // On is grey, Off is red
         onButton.classList.add("btn-inactive");
         offButton.classList.add("btn-off-active");
       }
