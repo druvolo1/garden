@@ -183,3 +183,12 @@ legend {
     padding: 20px;
 }
 
+.btn-active {
+    background-color: green; /* or your chosen color */
+    color: white;
+}
+
+.btn-inactive {
+    background-color: #ccc;
+    color: #000;
+}
