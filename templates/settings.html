@@ -668,6 +668,33 @@
             };
             saveSettings("/api/settings", payload);
         });
+
+        document.getElementById('update-code-btn').addEventListener('click', () => {
+        if (!confirm("Are you sure you want to pull the latest code and restart the application?")) {
+            return;
+        }
+
+        // POST to your new endpoint
+        fetch("/api/system/update_code", {
+            method: "POST"
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log("Update response:", data);
+            if (data.status === "success") {
+                document.getElementById('update-status').textContent =
+                  "Update successful. Output:\n" + data.output +
+                  "\nRestarting... The page may become unavailable briefly.";
+            } else {
+                document.getElementById('update-status').textContent =
+                  "Failed to update. Error: " + (data.error || "Unknown") + "\n" + (data.output || "");
+            }
+        })
+        .catch(err => {
+            document.getElementById('update-status').textContent =
+              "Fetch error: " + err;
+        });
+    });
     </script>
 </body>
 </html>

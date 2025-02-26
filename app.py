@@ -3,6 +3,7 @@
 import socket
 import eventlet
 import subprocess
+import os
 eventlet.monkey_patch()
 
 import sys
@@ -365,6 +366,48 @@ def device_timezones():
 
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
+
+@app.route('/api/system/update_code', methods=['POST'])
+def update_code_and_restart():
+    """
+    Performs a 'git pull' in your repo, then restarts the application (Gunicorn).
+    """
+    REPO_DIR = os.path.join(os.getcwd())  # or the absolute path to your code repository
+    try:
+        # 1) GIT PULL
+        pull_output = subprocess.check_output(["git", "pull"], cwd=REPO_DIR, stderr=subprocess.STDOUT)
+        pull_output_str = pull_output.decode("utf-8", errors="replace")
+
+        # 2) RESTART
+        # If you're running under systemd, for example:
+        # subprocess.check_output(["sudo", "systemctl", "restart", "gunicorn"])
+        # Or if you want to gracefully kill gunicorn workers:
+        # subprocess.check_output(["pkill", "-f", "gunicorn"])
+
+        # For dev mode, you might just exit the process so systemd/Docker restarts it:
+        # os._exit(1)  # but do note this kills the entire process
+
+        # Example approach (systemd with your service name):
+        # Adjust "my-gunicorn-service" to your actual systemd service
+        subprocess.check_output(["sudo", "systemctl", "restart", "my-gunicorn-service"], stderr=subprocess.STDOUT)
+
+        return jsonify({
+            "status": "success",
+            "output": pull_output_str
+        })
+
+    except subprocess.CalledProcessError as e:
+        err_msg = e.output.decode("utf-8", errors="replace") if e.output else str(e)
+        return jsonify({
+            "status": "failure",
+            "error": str(e),
+            "output": err_msg
+        }), 500
+    except Exception as ex:
+        return jsonify({
+            "status": "failure",
+            "error": str(ex)
+        }), 500
 
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
