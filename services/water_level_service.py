@@ -82,7 +82,7 @@ def get_water_level_status():
         triggered = False
         if GPIO and pin is not None:
             sensor_state = GPIO.input(pin)  # This is safe now that pins are inited
-            triggered = (sensor_state == 0)
+            triggered = (sensor_state == 1)
         status[sensor_key] = {
             "label": label,
             "pin": pin,
