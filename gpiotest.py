@@ -5,7 +5,7 @@ import time
 
 # List the GPIO pins you want to monitor. 
 # These are BCM pin numbers. Adjust to your needs.
-PINS_TO_MONITOR = [4, 17, 27, 22]
+PINS_TO_MONITOR = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]
 
 def pin_callback(channel):
     """
