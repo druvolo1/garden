@@ -16,19 +16,19 @@
     }
     .disabled-section::after {
       content: attr(data-disabled-title); /* Show custom tooltip text */
-      display: none; 
+      display: none;
       background: #444;
       color: #fff;
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 0.85rem;
       position: absolute;
-      top: 5px;   
-      left: 5px;  
+      top: 5px;
+      left: 5px;
       z-index: 9999;
     }
     .disabled-section:hover::after {
-      display: block; 
+      display: block;
     }
   </style>
 </head>
@@ -36,229 +36,229 @@
 
   <!-- Navigation Menu -->
   <nav>
-      <ul>
-          <li><a href="/">Home</a></li>
-          <li><a href="/calibration">Calibration</a></li>
-          <li><a href="/configuration">Configuration</a></li>
-          <li><a href="/dosage">Dosage</a></li>
-          <li><a href="/settings">Settings</a></li>
-          <li><a href="/valves">Valves</a></li>
-      </ul>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/configuration">Configuration</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/valves">Valves</a></li>
+    </ul>
   </nav>
 
   <main>
-      <h1>Settings</h1>
-      <p class="subtitle">Configure your device, dosing, and sensors.</p>
+    <h1>Settings</h1>
+    <p class="subtitle">Configure your device, dosing, and sensors.</p>
 
-      <div class="settings-grid">
+    <div class="settings-grid">
 
-          <!-- USB Device Assignment -->
-          <div class="data-container">
-              <h2>Assign USB Devices</h2>
+      <!-- USB Device Assignment -->
+      <div class="data-container">
+        <h2>Assign USB Devices</h2>
 
-              <!-- pH Probe Form -->
-              <form id="ph-form">
-                  <label for="ph-device">pH Probe:</label>
-                  <select id="ph-device" name="ph-device">
-                      <option value="">Select a device</option>
-                  </select>
-                  <button type="submit">Save pH Probe</button>
-              </form>
+        <!-- pH Probe Form -->
+        <form id="ph-form">
+          <label for="ph-device">pH Probe:</label>
+          <select id="ph-device" name="ph-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save pH Probe</button>
+        </form>
 
-              <!-- Dosing Relay Module Form -->
-              <form id="dosing-relay-form">
-                  <label for="dosing-relay-device">Dosing Relay Module:</label>
-                  <select id="dosing-relay-device" name="dosing-relay-device">
-                      <option value="">Select a device</option>
-                  </select>
-                  <button type="submit">Save Dosing Relay Module</button>
-              </form>
+        <!-- Dosing Relay Module Form -->
+        <form id="dosing-relay-form">
+          <label for="dosing-relay-device">Dosing Relay Module:</label>
+          <select id="dosing-relay-device" name="dosing-relay-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save Dosing Relay Module</button>
+        </form>
 
-              <!-- Valve Relay Module Form -->
-              <form id="valve-relay-form">
-                  <label for="valve-relay-device">Valve Relay Module:</label>
-                  <select id="valve-relay-device" name="valve-relay-device">
-                      <option value="">Select a device</option>
-                  </select>
-                  <button type="submit">Save Valve Relay Module</button>
-              </form>
+        <!-- Valve Relay Module Form -->
+        <form id="valve-relay-form">
+          <label for="valve-relay-device">Valve Relay Module:</label>
+          <select id="valve-relay-device" name="valve-relay-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save Valve Relay Module</button>
+        </form>
 
-              <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
-              <div id="status"></div>
+        <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
+        <div id="status"></div>
 
-              <div id="relay-warning" class="error-message" style="display: none;">
-                  <strong>Dosing Relay module not assigned. Dosing-related settings are disabled.</strong>
-              </div>
-          </div>
-
-          <!-- pH Min/Max Range -->
-          <div class="data-container">
-              <h2>pH Min/Max Range</h2>
-              <form id="ph-range-form">
-                  <label for="ph-min">pH Range - Min:</label>
-                  <input type="number" id="ph-min" step="0.01">
-
-                  <label for="ph-max">pH Range - Max:</label>
-                  <input type="number" id="ph-max" step="0.01">
-
-                  <button type="submit">Save pH Range</button>
-              </form>
-          </div>
-
-          <!-- General Settings (for Dosing) -->
-          <div class="data-container" id="general-settings-container">
-              <h2>General Settings</h2>
-              <form id="general-settings-form">
-                  <label for="ph-target">pH Target:</label>
-                  <input type="number" id="ph-target" step="0.01">
-
-                  <label for="max-dosing">Max Dosing Amount (ml):</label>
-                  <input type="number" id="max-dosing" step="1">
-
-                  <label for="dosing-interval">Dosing Interval (hours):</label>
-                  <input type="number" id="dosing-interval" step=".0001">
-
-                  <label for="system-volume">System Volume (gallons):</label>
-                  <input type="number" id="system-volume" step=".1">
-
-                  <label for="auto-dosing">Auto-Dosing Enabled:</label>
-                  <input type="checkbox" id="auto-dosing">
-
-                  <button type="submit" id="general-save-btn">Save General Settings</button>
-              </form>
-          </div>
-
-          <!-- Dosage Strength -->
-          <div class="data-container" id="dosage-strength-container">
-              <h2>Dosage Strength</h2>
-              <form id="dosage-strength-form">
-                  <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
-                  <input type="number" id="ph-up-strength" step="0.01">
-
-                  <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
-                  <input type="number" id="ph-down-strength" step="0.01">
-
-                  <button type="submit" id="dosage-save-btn">Save Dosage Strength</button>
-              </form>
-          </div>
-
-          <!-- Pump Calibration -->
-          <div class="data-container" id="pump-calibration-container">
-              <h2>Pump Calibration</h2>
-              <form id="pump-calibration-form">
-                  <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
-                  <input type="number" id="pump1-calibration" step="0.01"><br><br>
-
-                  <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
-                  <input type="number" id="pump2-calibration" step="0.01"><br><br>
-
-                  <button type="submit" id="pump-calibration-save-btn">Save Pump Calibration</button>
-              </form>
-          </div>
-
-          <!-- Relay Port Assignments (for Dosing) -->
-          <div class="data-container" id="relay-port-container">
-              <h2>Dosing Relay Port Assignments</h2>
-              <form id="relay-port-form">
-                  <label for="ph-up-relay-port">pH Up Relay Port:</label>
-                  <select id="ph-up-relay-port">
-                      <option value="1">Relay 1</option>
-                      <option value="2">Relay 2</option>
-                  </select>
-                  <br><br>
-
-                  <label for="ph-down-relay-port">pH Down Relay Port:</label>
-                  <select id="ph-down-relay-port">
-                      <option value="1">Relay 1</option>
-                      <option value="2">Relay 2</option>
-                  </select>
-                  <br><br>
-
-                  <button type="submit" id="relay-port-save-btn">Save Relay Port Assignments</button>
-              </form>
-          </div>
-
-          <!-- Water Valve Assignment -->
-          <div class="data-container">
-              <h2>Water Valve Assignment</h2>
-              <form id="water-valve-form">
-                  <label for="water-valve-ip">Valve Controller IP:</label>
-                  <input type="text" id="water-valve-ip">
-                  <button type="button" id="retrieve-valves">Retrieve Valves</button>
-
-                  <label for="fill-valve">Fill Valve:</label>
-                  <select id="fill-valve">
-                      <option value="">Select Fill Valve</option>
-                  </select>
-
-                  <label for="drain-valve">Drain Valve:</label>
-                  <select id="drain-valve">
-                      <option value="">Select Drain Valve</option>
-                  </select>
-
-                  <button type="submit">Save Valve Assignments</button>
-              </form>
-          </div>
-
-          <!-- System Info Section (Renamed from 'Plant Info') -->
-          <div class="data-container" id="system-info-container">
-              <h2>System Info</h2>
-              <form id="system-info-form">
-                  <label for="system-name">System Name:</label>
-                  <input type="text" id="system-name"><br><br>
-
-                  <label for="plant-name">Plant Name:</label>
-                  <input type="text" id="plant-name"><br><br>
-
-                  <label for="plant-start-date">Plant Start Date:</label>
-                  <input type="date" id="plant-start-date"><br><br>
-
-                  <label>Weeks Since Start:</label>
-                  <span id="weeks-since-start">0</span><br><br>
-
-                  <button type="submit">Save System Info</button>
-              </form>
-          </div>
-
-          <!-- Water Level Sensors -->
-          <div class="data-container">
-              <h2>Water Level Sensors</h2>
-              <form id="water-level-sensors-form">
-                  <fieldset>
-                      <legend>Sensor 1</legend>
-                      <label>Label:</label>
-                      <input type="text" id="sensor1-label">
-                      <label>Pin:</label>
-                      <input type="number" id="sensor1-pin">
-                  </fieldset>
-
-                  <fieldset>
-                      <legend>Sensor 2</legend>
-                      <label>Label:</label>
-                      <input type="text" id="sensor2-label">
-                      <label>Pin:</label>
-                      <input type="number" id="sensor2-pin">
-                  </fieldset>
-
-                  <fieldset>
-                      <legend>Sensor 3</legend>
-                      <label>Label:</label>
-                      <input type="text" id="sensor3-label">
-                      <label>Pin:</label>
-                      <input type="number" id="sensor3-pin">
-                  </fieldset>
-
-                  <button type="submit">Save Water Sensors</button>
-              </form>
-          </div>
-
-          <!-- Application Update Section -->
-          <div class="data-container">
-              <h2>Application Updates</h2>
-              <button id="update-code-btn">Update Code &amp; Restart</button>
-              <div id="update-status"></div>
-          </div>
+        <div id="relay-warning" class="error-message" style="display: none;">
+          <strong>Dosing Relay module not assigned. Dosing-related settings are disabled.</strong>
+        </div>
       </div>
+
+      <!-- pH Min/Max Range -->
+      <div class="data-container" id="ph-range-container">
+        <h2>pH Min/Max Range</h2>
+        <form id="ph-range-form">
+          <label for="ph-min">pH Range - Min:</label>
+          <input type="number" id="ph-min" step="0.01">
+
+          <label for="ph-max">pH Range - Max:</label>
+          <input type="number" id="ph-max" step="0.01">
+
+          <button type="submit">Save pH Range</button>
+        </form>
+      </div>
+
+      <!-- General Settings (for Dosing) -->
+      <div class="data-container" id="general-settings-container">
+        <h2>General Settings</h2>
+        <form id="general-settings-form">
+          <label for="ph-target">pH Target:</label>
+          <input type="number" id="ph-target" step="0.01">
+
+          <label for="max-dosing">Max Dosing Amount (ml):</label>
+          <input type="number" id="max-dosing" step="1">
+
+          <label for="dosing-interval">Dosing Interval (hours):</label>
+          <input type="number" id="dosing-interval" step=".0001">
+
+          <label for="system-volume">System Volume (gallons):</label>
+          <input type="number" id="system-volume" step=".1">
+
+          <label for="auto-dosing">Auto-Dosing Enabled:</label>
+          <input type="checkbox" id="auto-dosing">
+
+          <button type="submit" id="general-save-btn">Save General Settings</button>
+        </form>
+      </div>
+
+      <!-- Dosage Strength -->
+      <div class="data-container" id="dosage-strength-container">
+        <h2>Dosage Strength</h2>
+        <form id="dosage-strength-form">
+          <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
+          <input type="number" id="ph-up-strength" step="0.01">
+
+          <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
+          <input type="number" id="ph-down-strength" step="0.01">
+
+          <button type="submit" id="dosage-save-btn">Save Dosage Strength</button>
+        </form>
+      </div>
+
+      <!-- Pump Calibration -->
+      <div class="data-container" id="pump-calibration-container">
+        <h2>Pump Calibration</h2>
+        <form id="pump-calibration-form">
+          <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
+          <input type="number" id="pump1-calibration" step="0.01"><br><br>
+
+          <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
+          <input type="number" id="pump2-calibration" step="0.01"><br><br>
+
+          <button type="submit" id="pump-calibration-save-btn">Save Pump Calibration</button>
+        </form>
+      </div>
+
+      <!-- Relay Port Assignments (for Dosing) -->
+      <div class="data-container" id="relay-port-container">
+        <h2>Dosing Relay Port Assignments</h2>
+        <form id="relay-port-form">
+          <label for="ph-up-relay-port">pH Up Relay Port:</label>
+          <select id="ph-up-relay-port">
+            <option value="1">Relay 1</option>
+            <option value="2">Relay 2</option>
+          </select>
+          <br><br>
+
+          <label for="ph-down-relay-port">pH Down Relay Port:</label>
+          <select id="ph-down-relay-port">
+            <option value="1">Relay 1</option>
+            <option value="2">Relay 2</option>
+          </select>
+          <br><br>
+
+          <button type="submit" id="relay-port-save-btn">Save Relay Port Assignments</button>
+        </form>
+      </div>
+
+      <!-- Water Valve Assignment -->
+      <div class="data-container">
+        <h2>Water Valve Assignment</h2>
+        <form id="water-valve-form">
+          <label for="water-valve-ip">Valve Controller IP:</label>
+          <input type="text" id="water-valve-ip">
+          <button type="button" id="retrieve-valves">Retrieve Valves</button>
+
+          <label for="fill-valve">Fill Valve:</label>
+          <select id="fill-valve">
+            <option value="">Select Fill Valve</option>
+          </select>
+
+          <label for="drain-valve">Drain Valve:</label>
+          <select id="drain-valve">
+            <option value="">Select Drain Valve</option>
+          </select>
+
+          <button type="submit">Save Valve Assignments</button>
+        </form>
+      </div>
+
+      <!-- System Info Section (Renamed from 'Plant Info') -->
+      <div class="data-container" id="system-info-container">
+        <h2>System Info</h2>
+        <form id="system-info-form">
+          <label for="system-name">System Name:</label>
+          <input type="text" id="system-name"><br><br>
+
+          <label for="plant-name">Plant Name:</label>
+          <input type="text" id="plant-name"><br><br>
+
+          <label for="plant-start-date">Plant Start Date:</label>
+          <input type="date" id="plant-start-date"><br><br>
+
+          <label>Weeks Since Start:</label>
+          <span id="weeks-since-start">0</span><br><br>
+
+          <button type="submit">Save System Info</button>
+        </form>
+      </div>
+
+      <!-- Water Level Sensors -->
+      <div class="data-container">
+        <h2>Water Level Sensors</h2>
+        <form id="water-level-sensors-form">
+          <fieldset>
+            <legend>Sensor 1</legend>
+            <label>Label:</label>
+            <input type="text" id="sensor1-label">
+            <label>Pin:</label>
+            <input type="number" id="sensor1-pin">
+          </fieldset>
+
+          <fieldset>
+            <legend>Sensor 2</legend>
+            <label>Label:</label>
+            <input type="text" id="sensor2-label">
+            <label>Pin:</label>
+            <input type="number" id="sensor2-pin">
+          </fieldset>
+
+          <fieldset>
+            <legend>Sensor 3</legend>
+            <label>Label:</label>
+            <input type="text" id="sensor3-label">
+            <label>Pin:</label>
+            <input type="number" id="sensor3-pin">
+          </fieldset>
+
+          <button type="submit">Save Water Sensors</button>
+        </form>
+      </div>
+
+      <!-- Application Update Section -->
+      <div class="data-container">
+        <h2>Application Updates</h2>
+        <button id="update-code-btn">Update Code &amp; Restart</button>
+        <div id="update-status"></div>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -269,19 +269,19 @@
     function updateWeeksSinceStart(startDateStr) {
       const weeksSpan = document.getElementById('weeks-since-start');
       if (!startDateStr) {
-          weeksSpan.textContent = '0';
-          return;
+        weeksSpan.textContent = '0';
+        return;
       }
       const startDate = new Date(startDateStr);
       if (isNaN(startDate)) {
-          weeksSpan.textContent = '0';
-          return;
+        weeksSpan.textContent = '0';
+        return;
       }
       const now = new Date();
       const diffMs = now - startDate;
       if (diffMs < 0) {
-          weeksSpan.textContent = '0';
-          return;
+        weeksSpan.textContent = '0';
+        return;
       }
       const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
       weeksSpan.textContent = weeks.toString();
@@ -300,21 +300,22 @@
         const dosingDevSelect = document.getElementById('dosing-relay-device');
         const valveDevSelect  = document.getElementById('valve-relay-device');
 
-        const assignedPh      = settings.usb_roles?.ph_probe     || "";
-        const assignedDosing  = settings.usb_roles?.relay        || "";
-        const assignedValve   = settings.usb_roles?.valve_relay  || "";
+        const assignedPh      = settings.usb_roles?.ph_probe    || "";
+        const assignedDosing  = settings.usb_roles?.relay       || "";
+        const assignedValve   = settings.usb_roles?.valve_relay || "";
 
+        // Re-populate device dropdowns
         phDevSelect.innerHTML     = '<option value="">Select a device</option>';
         dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
         valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
 
         devices.forEach(dev => {
-          // pH
+          // pH Option
           const phOption = document.createElement('option');
           phOption.value = dev.device;
           phOption.textContent = dev.device;
           if (phOption.value === assignedPh) {
-              phOption.selected = true;
+            phOption.selected = true;
           }
           phDevSelect.appendChild(phOption);
 
@@ -323,7 +324,7 @@
           dosingOption.value = dev.device;
           dosingOption.textContent = dev.device;
           if (dosingOption.value === assignedDosing) {
-              dosingOption.selected = true;
+            dosingOption.selected = true;
           }
           dosingDevSelect.appendChild(dosingOption);
 
@@ -332,31 +333,36 @@
           valveOption.value = dev.device;
           valveOption.textContent = dev.device;
           if (valveOption.value === assignedValve) {
-              valveOption.selected = true;
+            valveOption.selected = true;
           }
           valveDevSelect.appendChild(valveOption);
         });
 
-        // Check if pH probe + dosing relay are both assigned
-        const isPhProbeAssigned = Boolean(assignedPh);
-        const isDosingRelayAssigned = Boolean(assignedDosing);
+        // 1) If NO pH probe => disable pH range
+        const isPhProbeAssigned     = Boolean(assignedPh);
+        const phRangeContainer     = document.getElementById('ph-range-container');
+        if (!isPhProbeAssigned) {
+          phRangeContainer.classList.add('disabled-section');
+          phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
+        } else {
+          phRangeContainer.classList.remove('disabled-section');
+          phRangeContainer.removeAttribute('data-disabled-title');
+        }
 
-        // If either missing => disable the “dosing-related” sections
-        const pHmustDisable = (!isPhProbeAssigned);
-        const dosingmustDisable = (!isDosingRelayAssigned);
+        // 2) If NO pH OR NO dosing => disable the big 4
+        const isDosingRelayAssigned = Boolean(assignedDosing);
+        const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
 
         // Grab containers
-        const generalSettings  = document.getElementById('general-settings-container');
-        const dosageStrength = document.getElementById('dosage-strength-container')//dosage strength
-        const pumpCalibration  = document.getElementById('pump-calibration-container');
-        const relayPortSection = document.getElementById('relay-port-container');
+        const generalSettings   = document.getElementById('general-settings-container');
+        const dosageStrength    = document.getElementById('dosage-strength-container');
+        const pumpCalibration   = document.getElementById('pump-calibration-container');
+        const relayPortSection  = document.getElementById('relay-port-container');
 
-
-        if (pHmustDisable || dosingmustDisable) {
+        if (mustDisableBig4) {
           generalSettings.classList.add('disabled-section');
           generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-        }
-        else if(dosingmustDisable){
+
           dosageStrength.classList.add('disabled-section');
           dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
@@ -365,8 +371,7 @@
 
           relayPortSection.classList.add('disabled-section');
           relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-        }
-        else {
+        } else {
           generalSettings.classList.remove('disabled-section');
           generalSettings.removeAttribute('data-disabled-title');
 
@@ -388,7 +393,7 @@
         document.getElementById('ph-min').value = settings.ph_range?.min || '';
         document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
-        // General
+        // General (dosing) settings
         document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
         document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
         document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
