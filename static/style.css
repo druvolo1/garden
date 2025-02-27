@@ -217,6 +217,6 @@ legend {
   }
 
 .disabled-section {
-    opacity: 0.5;         /* visually dim it */
+    opacity: 0.9;         /* visually dim it */
     pointer-events: none; /* block clicks and focus */
   }
