@@ -342,7 +342,8 @@
         const isDosingRelayAssigned = Boolean(assignedDosing);
 
         // If either missing => disable the “dosing-related” sections
-        const mustDisable = (!isPhProbeAssigned || !isDosingRelayAssigned);
+        const pHmustDisable = (!isPhProbeAssigned);
+        const dosingmustDisable = (!isDosingRelayAssigned);
 
         // Grab containers
         const generalSettings  = document.getElementById('general-settings-container');
@@ -350,10 +351,11 @@
         const pumpCalibration  = document.getElementById('pump-calibration-container');
         const relayPortSection = document.getElementById('relay-port-container');
 
-        if (mustDisable) {
+        if (pHmustDisable || dosingmustDisable) {
           generalSettings.classList.add('disabled-section');
           generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-
+        }
+        else if(dosingmustDisable){
           dosageStrength.classList.add('disabled-section');
           dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
@@ -362,7 +364,8 @@
 
           relayPortSection.classList.add('disabled-section');
           relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-        } else {
+        }
+        else {
           generalSettings.classList.remove('disabled-section');
           generalSettings.removeAttribute('data-disabled-title');
 
