@@ -220,6 +220,6 @@ button[disabled],
 input[disabled],
 select[disabled],
 textarea[disabled] {
-    opacity: 0.5;        /* make them semi-transparent */
+    opacity: 20.5;        /* make them semi-transparent */
     cursor: not-allowed; /* change the mouse pointer */
 }
