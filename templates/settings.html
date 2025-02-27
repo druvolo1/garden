@@ -7,6 +7,31 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+
+    <style>
+        /* Example styling for a disabled section */
+        .disabled-section {
+            opacity: 0.5;            /* Visually dims the section */
+            pointer-events: none;    /* Prevents clicks, hovers, focus, etc. */
+            position: relative;
+        }
+        .disabled-section::after {
+            content: attr(data-disabled-title); /* Show the custom tooltip text */
+            display: none; 
+            background: #444;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            position: absolute;
+            top: 5px;   /* adjust as needed */
+            left: 5px;  /* adjust as needed */
+            z-index: 9999;
+        }
+        .disabled-section:hover::after {
+            display: block; /* Show the tooltip on hover */
+        }
+    </style>
 </head>
 <body>
 
@@ -82,7 +107,8 @@
             </div>
 
             <!-- General Settings (for Dosing) -->
-            <div class="data-container">
+            <!-- We'll give this container an ID for toggling -->
+            <div class="data-container" id="general-settings-container">
                 <h2>General Settings</h2>
                 <form id="general-settings-form">
                     <label for="ph-target">pH Target:</label>
@@ -105,7 +131,7 @@
             </div>
 
             <!-- Dosage Strength -->
-            <div class="data-container">
+            <div class="data-container" id="dosage-strength-container">
                 <h2>Dosage Strength</h2>
                 <form id="dosage-strength-form">
                     <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
@@ -119,7 +145,7 @@
             </div>
 
             <!-- Pump Calibration -->
-            <div class="data-container">
+            <div class="data-container" id="pump-calibration-container">
                 <h2>Pump Calibration</h2>
                 <form id="pump-calibration-form">
                     <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
@@ -133,7 +159,7 @@
             </div>
 
             <!-- Relay Port Assignments (for Dosing) -->
-            <div class="data-container">
+            <div class="data-container" id="relay-port-container">
                 <h2>Dosing Relay Port Assignments</h2>
                 <form id="relay-port-form">
                     <label for="ph-up-relay-port">pH Up Relay Port:</label>
@@ -177,7 +203,7 @@
             </div>
 
             <!-- System Info Section (Renamed from 'Plant Info') -->
-            <div class="data-container">
+            <div class="data-container" id="system-info-container">
                 <h2>System Info</h2>
                 <form id="system-info-form">
                     <!-- Move System Name here -->
@@ -240,12 +266,10 @@
     </main>
 
     <script>
-        // On DOM load, fetch devices and settings
         document.addEventListener('DOMContentLoaded', () => {
             fetchUsbDevices();
         });
-        
-        // Function to update weeks since start
+
         function updateWeeksSinceStart(startDateStr) {
             const weeksSpan = document.getElementById('weeks-since-start');
             if (!startDateStr) {
@@ -267,7 +291,6 @@
             weeksSpan.textContent = weeks.toString();
         }
 
-        // Fetch devices + settings
         function fetchUsbDevices() {
             console.log('Rescanning USB devices...');
             Promise.all([
@@ -278,21 +301,20 @@
                 console.log('Devices:', devices);
                 console.log('Settings:', settings);
 
-                // Populate USB device dropdowns for pH, Dosing Relay, Valve Relay
-                const phDevSelect = document.getElementById('ph-device');
+                const phDevSelect     = document.getElementById('ph-device');
                 const dosingDevSelect = document.getElementById('dosing-relay-device');
-                const valveDevSelect = document.getElementById('valve-relay-device');
+                const valveDevSelect  = document.getElementById('valve-relay-device');
 
-                const assignedPh = settings.usb_roles?.ph_probe || "";
-                const assignedDosing = settings.usb_roles?.relay || "";
-                const assignedValve = settings.usb_roles?.valve_relay || "";
+                const assignedPh      = settings.usb_roles?.ph_probe || "";
+                const assignedDosing  = settings.usb_roles?.relay    || "";
+                const assignedValve   = settings.usb_roles?.valve_relay || "";
 
-                phDevSelect.innerHTML = '<option value="">Select a device</option>';
+                phDevSelect.innerHTML     = '<option value="">Select a device</option>';
                 dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
-                valveDevSelect.innerHTML = '<option value="">Select a device</option>';
+                valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
 
                 devices.forEach(dev => {
-                    // pH Probe
+                    // pH
                     const phOption = document.createElement('option');
                     phOption.value = dev.device;
                     phOption.textContent = dev.device;
@@ -320,79 +342,83 @@
                     valveDevSelect.appendChild(valveOption);
                 });
 
-                // Decide if a dosing relay is assigned
+                // Figure out whether pH or Dosing is assigned
+                const isPhProbeAssigned     = Boolean(assignedPh);
                 const isDosingRelayAssigned = Boolean(assignedDosing);
 
-                // For forms that truly depend on a dosing relay:
-                // (pH target, dosage strength, pump calibration, etc.)
-                document.querySelectorAll(
-                    '#general-settings-form input, ' +
-                    '#dosage-strength-form input, ' +
-                    '#pump-calibration-form input, ' +
-                    '#general-save-btn, ' +
-                    '#dosage-save-btn, ' +
-                    '#pump-calibration-save-btn, ' +
-                    '#relay-port-form select, ' +
-                    '#relay-port-save-btn'
-                ).forEach(el => {
-                    el.disabled = !isDosingRelayAssigned;
-                });
+                // If either is missing, disable the relevant sections
+                const mustDisable = (!isPhProbeAssigned || !isDosingRelayAssigned);
 
-                // Show warning if no dosing relay is assigned
+                // Grab containers to gray them out if needed
+                const generalSettings   = document.getElementById('general-settings-container');
+                const dosageStrength    = document.getElementById('dosage-strength-container');
+                const pumpCalibration   = document.getElementById('pump-calibration-container');
+                const relayPortSection  = document.getElementById('relay-port-container');
+
+                // If we must disable them, add disabled-section class + data-disabled-title
+                if (mustDisable) {
+                    generalSettings.classList.add('disabled-section');
+                    generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+
+                    dosageStrength.classList.add('disabled-section');
+                    dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+
+                    pumpCalibration.classList.add('disabled-section');
+                    pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+
+                    relayPortSection.classList.add('disabled-section');
+                    relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+                } else {
+                    // Remove if previously added
+                    generalSettings.classList.remove('disabled-section');
+                    generalSettings.removeAttribute('data-disabled-title');
+
+                    dosageStrength.classList.remove('disabled-section');
+                    dosageStrength.removeAttribute('data-disabled-title');
+
+                    pumpCalibration.classList.remove('disabled-section');
+                    pumpCalibration.removeAttribute('data-disabled-title');
+
+                    relayPortSection.classList.remove('disabled-section');
+                    relayPortSection.removeAttribute('data-disabled-title');
+                }
+
+                // Show/hide the red “Dosing Relay module not assigned” message
                 const relayWarning = document.getElementById('relay-warning');
                 relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
-                // -----------------------
-                // pH Min/Max Range
-                // -----------------------
+                // pH Range
                 document.getElementById('ph-min').value = settings.ph_range?.min || '';
                 document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
-                // -----------------------
-                // General Settings
-                // (No time-zone anymore, so skip that)
-                // -----------------------
-                document.getElementById('ph-target').value = settings.ph_target || '5.8';
-                document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
-                document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
-                document.getElementById('system-volume').value = settings.system_volume || '';
-                document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+                // General
+                document.getElementById('ph-target').value        = settings.ph_target         || '5.8';
+                document.getElementById('max-dosing').value       = settings.max_dosing_amount || '0';
+                document.getElementById('dosing-interval').value  = settings.dosing_interval   || '1';
+                document.getElementById('system-volume').value    = settings.system_volume     || '';
+                document.getElementById('auto-dosing').checked    = !!settings.auto_dosing_enabled;
 
-                // -----------------------
-                // System Info (includes system_name, plant_name, etc.)
-                // -----------------------
+                // System Info
                 const plantInfo = settings.plant_info || {};
-
-                // System Name
-                document.getElementById('system-name').value = settings.system_name || '';
-
-                // Plant Info
-                document.getElementById('plant-name').value = plantInfo.name || '';
-                document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+                document.getElementById('system-name').value     = settings.system_name || '';
+                document.getElementById('plant-name').value      = plantInfo.name       || '';
+                document.getElementById('plant-start-date').value= plantInfo.start_date|| '';
                 updateWeeksSinceStart(plantInfo.start_date);
 
-                // -----------------------
                 // Dosage Strength
-                // -----------------------
-                document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
+                document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
                 document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
 
-                // -----------------------
                 // Pump Calibration
-                // -----------------------
                 document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
                 document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
 
-                // -----------------------
-                // Relay Port Assignments (for Dosing)
-                // -----------------------
+                // Relay Ports
                 const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
-                document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
+                document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
                 document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
 
-                // -----------------------
                 // Water Level Sensors
-                // -----------------------
                 const sensors = settings.water_level_sensors || {
                     sensor1: { label: "Full", pin: 22 },
                     sensor2: { label: "3 Gal", pin: 23 },
@@ -405,9 +431,7 @@
                 document.getElementById('sensor3-label').value = sensors.sensor3.label;
                 document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
 
-                // -----------------------
-                // Water Valve IP & Assignments
-                // -----------------------
+                // Water Valve
                 document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
                 if (settings.water_valve_ip) {
                     retrieveValvesFromIP(settings.water_valve_ip)
@@ -415,69 +439,55 @@
                             document.getElementById('fill-valve').value  = settings.water_fill_valve  || '';
                             document.getElementById('drain-valve').value = settings.water_drain_valve || '';
                         })
-                        .catch(err => {
-                            console.error('Auto-retrieve error:', err);
-                        });
+                        .catch(err => console.error('Auto-retrieve error:', err));
                 } else {
                     document.getElementById('fill-valve').innerHTML  = '<option value="">Select Fill Valve</option>';
                     document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
                 }
-                document.getElementById('retrieve-valves').addEventListener('click', () => {
+
+                // If user clicks "Retrieve Valves," handle that:
+                document.getElementById('retrieve-valves').onclick = () => {
                     const ipInput = document.getElementById('water-valve-ip').value.trim();
-                    
-                    // If it's empty, skip the fetch entirely
                     if (!ipInput) {
                         alert("No IP provided. If you really want no IP, leave it blank and click 'Save Valve Assignments'.");
                         return;
                     }
-
-                    // If not empty, proceed as before
                     retrieveValvesFromIP(ipInput)
-                        .then(() => {
-                            console.log('Valves retrieved successfully');
-                            // Possibly do something else on success
-                        })
+                        .then(() => console.log('Valves retrieved successfully'))
                         .catch(error => {
                             console.error('Fetch error:', error);
                             alert(`Error retrieving valves: ${error.message}`);
                         });
-                });
+                };
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
         }
 
-
         function retrieveValvesFromIP(ipInput) {
             return new Promise((resolve, reject) => {
                 if (!ipInput) {
-                    reject(new Error('No IP address provided'));
-                    return;
+                    return reject(new Error('No IP address provided'));
                 }
-
                 let [host, port] = ipInput.split(':');
-                port = port || '8000'; // default port
+                port = port || '8000';
                 const url = `http://${host}:${port}/api/valve_relay/list_names`;
-                console.log('Attempting to fetch from:', url);
 
                 fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error(`HTTP error! status: ${res.status}`);
                         }
-                        return response.json();
+                        return res.json();
                     })
                     .then(data => {
                         const valves = Array.isArray(data)
                             ? data
                             : data.valves || data.valve_names || data.data || [];
-
                         if (!valves.length) {
                             throw new Error('No valves found in response');
                         }
-
                         const fillSelect  = document.getElementById('fill-valve');
                         const drainSelect = document.getElementById('drain-valve');
-
                         fillSelect.innerHTML  = '<option value="">Select Fill Valve</option>';
                         drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
 
@@ -485,16 +495,13 @@
                             fillSelect.add(new Option(valve, valve));
                             drainSelect.add(new Option(valve, valve));
                         });
-
                         resolve(valves);
                     })
-                    .catch(err => {
-                        reject(err);
-                    });
+                    .catch(err => reject(err));
             });
         }
 
-        // Helper to POST usb assignment to the server
+        // USB assignment
         function saveUsbAssignment(role, device) {
             fetch("/api/settings/assign_usb", {
                 method: 'POST',
@@ -504,18 +511,16 @@
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'success') {
-                    document.getElementById('status').textContent =
-                        `${role} assigned successfully.`;
+                    document.getElementById('status').textContent = `${role} assigned successfully.`;
                 } else {
-                    document.getElementById('status').textContent =
-                        `Failed to assign ${role}: ${data.error}`;
+                    document.getElementById('status').textContent = `Failed to assign ${role}: ${data.error}`;
                 }
                 fetchUsbDevices();
             })
             .catch(err => console.error(`Error assigning ${role}:`, err));
         }
 
-        // Helper to POST updated settings
+        // Save settings
         function saveSettings(endpoint, payload) {
             fetch(endpoint, {
                 method: 'POST',
@@ -524,76 +529,66 @@
             })
             .then(() => {
                 console.log('Settings saved successfully');
-                fetchUsbDevices(); // refresh UI
+                fetchUsbDevices(); // refresh
             })
             .catch(error => console.error('Error saving settings:', error));
         }
 
-        // ========== Form Submissions ==========
+        // ========== FORM SUBMISSIONS BELOW ==========
 
-        // pH Probe
-        document.getElementById('ph-form').addEventListener('submit', evt => {
-            evt.preventDefault();
+        document.getElementById('ph-form').addEventListener('submit', e => {
+            e.preventDefault();
             const dev = document.getElementById('ph-device').value;
             saveUsbAssignment('ph_probe', dev);
         });
 
-        // Dosing Relay
-        document.getElementById('dosing-relay-form').addEventListener('submit', evt => {
-            evt.preventDefault();
+        document.getElementById('dosing-relay-form').addEventListener('submit', e => {
+            e.preventDefault();
             const dev = document.getElementById('dosing-relay-device').value;
             saveUsbAssignment('relay', dev);
         });
 
-        // Valve Relay
-        document.getElementById('valve-relay-form').addEventListener('submit', evt => {
-            evt.preventDefault();
+        document.getElementById('valve-relay-form').addEventListener('submit', e => {
+            e.preventDefault();
             const dev = document.getElementById('valve-relay-device').value;
             saveUsbAssignment('valve_relay', dev);
         });
 
-        // Water Valve IP
-        document.getElementById('water-valve-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('water-valve-form').addEventListener('submit', e => {
+            e.preventDefault();
             const payload = {
-                water_valve_ip:   document.getElementById('water-valve-ip').value,
+                water_valve_ip: document.getElementById('water-valve-ip').value,
                 water_fill_valve: document.getElementById('fill-valve').value,
-                water_drain_valve:document.getElementById('drain-valve').value
+                water_drain_valve: document.getElementById('drain-valve').value
             };
             saveSettings("/api/settings", payload);
         });
 
-        // pH Range
-        document.getElementById('ph-range-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('ph-range-form').addEventListener('submit', e => {
+            e.preventDefault();
             const minVal = parseFloat(document.getElementById('ph-min').value);
             const maxVal = parseFloat(document.getElementById('ph-max').value);
             const payload = {
-                ph_range: {
-                    min: minVal,
-                    max: maxVal
-                }
+                ph_range: { min: minVal, max: maxVal }
             };
             saveSettings("/api/settings", payload);
         });
 
-        // General (Dosing) Settings
-        document.getElementById('general-settings-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('general-settings-form').addEventListener('submit', e => {
+            e.preventDefault();
             const payload = {
-                ph_target: parseFloat(document.getElementById('ph-target').value),
+                ph_target:         parseFloat(document.getElementById('ph-target').value),
                 max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
-                dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
-                system_volume: parseFloat(document.getElementById('system-volume').value),
+                dosing_interval:   parseFloat(document.getElementById('dosing-interval').value),
+                system_volume:     parseFloat(document.getElementById('system-volume').value),
                 auto_dosing_enabled: document.getElementById('auto-dosing').checked
             };
             saveSettings("/api/settings", payload);
         });
 
-        // Dosage Strength
-        document.getElementById('dosage-strength-form').addEventListener('submit', event => {
-            event.preventDefault();
-            const phUp = parseFloat(document.getElementById('ph-up-strength').value);
+        document.getElementById('dosage-strength-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const phUp   = parseFloat(document.getElementById('ph-up-strength').value);
             const phDown = parseFloat(document.getElementById('ph-down-strength').value);
             const payload = {
                 dosage_strength: {
@@ -604,9 +599,8 @@
             saveSettings("/api/settings", payload);
         });
 
-        // Pump Calibration
-        document.getElementById('pump-calibration-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('pump-calibration-form').addEventListener('submit', e => {
+            e.preventDefault();
             const payload = {
                 pump_calibration: {
                     pump1: parseFloat(document.getElementById('pump1-calibration').value),
@@ -616,10 +610,9 @@
             saveSettings("/api/settings", payload);
         });
 
-        // Relay Ports
-        document.getElementById('relay-port-form').addEventListener('submit', event => {
-            event.preventDefault();
-            const phUpPort = parseInt(document.getElementById('ph-up-relay-port').value, 10);
+        document.getElementById('relay-port-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const phUpPort   = parseInt(document.getElementById('ph-up-relay-port').value, 10);
             const phDownPort = parseInt(document.getElementById('ph-down-relay-port').value, 10);
             const payload = {
                 relay_ports: {
@@ -630,15 +623,13 @@
             saveSettings("/api/settings", payload);
         });
 
-        // System Info (System Name + Plant Info)
-        document.getElementById('system-info-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('system-info-form').addEventListener('submit', e => {
+            e.preventDefault();
             const systemName = document.getElementById('system-name').value.trim();
             const plantName  = document.getElementById('plant-name').value.trim();
             const startDate  = document.getElementById('plant-start-date').value;
-
             const payload = {
-                system_name: systemName,  // top-level
+                system_name: systemName,
                 plant_info: {
                     name: plantName,
                     start_date: startDate
@@ -647,10 +638,12 @@
             saveSettings("/api/settings", payload);
         });
 
-        // Water Level Sensors
-        document.getElementById('water-level-sensors-form').addEventListener('submit', event => {
-            event.preventDefault();
+        document.getElementById('plant-start-date').addEventListener('change', (e) => {
+            updateWeeksSinceStart(e.target.value);
+        });
 
+        document.getElementById('water-level-sensors-form').addEventListener('submit', e => {
+            e.preventDefault();
             const sensor1Label = document.getElementById('sensor1-label').value;
             const sensor1Pin   = parseInt(document.getElementById('sensor1-pin').value, 10) || 22;
             const sensor2Label = document.getElementById('sensor2-label').value;
@@ -673,20 +666,19 @@
             if (!confirm("Are you sure you want to pull the latest code and restart the application?")) {
                 return;
             }
-            // POST to your new endpoint
-            fetch("/api/system/update_code", {
-                method: "POST"
-            })
-            .then(response => response.json())
+            fetch("/api/system/update_code", { method: "POST" })
+            .then(res => res.json())
             .then(data => {
                 console.log("Update response:", data);
+                const updateStatus = document.getElementById('update-status');
                 if (data.status === "success") {
-                    document.getElementById('update-status').textContent =
+                    updateStatus.textContent =
                       "Update successful. Output:\n" + data.output +
                       "\nRestarting... The page may become unavailable briefly.";
                 } else {
-                    document.getElementById('update-status').textContent =
-                      "Failed to update. Error: " + (data.error || "Unknown") + "\n" + (data.output || "");
+                    updateStatus.textContent =
+                      "Failed to update. Error: " + (data.error || "Unknown") +
+                      "\n" + (data.output || "");
                 }
             })
             .catch(err => {
