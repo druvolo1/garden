@@ -347,9 +347,10 @@
 
         // Grab containers
         const generalSettings  = document.getElementById('general-settings-container');
-        const dosageStrength   = document.getElementById('dosage-strength-container');
+        const dosageStrength = document.getElementById('dosage-strength-container')//dosage strength
         const pumpCalibration  = document.getElementById('pump-calibration-container');
         const relayPortSection = document.getElementById('relay-port-container');
+
 
         if (pHmustDisable || dosingmustDisable) {
           generalSettings.classList.add('disabled-section');
