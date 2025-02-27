@@ -159,7 +159,7 @@
                 <h2>Water Valve Assignment</h2>
                 <form id="water-valve-form">
                     <label for="water-valve-ip">Valve Controller IP:</label>
-                    <input type="text" id="water-valve-ip" name="water-valve-ip" required>
+                    <input type="text" id="water-valve-ip" name="water-valve-ip">
                     <button type="button" id="retrieve-valves">Retrieve Valves</button>
 
                     <label for="fill-valve">Fill Valve:</label>
@@ -422,6 +422,26 @@
                     document.getElementById('fill-valve').innerHTML  = '<option value="">Select Fill Valve</option>';
                     document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
                 }
+                document.getElementById('retrieve-valves').addEventListener('click', () => {
+                    const ipInput = document.getElementById('water-valve-ip').value.trim();
+                    
+                    // If it's empty, skip the fetch entirely
+                    if (!ipInput) {
+                        alert("No IP provided. If you really want no IP, leave it blank and click 'Save Valve Assignments'.");
+                        return;
+                    }
+
+                    // If not empty, proceed as before
+                    retrieveValvesFromIP(ipInput)
+                        .then(() => {
+                            console.log('Valves retrieved successfully');
+                            // Possibly do something else on success
+                        })
+                        .catch(error => {
+                            console.error('Fetch error:', error);
+                            alert(`Error retrieving valves: ${error.message}`);
+                        });
+                });
             })
             .catch(error => console.error('Error scanning devices or fetching settings:', error));
         }
