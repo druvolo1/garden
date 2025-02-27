@@ -216,10 +216,7 @@ legend {
        but you already do that via table cells or JavaScript code */
   }
 
-button[disabled],
-input[disabled],
-select[disabled],
-textarea[disabled] {
-    opacity: 0.5;        /* make them semi-transparent */
-    cursor: not-allowed; /* change the mouse pointer */
-}
+.disabled-section {
+    opacity: 0.5;         /* visually dim it */
+    pointer-events: none; /* block clicks and focus */
+  }
