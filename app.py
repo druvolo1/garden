@@ -1,16 +1,19 @@
+# File: app.py
 import socket
 import eventlet
-import subprocess
-import os
 eventlet.monkey_patch()
 
 import sys
 import signal
 from datetime import datetime, timedelta
+import os
+import subprocess
 
 from flask import Flask, render_template, jsonify, request
-from flask_socketio import SocketIO
 from flask_cors import CORS
+
+# Import the single socketio instance from socketio_instance
+from socketio_instance import socketio
 
 # Import your other blueprints
 from api.ph import ph_blueprint
@@ -20,8 +23,6 @@ from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
 from api.valve_relay import valve_relay_blueprint
-
-# IMPORTANT: Import the update_code blueprint
 from api.update_code import update_code_blueprint
 
 from status_namespace import StatusNamespace, emit_status_update
@@ -41,22 +42,29 @@ from services.device_config import (
     set_timezone, set_ntp_server, set_wifi_config
 )
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
+from services.mdns_service import update_mdns_service
+from utils.settings_utils import load_settings
 
 from api.ec import ec_blueprint
 
+import eventlet
 
+def log_with_timestamp(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+
+# Create Flask
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(
+
+# Initialize socketio here, passing the Flask app
+socketio.init_app(
     app,
     async_mode="eventlet",
     cors_allowed_origins="*"
 )
 
+# Register your Socket.IO namespace
 socketio.on_namespace(StatusNamespace('/status'))
-
-def log_with_timestamp(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -88,7 +96,9 @@ def auto_dosing_loop():
             if auto_dose_state.get("last_interval") != interval_hours:
                 auto_dose_state["last_interval"] = interval_hours
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                log_with_timestamp(f"Interval changed; next dose time reset to {auto_dose_state['next_dose_time']}")
+                log_with_timestamp(
+                    f"Interval changed; next dose time reset to {auto_dose_state['next_dose_time']}"
+                )
 
             if not auto_dose_state.get("next_dose_time"):
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
@@ -139,20 +149,19 @@ def broadcast_ec_readings():
         try:
             from services.ec_service import get_latest_ec_reading
             ec_value = get_latest_ec_reading()
-            if ec_value is not None and ec_value != last_emitted_value:
-                last_emitted_value = ec_value
-                log_with_timestamp(f"[EC Broadcast] EC value updated: {ec_value}")
+            if ec_value is not None:
+                if ec_value != last_emitted_value:
+                    last_emitted_value = ec_value
+                    # Now we emit the update, just like pH
+                    socketio.emit('ec_update', {'ec': ec_value})
+                    log_with_timestamp(f"[EC Broadcast] Emitting EC update: {ec_value}")
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[EC Broadcast] Error: {e}")
             eventlet.sleep(5)
 
-def broadcast_status():
-    from api.settings import load_settings
-    from services.plant_service import get_weeks_since_start
-    from services.error_service import get_current_errors
-    from datetime import datetime
 
+def broadcast_status():
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
@@ -161,10 +170,6 @@ def broadcast_status():
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
             eventlet.sleep(5)
-
-from services.mdns_service import update_mdns_service
-from utils.settings_utils import load_settings
-from services.ec_service import start_ec_serial_reader
 
 def start_threads():
     settings = load_settings()
@@ -182,6 +187,7 @@ def start_threads():
     eventlet.spawn(broadcast_ec_readings)
 
     # Actually start the EC serial reader
+    from services.ec_service import start_ec_serial_reader
     log_with_timestamp("Spawning ec_serial_reader...")
     eventlet.spawn(start_ec_serial_reader)
 
@@ -197,7 +203,8 @@ def start_threads():
     log_with_timestamp("Spawning status broadcaster...")
     eventlet.spawn(broadcast_status)
     log_with_timestamp("Spawning hardware error checker...")
-    eventlet.spawn(check_for_hardware_errors)
+    check_for_hardware_errors()
+
     log_with_timestamp("Spawning water level sensor monitor...")
     eventlet.spawn(monitor_water_level_sensors)
 
@@ -205,11 +212,10 @@ def start_threads():
     from services.valve_relay_service import init_valve_thread
     init_valve_thread()
 
-
-# Initialize threads at module level so Gunicorn sees them:
+# Start background threads so Gunicorn sees them
 start_threads()
 
-# Register all Blueprints
+# Register your Blueprints
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
@@ -218,17 +224,7 @@ app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
-
-
-# IMPORTANT: Register the new blueprint
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
-
-# -------------- OPTIONAL: Remove or comment out the old route --------------
-# @app.route('/api/system/update_code', methods=['POST'])
-# def update_code_and_restart():
-#     # old approach with `git pull` etc.
-#     return jsonify({"status":"failure","message":"This route is deprecated."}), 400
-# ----------------------------------------------------------------------------
 
 @app.route('/')
 def index():
@@ -255,9 +251,9 @@ def valves_page():
 @socketio.on('connect')
 def handle_connect():
     log_with_timestamp("Client connected")
-    current = get_latest_ph_reading()
-    if current is not None:
-        socketio.emit('ph_update', {'ph': current})
+    current_ph = get_latest_ph_reading()
+    if current_ph is not None:
+        socketio.emit('ph_update', {'ph': current_ph})
 
 @app.route('/api/ph/latest', methods=['GET'])
 def get_ph_latest():
@@ -269,7 +265,6 @@ def get_ph_latest():
 
 @app.route('/dosage', methods=['GET'])
 def dosage_page():
-    from services.dosage_service import get_dosage_info
     dosage_data = get_dosage_info()
     if auto_dose_state.get("last_dose_time"):
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
@@ -306,7 +301,6 @@ def device_timezones():
         return jsonify({"status": "success", "timezones": all_timezones}), 200
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
-
 
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
