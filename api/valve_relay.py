@@ -43,10 +43,16 @@ def valve_status(valve_id):
 # -------------------------
 @valve_relay_blueprint.route('/<string:valve_name>/on', methods=['POST'])
 def valve_on_by_name(valve_name):
+    """
+    1) Try to handle valve locally by name.
+    2) If not found, pass through to remote water_valve_ip if assigned.
+    """
+    from services.valve_relay_service import turn_on_valve
+    import requests
     settings = load_settings()
-    local_id = get_valve_id_by_name(valve_name)
 
-    # 1) If local valve found => turn it on
+    # Attempt local
+    local_id = get_valve_id_by_name(valve_name)
     if local_id is not None:
         try:
             turn_on_valve(local_id)
@@ -55,53 +61,7 @@ def valve_on_by_name(valve_name):
         except Exception as e:
             return jsonify({"status": "failure", "error": str(e)}), 500
 
-    # 2) If no local valve, attempt pass-through if water_valve_ip is assigned
-    remote_ip = settings.get("water_valve_ip")
-    if not remote_ip:
-        return jsonify({"status": "failure",
-                        "error": f"No local valve '{valve_name}' and no water_valve_ip assigned."}), 404
-    try:
-        # Forward request to the real system
-        import requests
-        forward_url = f"http://{remote_ip}:8000/api/valve_relay/{valve_name}/on"
-        resp = requests.post(forward_url)
-        data = resp.json()
-
-        if resp.status_code == 200 and data.get("status") == "success":
-            # Optionally call emit_status_update here so zone3 updates local clients
-            emit_status_update()
-            return jsonify(data), 200
-        else:
-            # pass along the remote’s error
-            return jsonify({"status":"failure",
-                            "error": data.get("error","Remote call failed")}), resp.status_code
-    except Exception as e:
-        return jsonify({"status":"failure","error":str(e)}), 500
-
-
-
-@valve_relay_blueprint.route('/<string:valve_name>/off', methods=['POST'])
-def valve_off_by_name(valve_name):
-    """
-    1) Try to handle valve locally. 
-    2) If no local valve found, pass through to remote water_valve_ip, if assigned.
-    """
-    from services.valve_relay_service import turn_off_valve
-    import requests
-    settings = load_settings()
-
-    # Attempt to find a local valve ID by name
-    local_id = get_valve_id_by_name(valve_name)
-    if local_id is not None:
-        # We found a local valve => turn it off directly
-        try:
-            turn_off_valve(local_id)
-            emit_status_update()
-            return jsonify({"status": "success", "valve_name": valve_name, "action": "off"})
-        except Exception as e:
-            return jsonify({"status": "failure", "error": str(e)}), 500
-
-    # If we get here, no local valve is labeled valve_name => attempt pass-through
+    # No local match => forward to remote
     remote_ip = settings.get("water_valve_ip")
     if not remote_ip:
         return jsonify({
@@ -109,24 +69,85 @@ def valve_off_by_name(valve_name):
             "error": f"No local valve named '{valve_name}' and no water_valve_ip configured."
         }), 404
 
+    forward_url = f"http://{remote_ip}:8000/api/valve_relay/{valve_name}/on"
     try:
-        # Forward the off command to the remote system
-        remote_url = f"http://{remote_ip}:8000/api/valve_relay/{valve_name}/off"
-        resp = requests.post(remote_url)
-        data = resp.json()
-
-        if resp.status_code == 200 and data.get("status") == "success":
-            # Optionally call emit_status_update here if you want zone3 to notify local clients
-            emit_status_update()
-            return jsonify(data), 200
-        else:
-            # Something went wrong on the remote side => forward the error
-            return jsonify({
-                "status": "failure",
-                "error": data.get("error", "Remote call failed")
-            }), resp.status_code
+        resp = requests.post(forward_url)
     except Exception as e:
-        return jsonify({"status": "failure", "error": str(e)}), 500
+        return jsonify({"status":"failure","error":f"Remote request failed: {str(e)}"}), 500
+
+    # If we got a response, attempt to parse JSON
+    try:
+        data = resp.json()
+    except Exception:
+        return jsonify({
+            "status":"failure",
+            "error": f"Remote system returned non-JSON response (HTTP {resp.status_code})"
+        }), 500
+
+    # Evaluate the remote’s response
+    if resp.status_code == 200 and data.get("status") == "success":
+        emit_status_update()
+        return jsonify(data), 200
+    else:
+        # forward remote error or fallback
+        return jsonify({
+            "status": "failure",
+            "error": data.get("error", f"Remote call failed with status {resp.status_code}")
+        }), resp.status_code
+
+
+@valve_relay_blueprint.route('/<string:valve_name>/off', methods=['POST'])
+def valve_off_by_name(valve_name):
+    """
+    1) Try to handle valve locally by name.
+    2) If not found, pass through to remote water_valve_ip if assigned.
+    """
+    from services.valve_relay_service import turn_off_valve
+    import requests
+    settings = load_settings()
+
+    # Attempt local
+    local_id = get_valve_id_by_name(valve_name)
+    if local_id is not None:
+        try:
+            turn_off_valve(local_id)
+            emit_status_update()
+            return jsonify({"status": "success", "valve_name": valve_name, "action": "off"})
+        except Exception as e:
+            return jsonify({"status": "failure", "error": str(e)}), 500
+
+    # No local match => forward to remote
+    remote_ip = settings.get("water_valve_ip")
+    if not remote_ip:
+        return jsonify({
+            "status": "failure",
+            "error": f"No local valve named '{valve_name}' and no water_valve_ip configured."
+        }), 404
+
+    forward_url = f"http://{remote_ip}:8000/api/valve_relay/{valve_name}/off"
+    try:
+        resp = requests.post(forward_url)
+    except Exception as e:
+        return jsonify({"status":"failure","error":f"Remote request failed: {str(e)}"}), 500
+
+    # Attempt to parse JSON
+    try:
+        data = resp.json()
+    except Exception:
+        return jsonify({
+            "status":"failure",
+            "error": f"Remote system returned non-JSON response (HTTP {resp.status_code})"
+        }), 500
+
+    # Evaluate the remote’s response
+    if resp.status_code == 200 and data.get("status") == "success":
+        emit_status_update()
+        return jsonify(data), 200
+    else:
+        return jsonify({
+            "status": "failure",
+            "error": data.get("error", f"Remote call failed with status {resp.status_code}")
+        }), resp.status_code
 
 @valve_relay_blueprint.route('/<string:valve_name>/status', methods=['GET'])
 def valve_status_by_name(valve_name):
