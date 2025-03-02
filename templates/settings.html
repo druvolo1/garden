@@ -312,7 +312,7 @@
       console.log('Rescanning USB devices...');
       Promise.all([
         fetch("/api/settings/usb_devices").then(r => r.json()),
-        fetch("/api/settings").then(r => r.json())
+        fetch("/api/settings/").then(r => r.json())
       ])
       .then(([devices, settings]) => {
         console.log('Devices:', devices);
@@ -597,7 +597,7 @@
         water_fill_valve:  document.getElementById('fill-valve').value,
         water_drain_valve: document.getElementById('drain-valve').value
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // pH Range
@@ -608,7 +608,7 @@
       const payload = {
         ph_range: { min: minVal, max: maxVal }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // General (dosing) settings
@@ -621,7 +621,7 @@
         system_volume:     parseFloat(document.getElementById('system-volume').value),
         auto_dosing_enabled: document.getElementById('auto-dosing').checked
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // Dosage Strength
@@ -632,7 +632,7 @@
       const payload = {
         dosage_strength: { ph_up: phUp, ph_down: phDown }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // Pump Calibration
@@ -644,7 +644,7 @@
           pump2: parseFloat(document.getElementById('pump2-calibration').value)
         }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // Relay Ports
@@ -658,7 +658,7 @@
           ph_down: phDownPort
         }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // System Info
@@ -674,7 +674,7 @@
           start_date: startDate
         }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     document.getElementById('plant-start-date').addEventListener('change', e => {
@@ -698,7 +698,7 @@
           sensor3: { label: sensor3Label, pin: sensor3Pin }
         }
       };
-      saveSettings("/api/settings", payload);
+      saveSettings("/api/settings/", payload);
     });
 
     // Additional Plants
@@ -741,7 +741,7 @@
             return;
           }
           arr.push(newVal);
-          saveSettings("/api/settings", { additional_plants: arr });
+          saveSettings("/api/settings/", { additional_plants: arr });
           document.getElementById('new-plant-input').value = "";
         })
         .catch(err => console.error("Error adding new plant:", err));
@@ -753,7 +753,7 @@
         .then(settings => {
           let arr = settings.additional_plants || [];
           arr = arr.filter(item => item !== plant);
-          saveSettings("/api/settings", { additional_plants: arr });
+          saveSettings("/api/settings/", { additional_plants: arr });
         })
         .catch(err => console.error("Error deleting plant:", err));
     }
