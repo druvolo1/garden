@@ -27,8 +27,9 @@
     <h1>pH Dosing System</h1>
     <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <!-- Single flex container with 7 columns (system name, pH, sensor1, sensor2, sensor3, fill, drain) -->
+    <!-- Single row using flex: system name, pH, sensors 1..3, fill valve, drain valve -->
     <div class="data-container" style="display: flex; flex-wrap: nowrap; gap: 20px;">
+      
       <!-- 1) System Name -->
       <div style="flex: 1;">
         <label style="display: block; margin-bottom: 0.5rem;">System Name</label>
@@ -41,49 +42,48 @@
         <div id="ph-display">Loading pH...</div>
       </div>
 
-      <!-- 3) Water Level Sensor #1 -->
-      <div style="flex: 1;">
+      <!-- 3) Water Level Sensor #1 (wider flex) -->
+      <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 1</label>
         <div id="water-level-col1"></div>
       </div>
 
-      <!-- 4) Water Level Sensor #2 -->
-      <div style="flex: 1;">
+      <!-- 4) Water Level Sensor #2 (wider flex) -->
+      <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 2</label>
         <div id="water-level-col2"></div>
       </div>
 
-      <!-- 5) Water Level Sensor #3 -->
-      <div style="flex: 1;">
+      <!-- 5) Water Level Sensor #3 (wider flex) -->
+      <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 3</label>
         <div id="water-level-col3"></div>
       </div>
 
-      <!-- 6) Fill Valve (hidden if not assigned/configured) -->
+      <!-- 6) Fill Valve -->
       <div style="flex: 1; display: none;" id="fill-valve-container">
-        <label style="display: block; margin-bottom: 0.5rem;">Fill Valve</label>
-        <div>
-          (<span id="fill-valve-name"></span>) Status:
+        <label style="display: block; margin-bottom: 0.5rem;">
+          Fill Valve (<span id="fill-valve-name"></span>): 
           <span id="fill-valve-status">Unknown</span>
-        </div>
-        <div style="margin-top: 0.5rem; display: flex; gap: 8px;">
+        </label>
+        <div style="display: flex; gap: 8px;">
           <button id="fill-valve-on"  disabled>On</button>
           <button id="fill-valve-off" disabled>Off</button>
         </div>
       </div>
 
-      <!-- 7) Drain Valve (hidden if not assigned/configured) -->
+      <!-- 7) Drain Valve -->
       <div style="flex: 1; display: none;" id="drain-valve-container">
-        <label style="display: block; margin-bottom: 0.5rem;">Drain Valve</label>
-        <div>
-          (<span id="drain-valve-name"></span>) Status:
+        <label style="display: block; margin-bottom: 0.5rem;">
+          Drain Valve (<span id="drain-valve-name"></span>): 
           <span id="drain-valve-status">Unknown</span>
-        </div>
-        <div style="margin-top: 0.5rem; display: flex; gap: 8px;">
+        </label>
+        <div style="display: flex; gap: 8px;">
           <button id="drain-valve-on"  disabled>On</button>
           <button id="drain-valve-off" disabled>Off</button>
         </div>
       </div>
+
     </div>
   </main>
 
@@ -145,7 +145,7 @@
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
-          // If no pH probe, display a placeholder
+          // If no pH probe, show placeholder
           if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
             console.log("No pH probe assigned.");
             document.getElementById('ph-display').textContent = "No pH probe assigned";
@@ -153,13 +153,13 @@
             fetchInitialPh();
           }
 
-          // If no valve_relay is assigned, both fill/drain are hidden
+          // If no valve_relay, hide fill & drain
           if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
             console.log("No valve_relay device assigned. Hiding fill/drain columns.");
             return;
           }
 
-          // If fill_valve + drain_valve are configured + IP
+          // If fill_valve + drain_valve + IP are valid, show them
           if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
             // Show fill container
             const fillContainer  = document.getElementById('fill-valve-container');
@@ -177,11 +177,11 @@
             document.getElementById('drain-valve-on').disabled  = false;
             document.getElementById('drain-valve-off').disabled = false;
 
-            // Fetch initial statuses
+            // Initial statuses
             fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  null);
             fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', null);
 
-            // Attach button listeners
+            // Button listeners
             document.getElementById('fill-valve-on').addEventListener('click', () => {
               setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
             });
