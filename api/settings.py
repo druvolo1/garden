@@ -57,9 +57,9 @@ if not os.path.exists(SETTINGS_FILE):
                 "8": "Valve #8"
             },
             "water_level_sensors": {
-                "sensor1": {"label": "Full",  "pin": 22},
-                "sensor2": {"label": "3 Gal", "pin": 23},
-                "sensor3": {"label": "Empty", "pin": 24}
+                "sensor1": {"label": "Full",  "pin": 17},
+                "sensor2": {"label": "3 Gal", "pin": 18},
+                "sensor3": {"label": "Empty", "pin": 19}
             },
             "plant_info": {},
             "additional_plants": []
@@ -171,9 +171,9 @@ def reset_settings():
             "8": "Valve #8"
         },
         "water_level_sensors": {
-            "sensor1": {"label": "Full",  "pin": 22},
-            "sensor2": {"label": "3 Gal", "pin": 23},
-            "sensor3": {"label": "Empty", "pin": 24}
+            "sensor1": {"label": "Full",  "pin": 17},
+            "sensor2": {"label": "3 Gal", "pin": 18},
+            "sensor3": {"label": "Empty", "pin": 19}
         },
         "plant_info": {},
         "additional_plants": []
