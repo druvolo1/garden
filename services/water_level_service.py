@@ -1,5 +1,7 @@
 # File: services/water_level_service.py
+
 import threading
+import time
 
 try:
     import RPi.GPIO as GPIO
@@ -7,13 +9,13 @@ except ImportError:
     GPIO = None
     print("RPi.GPIO not available. Using mock environment.")
 
-from utils.settings_utils import load_settings  # Import from utils
+import requests  # <-- Import requests so we can call the local API
+from utils.settings_utils import load_settings
+from status_namespace import emit_status_update
 
-# A global lock and a flag that indicates if we've fully initialized pins
 _pins_lock = threading.Lock()
 _pins_inited = False
 
-# Store the last known state of the sensors
 _last_sensor_state = {}
 
 def load_water_level_sensors():
@@ -26,17 +28,12 @@ def load_water_level_sensors():
     return s.get("water_level_sensors", default_sensors)
 
 def ensure_pins_inited():
-    """
-    Safely ensure that GPIO.setmode() and GPIO.setup() have been called exactly once
-    or after pins are changed. Any code reading the pins should call this first.
-    """
     global _pins_inited
     if not GPIO:
         return  # mock environment, no-op
 
     with _pins_lock:
         if not _pins_inited:
-            # We do a full setup
             try:
                 GPIO.setwarnings(False)
                 GPIO.setmode(GPIO.BCM)
@@ -51,29 +48,20 @@ def ensure_pins_inited():
                 print(f"Error initializing water-level pins: {e}")
 
 def force_cleanup_and_init():
-    """
-    If user updates pins, we do a full GPIO.cleanup(), then re-init.
-    This is called from update_settings() after water_level_sensors changes.
-    """
     if not GPIO:
         return
     with _pins_lock:
         global _pins_inited
         GPIO.cleanup()
         _pins_inited = False
-        # Now calling ensure_pins_inited() will do the new setup
         ensure_pins_inited()
 
-    # Emit a status update to notify all clients immediately
-    from status_namespace import emit_status_update  # Import emit_status_update
+    # Emit a status update
     threading.Timer(0.5, emit_status_update).start()
 
 def get_water_level_status():
-    """
-    Return a dict with each sensor’s label, pin, and triggered state.
-    """
     sensors = load_water_level_sensors()
-    ensure_pins_inited()  # Make sure pins are set up before reading
+    ensure_pins_inited()
 
     status = {}
     for sensor_key, cfg in sensors.items():
@@ -81,7 +69,7 @@ def get_water_level_status():
         pin = cfg.get("pin")
         triggered = False
         if GPIO and pin is not None:
-            sensor_state = GPIO.input(pin)  # This is safe now that pins are inited
+            sensor_state = GPIO.input(pin)  # 0 or 1
             triggered = (sensor_state == 1)
         status[sensor_key] = {
             "label": label,
@@ -91,34 +79,66 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
+    """
+    Continuously monitor sensor changes. If the fill or drain sensor is triggered,
+    POST to the local valve_relay API to turn that valve off.
+    """
     global _last_sensor_state
 
     while True:
         try:
             current_state = get_water_level_status()
 
+            # Compare with the last known state, so we only act on changes
             if current_state != _last_sensor_state:
                 _last_sensor_state = current_state
 
-                # 1) Possibly read from settings which sensor is “fill_stop_sensor”,
-                #    and which is “drain_stop_sensor.” For simplicity, assume sensor1→fill, sensor3→drain.
-                # 2) Check if the relevant sensor changed in a way that indicates we must turn off the valve.
+                # Load assigned sensor->valve from settings
+                settings = load_settings()
+                fill_sensor_key  = settings.get("water_fill_sensor")   # e.g. "sensor1"
+                drain_sensor_key = settings.get("water_drain_sensor")  # e.g. "sensor2"
+                fill_valve_name  = settings.get("water_fill_valve")    # e.g. "Fill Valve"
+                drain_valve_name = settings.get("water_drain_valve")   # e.g. "Drain Valve"
 
-                # Example for fill
-                if current_state["sensor1"]["triggered"] is True and is_valve_on(fill_valve_id):
-                    turn_off_valve(fill_valve_id)
-                
-                # Example for drain
-                if current_state["sensor3"]["triggered"] is False and is_valve_on(drain_valve_id):
-                    turn_off_valve(drain_valve_id)
+                # If the assigned fill sensor is triggered, turn off the fill valve
+                if fill_sensor_key and fill_sensor_key in current_state:
+                    if current_state[fill_sensor_key]["triggered"] and fill_valve_name:
+                        turn_off_valve_by_name(fill_valve_name)
 
-                # Then emit your update as usual
-                from status_namespace import emit_status_update
+                # If the assigned drain sensor is triggered, turn off the drain valve
+                if drain_sensor_key and drain_sensor_key in current_state:
+                    if current_state[drain_sensor_key]["triggered"] and drain_valve_name:
+                        turn_off_valve_by_name(drain_valve_name)
+
+                # Emit a status update so clients see the change
                 emit_status_update()
-                print("Water level sensor state changed. Emitting status update.")
 
         except Exception as e:
             print(f"Error monitoring water level sensors: {e}")
 
-        import time
         time.sleep(0.5)
+
+
+def turn_off_valve_by_name(valve_name: str):
+    """
+    Make a local request to /api/valve_relay/<valve_name>/off
+    so that all valve logic stays in the valve_relay Blueprint.
+    """
+    if not valve_name:
+        return
+
+    # Typically we’d point to localhost:8000, or your actual IP if needed
+    url = f"http://127.0.0.1:8000/api/valve_relay/{valve_name}/off"
+
+    try:
+        resp = requests.post(url)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == "success":
+                print(f"Valve '{valve_name}' turned off via API route.")
+            else:
+                print(f"Valve '{valve_name}' off error: {data.get('error')}")
+        else:
+            print(f"Valve '{valve_name}' off returned HTTP {resp.status_code}.")
+    except Exception as ex:
+        print(f"Error calling valve off route for '{valve_name}': {ex}")
