@@ -34,10 +34,12 @@ if not os.path.exists(SETTINGS_FILE):
             "auto_dosing_enabled": True,
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
+            # Add "ec_meter": None in usb_roles
             "usb_roles": {
                 "ph_probe": None,
                 "relay": None,
-                "valve_relay": None
+                "valve_relay": None,
+                "ec_meter": None  # <--- NEW
             },
             "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
@@ -59,9 +61,8 @@ if not os.path.exists(SETTINGS_FILE):
                 "sensor2": {"label": "3 Gal", "pin": 23},
                 "sensor3": {"label": "Empty", "pin": 24}
             },
-            # NEW fields
             "plant_info": {},
-            "additional_plants": []  # <-- default empty array
+            "additional_plants": []
         }, f, indent=4)
 
 
@@ -151,7 +152,8 @@ def reset_settings():
         "usb_roles": {
             "ph_probe": None,
             "relay": None,
-            "valve_relay": None
+            "valve_relay": None,
+            "ec_meter": None
         },
         "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
         "relay_ports": {"ph_up": 1, "ph_down": 2},
@@ -173,7 +175,6 @@ def reset_settings():
             "sensor2": {"label": "3 Gal", "pin": 23},
             "sensor3": {"label": "Empty", "pin": 24}
         },
-        # NEW fields
         "plant_info": {},
         "additional_plants": []
     }
@@ -205,7 +206,7 @@ def list_usb_devices():
     settings = load_settings()
     usb_roles = settings.get("usb_roles", {})
 
-    # Remove any device from usb_roles that is not currently connected
+    # Remove any device from usb_roles if not in currently connected devices
     connected_paths = [dev["device"] for dev in devices]
     for role, assigned_device in usb_roles.items():
         if assigned_device not in connected_paths:
@@ -214,7 +215,7 @@ def list_usb_devices():
     settings["usb_roles"] = usb_roles
     save_settings(settings)
 
-    # Emit a status_update event to notify all clients
+    # Emit a status_update event
     emit_status_update()
 
     return jsonify(devices)
@@ -228,17 +229,18 @@ def assign_usb_device():
     role = data.get("role")
     device = data.get("device")
 
-    if role not in ["ph_probe", "relay", "valve_relay"]:
+    # Now we allow "ec_meter" as well
+    if role not in ["ph_probe", "relay", "valve_relay", "ec_meter"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
     settings = load_settings()
     old_device = settings.get("usb_roles", {}).get(role)
 
-    # If the assignment is changing for valve_relay, stop old thread
+    # If changing valve_relay, we stop the old thread
     if role == "valve_relay" and old_device != device:
         stop_valve_thread()
 
-    # Update assignment
+    # Assign or clear the role
     if not device:
         settings["usb_roles"][role] = None
     else:
@@ -249,7 +251,7 @@ def assign_usb_device():
                     "status": "failure",
                     "error": f"Device already assigned to {other_role}"
                 }), 400
-        settings.setdefault("usb_roles", {})[role] = device
+        settings["usb_roles"][role] = device
 
     save_settings(settings)
 
@@ -257,14 +259,13 @@ def assign_usb_device():
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
-
-    if role == "relay":
+    elif role == "relay":
         from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
-
-    # If new valve device assigned, start thread
-    if role == "valve_relay" and device:
+    elif role == "valve_relay" and device:
         init_valve_thread()
+
+    # For ec_meter, we might not have extra logic yet, so do nothing special
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})

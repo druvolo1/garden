@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-  
+
   <style>
     /* Example styling for a disabled section */
     .disabled-section {
@@ -82,6 +82,16 @@
           </select>
           <button type="submit">Save Valve Relay Module</button>
         </form>
+
+        <!-- EC Meter Form (NEW) -->
+        <form id="ec-meter-form">
+          <label for="ec-meter-device">EC Meter:</label>
+          <select id="ec-meter-device" name="ec-meter-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save EC Meter</button>
+        </form>
+        <!-- END of new form -->
 
         <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
         <div id="status"></div>
@@ -200,7 +210,7 @@
         </form>
       </div>
 
-      <!-- System Info Section (Renamed from 'Plant Info') -->
+      <!-- System Info Section -->
       <div class="data-container" id="system-info-container">
         <h2>System Info</h2>
         <form id="system-info-form">
@@ -255,11 +265,7 @@
       <!-- Additional Plants Section -->
       <div class="data-container">
         <h2>Additional Plants</h2>
-
-        <!-- Existing entries will appear here -->
         <div id="plants-list" style="margin-bottom: 10px;"></div>
-
-        <!-- Add new entry -->
         <label for="new-plant-input">New IP / DNS:</label>
         <input type="text" id="new-plant-input" placeholder="e.g. 192.168.1.45 or myplant.local">
         <button type="button" id="add-plant-btn">+ Add</button>
@@ -268,9 +274,7 @@
       <!-- Application Update Section -->
       <div class="data-container">
         <h2>Application Updates</h2>
-        <!-- Show current version here -->
         <p>Current Version: <span id="program-version"></span></p>
-
         <button id="update-code-btn">Update Code &amp; Restart</button>
         <div id="update-status"></div>
       </div>
@@ -309,22 +313,26 @@
       Promise.all([
         fetch("/api/settings/usb_devices").then(r => r.json()),
         fetch("/api/settings").then(r => r.json())
-      ]).then(([devices, settings]) => {
+      ])
+      .then(([devices, settings]) => {
         console.log('Devices:', devices);
         console.log('Settings:', settings);
 
+        // For each role, we'll re-populate the dropdown
         const phDevSelect     = document.getElementById('ph-device');
         const dosingDevSelect = document.getElementById('dosing-relay-device');
         const valveDevSelect  = document.getElementById('valve-relay-device');
+        const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
 
         const assignedPh      = settings.usb_roles?.ph_probe    || "";
         const assignedDosing  = settings.usb_roles?.relay       || "";
         const assignedValve   = settings.usb_roles?.valve_relay || "";
+        const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
 
-        // Re-populate device dropdowns
         phDevSelect.innerHTML     = '<option value="">Select a device</option>';
         dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
         valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
+        ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
 
         devices.forEach(dev => {
           // pH Option
@@ -353,11 +361,20 @@
             valveOption.selected = true;
           }
           valveDevSelect.appendChild(valveOption);
+
+          // EC Meter (NEW)
+          const ecOption = document.createElement('option');
+          ecOption.value = dev.device;
+          ecOption.textContent = dev.device;
+          if (ecOption.value === assignedEC) {
+            ecOption.selected = true;
+          }
+          ecMeterSelect.appendChild(ecOption);
         });
 
         // 1) If NO pH probe => disable pH range
-        const isPhProbeAssigned     = Boolean(assignedPh);
-        const phRangeContainer     = document.getElementById('ph-range-container');
+        const isPhProbeAssigned  = Boolean(assignedPh);
+        const phRangeContainer   = document.getElementById('ph-range-container');
         if (!isPhProbeAssigned) {
           phRangeContainer.classList.add('disabled-section');
           phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
@@ -370,7 +387,6 @@
         const isDosingRelayAssigned = Boolean(assignedDosing);
         const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
 
-        // Grab containers
         const generalSettings   = document.getElementById('general-settings-container');
         const dosageStrength    = document.getElementById('dosage-strength-container');
         const pumpCalibration   = document.getElementById('pump-calibration-container');
@@ -402,7 +418,7 @@
           relayPortSection.removeAttribute('data-disabled-title');
         }
 
-        // Show/hide the red “Dosing Relay module not assigned” message
+        // Show/hide the Dosing Relay warning
         const relayWarning = document.getElementById('relay-warning');
         relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
@@ -464,10 +480,10 @@
           document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
         }
 
-        // Render Additional Plants
+        // Additional plants
         renderAdditionalPlants(settings.additional_plants || []);
 
-        // Display the program version in the Application Updates area
+        // Program version
         document.getElementById('program-version').textContent = settings.program_version || 'N/A';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
@@ -545,24 +561,35 @@
 
     // ==================== FORM SUBMISSIONS ====================
 
+    // pH
     document.getElementById('ph-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('ph-device').value;
       saveUsbAssignment('ph_probe', dev);
     });
 
+    // Dosing Relay
     document.getElementById('dosing-relay-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('dosing-relay-device').value;
       saveUsbAssignment('relay', dev);
     });
 
+    // Valve Relay
     document.getElementById('valve-relay-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('valve-relay-device').value;
       saveUsbAssignment('valve_relay', dev);
     });
 
+    // EC Meter (NEW)
+    document.getElementById('ec-meter-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const dev = document.getElementById('ec-meter-device').value;
+      saveUsbAssignment('ec_meter', dev);
+    });
+
+    // Water Valve IP/Valves
     document.getElementById('water-valve-form').addEventListener('submit', e => {
       e.preventDefault();
       const payload = {
@@ -573,6 +600,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // pH Range
     document.getElementById('ph-range-form').addEventListener('submit', e => {
       e.preventDefault();
       const minVal = parseFloat(document.getElementById('ph-min').value);
@@ -583,6 +611,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // General (dosing) settings
     document.getElementById('general-settings-form').addEventListener('submit', e => {
       e.preventDefault();
       const payload = {
@@ -595,6 +624,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // Dosage Strength
     document.getElementById('dosage-strength-form').addEventListener('submit', e => {
       e.preventDefault();
       const phUp   = parseFloat(document.getElementById('ph-up-strength').value);
@@ -605,6 +635,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // Pump Calibration
     document.getElementById('pump-calibration-form').addEventListener('submit', e => {
       e.preventDefault();
       const payload = {
@@ -616,6 +647,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // Relay Ports
     document.getElementById('relay-port-form').addEventListener('submit', e => {
       e.preventDefault();
       const phUpPort   = parseInt(document.getElementById('ph-up-relay-port').value, 10);
@@ -629,6 +661,7 @@
       saveSettings("/api/settings", payload);
     });
 
+    // System Info
     document.getElementById('system-info-form').addEventListener('submit', e => {
       e.preventDefault();
       const systemName = document.getElementById('system-name').value.trim();
@@ -648,6 +681,7 @@
       updateWeeksSinceStart(e.target.value);
     });
 
+    // Water Level Sensors
     document.getElementById('water-level-sensors-form').addEventListener('submit', e => {
       e.preventDefault();
       const sensor1Label = document.getElementById('sensor1-label').value;
@@ -667,27 +701,22 @@
       saveSettings("/api/settings", payload);
     });
 
-    // ========== Additional Plants Logic ==========
-
-    // 1) Render the array of "additional_plants"
+    // Additional Plants
     function renderAdditionalPlants(plantsArray) {
       const container = document.getElementById('plants-list');
       container.innerHTML = ""; // clear old content
 
-      plantsArray.forEach((plant, index) => {
-        // Each entry row
+      plantsArray.forEach((plant) => {
         const rowDiv = document.createElement('div');
         rowDiv.style.display = "flex";
         rowDiv.style.justifyContent = "space-between";
         rowDiv.style.alignItems = "center";
         rowDiv.style.marginBottom = "5px";
 
-        // Show the IP/DNS
         const labelSpan = document.createElement('span');
         labelSpan.textContent = plant;
         rowDiv.appendChild(labelSpan);
 
-        // Delete button
         const delBtn = document.createElement('button');
         delBtn.textContent = "Delete";
         delBtn.onclick = () => deletePlant(plant);
@@ -697,41 +726,33 @@
       });
     }
 
-    // 2) Add new plant
     document.getElementById('add-plant-btn').addEventListener('click', () => {
       const newVal = document.getElementById('new-plant-input').value.trim();
       if (!newVal) {
         alert("Please enter an IP or DNS name.");
         return;
       }
-      // Load current settings to get additional_plants
       fetch('/api/settings')
         .then(r => r.json())
         .then(settings => {
           const arr = settings.additional_plants || [];
-          // Optionally check for duplicates
           if (arr.includes(newVal)) {
             alert("That entry already exists!");
             return;
           }
           arr.push(newVal);
-
-          // Save back to /api/settings
           saveSettings("/api/settings", { additional_plants: arr });
-
-          // Clear the input
           document.getElementById('new-plant-input').value = "";
         })
         .catch(err => console.error("Error adding new plant:", err));
     });
 
-    // 3) Delete existing
     function deletePlant(plant) {
       fetch('/api/settings')
         .then(r => r.json())
         .then(settings => {
           let arr = settings.additional_plants || [];
-          arr = arr.filter(item => item !== plant); // remove the one we’re deleting
+          arr = arr.filter(item => item !== plant);
           saveSettings("/api/settings", { additional_plants: arr });
         })
         .catch(err => console.error("Error deleting plant:", err));
@@ -739,28 +760,27 @@
 
     // Update Code & Restart
     document.getElementById('update-code-btn').addEventListener('click', () => {
-        if (!confirm("Are you sure you want to clone the latest code and restart?")) return;
-        fetch("/api/system/pull", { method: "POST" })
-            .then(res => res.json())
-            .then(data => {
-            console.log("Update response:", data);
-            const updateStatus = document.getElementById('update-status');
-            if (data.status === "success") {
-                updateStatus.textContent =
-                "Update successful:\n\n" + data.output +
-                "\n\nRestarting... The page may be unavailable briefly.";
-                // optional auto-refresh
-                setTimeout(() => window.location.reload(), 5000);
-            } else {
-                updateStatus.textContent =
-                "Failed to update:\n" + (data.error || "Unknown error") +
-                "\n\n" + (data.output || "");
-            }
-            })
-            .catch(err => {
-            document.getElementById('update-status').textContent = "Fetch error: " + err;
-            });
+      if (!confirm("Are you sure you want to clone the latest code and restart?")) return;
+      fetch("/api/system/pull", { method: "POST" })
+        .then(res => res.json())
+        .then(data => {
+          console.log("Update response:", data);
+          const updateStatus = document.getElementById('update-status');
+          if (data.status === "success") {
+            updateStatus.textContent =
+              "Update successful:\n\n" + data.output +
+              "\n\nRestarting... The page may be unavailable briefly.";
+            setTimeout(() => window.location.reload(), 5000);
+          } else {
+            updateStatus.textContent =
+              "Failed to update:\n" + (data.error || "Unknown error") +
+              "\n\n" + (data.output || "");
+          }
+        })
+        .catch(err => {
+          document.getElementById('update-status').textContent = "Fetch error: " + err;
         });
+    });
   </script>
 </body>
 </html>
