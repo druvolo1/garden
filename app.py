@@ -42,6 +42,9 @@ from services.device_config import (
 )
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
 
+from api.ec import ec_blueprint
+
+
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(
@@ -129,6 +132,21 @@ def broadcast_ph_readings():
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 
+def broadcast_ec_readings():
+    log_with_timestamp("Inside function for broadcasting EC readings")
+    last_emitted_value = None
+    while True:
+        try:
+            from services.ec_service import get_latest_ec_reading
+            ec_value = get_latest_ec_reading()
+            if ec_value is not None and ec_value != last_emitted_value:
+                last_emitted_value = ec_value
+                log_with_timestamp(f"[EC Broadcast] EC value updated: {ec_value}")
+            eventlet.sleep(1)
+        except Exception as e:
+            log_with_timestamp(f"[EC Broadcast] Error: {e}")
+            eventlet.sleep(5)
+
 def broadcast_status():
     from api.settings import load_settings
     from services.plant_service import get_weeks_since_start
@@ -146,23 +164,36 @@ def broadcast_status():
 
 from services.mdns_service import update_mdns_service
 from utils.settings_utils import load_settings
+from services.ec_service import start_ec_serial_reader
 
 def start_threads():
-    # Load the current system_name from settings
     settings = load_settings()
     system_name = settings.get("system_name", "Zone 1")
 
-    # Register mDNS
     update_mdns_service(system_name=system_name, port=8000)
     log_with_timestamp(f"mDNS service registered from start_threads()! (system_name={system_name})")
 
-    # Start background tasks
+    # pH broadcast
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
+
+    # EC broadcast
+    log_with_timestamp("Spawning broadcast_ec_readings...")
+    eventlet.spawn(broadcast_ec_readings)
+
+    # Actually start the EC serial reader
+    log_with_timestamp("Spawning ec_serial_reader...")
+    eventlet.spawn(start_ec_serial_reader)
+
+    # Auto-dosing
     log_with_timestamp("Spawning auto_dosing_loop...")
     eventlet.spawn(auto_dosing_loop)
-    log_with_timestamp("Spawning serial reader...")
+
+    # pH serial
+    log_with_timestamp("Spawning pH serial reader...")
     eventlet.spawn(serial_reader)
+
+    # Status, hardware checker, water level, etc.
     log_with_timestamp("Spawning status broadcaster...")
     eventlet.spawn(broadcast_status)
     log_with_timestamp("Spawning hardware error checker...")
@@ -170,9 +201,10 @@ def start_threads():
     log_with_timestamp("Spawning water level sensor monitor...")
     eventlet.spawn(monitor_water_level_sensors)
 
-    # If there's a valve device assigned, start it
+    # Valve thread
     from services.valve_relay_service import init_valve_thread
     init_valve_thread()
+
 
 # Initialize threads at module level so Gunicorn sees them:
 start_threads()
@@ -185,6 +217,8 @@ app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
+app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
+
 
 # IMPORTANT: Register the new blueprint
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
