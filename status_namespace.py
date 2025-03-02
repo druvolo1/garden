@@ -38,22 +38,24 @@ def emit_status_update():
         # 4. Water level
         water_level_info = get_water_level_status()
 
-        # --------------------------
+        # --------------------------------
         # 5. Conditionally add Valve Info
-        # --------------------------
+        # --------------------------------
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
-        valve_info = None  # we'll only populate if assigned
+        water_valve_ip     = settings.get("water_valve_ip")
+        water_fill_valve   = settings.get("water_fill_valve")
+        water_drain_valve  = settings.get("water_drain_valve")
 
-        if valve_relay_device:
-            # We have a valve relay device assigned, so gather all related fields
-            water_valve_ip   = settings.get("water_valve_ip")
-            water_fill_valve = settings.get("water_fill_valve")
-            water_drain_valve = settings.get("water_drain_valve")
+        # If a valve_relay is assigned OR we have valid water_valve_ip + fill_valve + drain_valve
+        need_valve_info = bool(valve_relay_device) or (water_valve_ip and water_fill_valve and water_drain_valve)
+
+        valve_info = None
+
+        if need_valve_info:
+            # Build valve_info by reading each label's current state
+            from services.valve_relay_service import get_valve_status
             valve_labels = settings.get("valve_labels", {})
 
-            from services.valve_relay_service import get_valve_status
-
-            # Build valve_relays by reading each label's current state
             valve_relays = {}
             for valve_id_str, label in valve_labels.items():
                 valve_id = int(valve_id_str)
@@ -63,13 +65,12 @@ def emit_status_update():
                     "status": current_state
                 }
 
-            # Put them all together in a single dictionary
             valve_info = {
-                "water_valve_ip": water_valve_ip,
-                "water_fill_valve": water_fill_valve,
-                "water_drain_valve": water_drain_valve,
-                "valve_labels": valve_labels,
-                "valve_relays": valve_relays
+                "water_valve_ip":     water_valve_ip,
+                "water_fill_valve":   water_fill_valve,
+                "water_drain_valve":  water_drain_valve,
+                "valve_labels":       valve_labels,
+                "valve_relays":       valve_relays
             }
 
         # 6. Construct the final status payload
@@ -79,7 +80,6 @@ def emit_status_update():
             "auto_dose_state": auto_dose_copy,
             "plant_info": plant_info,
             "water_level": water_level_info,
-            # We only add 'valve_info' key if we actually built it
             "errors": []
         }
 
