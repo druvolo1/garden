@@ -10,33 +10,50 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
     <style>
-      /* NEW: optional minimal styles for smaller buttons and side-by-side layout */
       .calibration-container {
         display: flex;
         gap: 2rem; /* space between pH and EC sections */
         flex-wrap: wrap; /* so it won’t overflow on small screens */
       }
-
       .cal-section {
-        flex: 1 1 300px; /* each section grows/shrinks, min 300px wide */
+        flex: 1 1 300px;
         border: 1px solid #ccc;
         padding: 1rem;
         border-radius: 6px;
       }
-
       .cal-section h2 {
         margin-top: 0;
       }
 
+      /* Shared styling for the calibration button row */
+      .cal-btn-row {
+        display: flex;
+        flex-direction: row;
+        gap: 0.25rem; /* horizontal space between buttons */
+        flex-wrap: wrap; /* if they can’t fit on one line, wrap them */
+        margin: 0.5rem 0;
+      }
+
       .cal-btn {
-        padding: 0.25rem 0.5rem; /* smaller button padding */
-        margin: 0.25rem;         /* small margin */
-        font-size: 0.9rem;       /* smaller font */
+        padding: 0.25rem 0.4rem; /* smaller padding */
+        min-width: 60px; /* narrower minimum width */
+        font-size: 0.9rem;
+        border: 1px solid #aaa;
+        border-radius: 4px;
+        background-color: #f7f7f7;
+        cursor: pointer;
+      }
+      .cal-btn:hover {
+        background-color: #eee;
       }
 
       .danger {
         background-color: #e74c3c; 
-        color: white;
+        color: #fff;
+        border-color: #c0392b;
+      }
+      .danger:hover {
+        background-color: #c0392b;
       }
 
       .data-box {
@@ -50,7 +67,6 @@
       .success-log {
         color: green;
       }
-
       .error-log {
         color: red;
       }
@@ -74,7 +90,6 @@
         <h1>Calibration</h1>
         <p class="subtitle">Ensure accurate readings for pH and EC if assigned.</p>
 
-        <!-- NEW: We'll load which devices are assigned and dynamically show pH/EC sections. -->
         <div class="calibration-container">
             
             <!-- pH SECTION -->
@@ -87,11 +102,13 @@
 
                 <div>
                     <h3>pH Calibration</h3>
-                    <!-- Smaller buttons -->
-                    <button class="cal-btn" id="calibrate-ph-low">Low (4.00)</button>
-                    <button class="cal-btn" id="calibrate-ph-mid">Mid (7.00)</button>
-                    <button class="cal-btn" id="calibrate-ph-high">High (10.00)</button>
-                    <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
+                    <!-- Smaller, narrower buttons in a single row -->
+                    <div class="cal-btn-row">
+                      <button class="cal-btn" id="calibrate-ph-low">Low (4.00)</button>
+                      <button class="cal-btn" id="calibrate-ph-mid">Mid (7.00)</button>
+                      <button class="cal-btn" id="calibrate-ph-high">High (10.00)</button>
+                      <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
+                    </div>
                 </div>
 
                 <div>
@@ -110,11 +127,13 @@
 
                 <div>
                     <h3>EC Calibration</h3>
-                    <!-- "dry", "low", "high", or "clear" -->
-                    <button class="cal-btn" id="calibrate-ec-dry">Dry</button>
-                    <button class="cal-btn" id="calibrate-ec-low">Low (12.88)</button>
-                    <button class="cal-btn" id="calibrate-ec-high">High (80.00)</button>
-                    <button class="cal-btn danger" id="clear-ec-cal">Clear</button>
+                    <!-- Single row with narrower buttons -->
+                    <div class="cal-btn-row">
+                      <button class="cal-btn" id="calibrate-ec-dry">Dry</button>
+                      <button class="cal-btn" id="calibrate-ec-low">Low (12.88)</button>
+                      <button class="cal-btn" id="calibrate-ec-high">High (80.00)</button>
+                      <button class="cal-btn danger" id="clear-ec-cal">Clear</button>
+                    </div>
                 </div>
 
                 <div>
@@ -246,8 +265,7 @@
                     appendEcLog("WebSocket connected (for EC).");
                     fetchLatestEc();
                 });
-                // If you do want real-time EC updates in a different event, you'd handle it here
-                // e.g. socket.on("ec_update", data => { ... })
+                // If you do want real-time EC updates, you'd handle it in e.g. socket.on("ec_update", ...)
 
                 // Calibration
                 function sendEcCalCommand(level) {
