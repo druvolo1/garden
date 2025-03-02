@@ -91,28 +91,34 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
-    """
-    Continuously monitor the water level sensors for changes.
-    If a change is detected, emit a WebSocket update immediately.
-    """
     global _last_sensor_state
 
     while True:
         try:
             current_state = get_water_level_status()
 
-            # Check if the state has changed
             if current_state != _last_sensor_state:
                 _last_sensor_state = current_state
 
-                # Emit a status update to notify all clients immediately
-                from status_namespace import emit_status_update  # Import emit_status_update
+                # 1) Possibly read from settings which sensor is “fill_stop_sensor”,
+                #    and which is “drain_stop_sensor.” For simplicity, assume sensor1→fill, sensor3→drain.
+                # 2) Check if the relevant sensor changed in a way that indicates we must turn off the valve.
+
+                # Example for fill
+                if current_state["sensor1"]["triggered"] is True and is_valve_on(fill_valve_id):
+                    turn_off_valve(fill_valve_id)
+                
+                # Example for drain
+                if current_state["sensor3"]["triggered"] is False and is_valve_on(drain_valve_id):
+                    turn_off_valve(drain_valve_id)
+
+                # Then emit your update as usual
+                from status_namespace import emit_status_update
                 emit_status_update()
                 print("Water level sensor state changed. Emitting status update.")
 
         except Exception as e:
             print(f"Error monitoring water level sensors: {e}")
 
-        # Add a small delay to avoid excessive CPU usage
         import time
-        time.sleep(0.5)  # Check every 500ms
+        time.sleep(0.5)
