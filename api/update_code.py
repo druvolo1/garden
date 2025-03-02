@@ -87,3 +87,4 @@ def pull_and_restart():
             "error": str(ex),
             "output": "\n".join(steps_output)
         }), 500
+
