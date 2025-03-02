@@ -12,9 +12,6 @@ import subprocess
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 
-# Import the single socketio instance from socketio_instance
-from socketio_instance import socketio
-
 # Import your other blueprints
 from api.ph import ph_blueprint
 from api.pump_relay import relay_blueprint
