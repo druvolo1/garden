@@ -1,184 +1,148 @@
-# File: services/valve_relay_service.py
+# File: services/water_level_service.py
 
-import os
-import json
-import eventlet
-import serial
-from eventlet import semaphore, event
-from services.error_service import set_error, clear_error
+import threading
+import time
 
-# 8-channel ON commands
-VALVE_ON_COMMANDS = {
-    1: b'\xA0\x01\x01\xA2',
-    2: b'\xA0\x02\x01\xA3',
-    3: b'\xA0\x03\x01\xA4',
-    4: b'\xA0\x04\x01\xA5',
-    5: b'\xA0\x05\x01\xA6',
-    6: b'\xA0\x06\x01\xA7',
-    7: b'\xA0\x07\x01\xA8',
-    8: b'\xA0\x08\x01\xA9'
-}
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    GPIO = None
+    print("RPi.GPIO not available. Using mock environment.")
 
-# 8-channel OFF commands
-VALVE_OFF_COMMANDS = {
-    1: b'\xA0\x01\x00\xA1',
-    2: b'\xA0\x02\x00\xA2',
-    3: b'\xA0\x03\x00\xA3',
-    4: b'\xA0\x04\x00\xA4',
-    5: b'\xA0\x05\x00\xA5',
-    6: b'\xA0\x06\x00\xA6',
-    7: b'\xA0\x07\x00\xA7',
-    8: b'\xA0\x08\x00\xA8'
-}
+from utils.settings_utils import load_settings  # Import from utils
 
-# Local reflection of valve states
-valve_status = {i: "off" for i in range(1, 9)}
+_pins_lock = threading.Lock()
+_pins_inited = False
 
-SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
+# Store the last known state of the sensors
+_last_sensor_state = {}
 
-# Global variables for persistent serial connection and thread management
-serial_lock = semaphore.Semaphore()  # to synchronize USB access
-valve_ser = None      # persistent serial port; None if not open
-polling_thread = None # reference to the polling thread
-stop_event_instance = None  # an Event to signal the polling thread to stop
+def load_water_level_sensors():
+    s = load_settings()
+    default_sensors = {
+        "sensor1": {"label": "Full",  "pin": 17},
+        "sensor2": {"label": "3 Gal", "pin": 18},
+        "sensor3": {"label": "Empty", "pin": 19},
+    }
+    return s.get("water_level_sensors", default_sensors)
 
-def get_valve_device_path():
-    with open(SETTINGS_FILE, "r") as f:
-        settings = json.load(f)
-    valve_device = settings.get("usb_roles", {}).get("valve_relay")
-    if not valve_device:
-        raise RuntimeError("No valve relay device configured in settings.")
-    return valve_device
-
-def open_valve_serial():
+def ensure_pins_inited():
     """
-    Opens the serial port for the valve relay device and returns the Serial object.
+    Safely ensure that GPIO.setmode() and GPIO.setup() have been called exactly once
+    or after pins are changed. Any code reading the pins should call this first.
     """
-    global valve_ser
-    device_path = get_valve_device_path()
-    valve_ser = serial.Serial(device_path, baudrate=9600, timeout=1)
-    clear_error("VALVE_RELAY_OFFLINE")
-    print(f"[Valve] Serial port opened on {device_path}")
-    return valve_ser
+    global _pins_inited
+    if not GPIO:
+        return  # mock environment, no-op
 
-def close_valve_serial():
-    """
-    Closes the persistent valve serial port.
-    """
-    global valve_ser
-    if valve_ser:
-        try:
-            valve_ser.close()
-            print("[Valve] Serial port closed.")
-        except Exception as e:
-            print(f"[Valve] Error closing serial port: {e}")
-        valve_ser = None
-
-def parse_hardware_response(response):
-    """
-    Parses the first 8 bytes of the response (ignoring any trailing bytes)
-    and updates valve_status accordingly.
-    Expected response (example): {0x01}{0x00}{0x00}{0x00}{0x00}{0x00}{0x00}{0x01}{0xFF}
-    """
-    if not response:
-        return
-    data = response[:8]
-    for i in range(1, 9):
-        idx = i - 1
-        valve_status[i] = "on" if idx < len(data) and data[idx] == 1 else "off"
-
-def valve_polling_loop():
-    """
-    Runs continuously in a background thread:
-      - Uses the persistent valve_ser to poll the device every second (by sending 0xFF).
-      - Reads and parses the response to update valve_status.
-    """
-    global valve_ser
-    print("[Valve] Polling loop started.")
-    while not stop_event_instance.ready():
-        with serial_lock:
+    with _pins_lock:
+        if not _pins_inited:
             try:
-                valve_ser.write(b'\xFF')
-                eventlet.sleep(0.05)
-                response = valve_ser.read(10)  # read up to 10 bytes
-                parse_hardware_response(response)
+                GPIO.setwarnings(False)
+                GPIO.setmode(GPIO.BCM)
+                sensors = load_water_level_sensors()
+                for sensor_key, cfg in sensors.items():
+                    pin = cfg.get("pin")
+                    if pin is not None:
+                        GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                _pins_inited = True
+                print("Water-level pins have been initialized.")
             except Exception as e:
-                print(f"[Valve] Polling error: {e}")
-                set_error("VALVE_RELAY_OFFLINE")
-        eventlet.sleep(1)
-    print("[Valve] Polling loop exiting.")
+                print(f"Error initializing water-level pins: {e}")
 
-def init_valve_thread():
+def force_cleanup_and_init():
     """
-    Opens the valve serial port (if not already open) and starts the polling thread.
-    Only runs if a device is assigned.
+    If user updates pins, we do a full GPIO.cleanup(), then re-init.
+    This is called from update_settings() after water_level_sensors changes.
     """
-    global valve_ser, polling_thread, stop_event_instance
-    try:
-        device_path = get_valve_device_path()
-    except Exception as e:
-        print(f"[Valve] init_valve_thread: {e}")
+    if not GPIO:
         return
-    if not device_path:
-        print("[Valve] No valve relay device assigned. Not starting thread.")
-        return
-    if valve_ser is None:
-        open_valve_serial()
-    # Create a new Event instance to signal thread stopping
-    stop_event_instance = event.Event()
-    polling_thread = eventlet.spawn(valve_polling_loop)
-    print("[Valve] Polling thread spawned.")
+    with _pins_lock:
+        global _pins_inited
+        GPIO.cleanup()
+        _pins_inited = False
+        ensure_pins_inited()
 
-def stop_valve_thread():
-    """
-    Signals the polling thread to stop and closes the persistent serial port.
-    """
-    global polling_thread, stop_event_instance
-    if polling_thread:
-        print("[Valve] Stopping polling thread...")
-        stop_event_instance.send()  # signal the thread to exit
-        eventlet.sleep(1)  # allow it to finish
-        polling_thread = None
-    close_valve_serial()
+    from status_namespace import emit_status_update
+    threading.Timer(0.5, emit_status_update).start()
 
-def turn_on_valve(valve_id):
+def get_water_level_status():
     """
-    Sends the ON command for the given valve channel immediately over the persistent connection.
-    Then queries the device for updated status.
+    Return a dict with each sensor’s label, pin, and triggered state.
+    triggered == True means the pin reads '1' (HIGH).
     """
-    global valve_ser
-    if valve_id < 1 or valve_id > 8:
-        raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
-    if valve_ser is None:
-        raise RuntimeError("Valve serial port is not open.")
-    with serial_lock:
-        valve_ser.write(VALVE_ON_COMMANDS[valve_id])
-        # Optionally query the updated state immediately:
-        valve_ser.write(b'\xFF')
-        eventlet.sleep(0.05)
-        response = valve_ser.read(10)
-        parse_hardware_response(response)
-    valve_status[valve_id] = "on"
-    print(f"[Valve] Valve {valve_id} turned ON.")
+    sensors = load_water_level_sensors()
+    ensure_pins_inited()  # Make sure pins are set up before reading
 
-def turn_off_valve(valve_id):
-    """
-    Sends the OFF command for the given valve channel immediately over the persistent connection.
-    Then queries the device for updated status.
-    """
-    global valve_ser
-    if valve_id < 1 or valve_id > 8:
-        raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
-    if valve_ser is None:
-        raise RuntimeError("Valve serial port is not open.")
-    with serial_lock:
-        valve_ser.write(VALVE_OFF_COMMANDS[valve_id])
-        valve_ser.write(b'\xFF')
-        eventlet.sleep(0.05)
-        response = valve_ser.read(10)
-        parse_hardware_response(response)
-    valve_status[valve_id] = "off"
-    print(f"[Valve] Valve {valve_id} turned OFF.")
+    status = {}
+    for sensor_key, cfg in sensors.items():
+        label = cfg.get("label", sensor_key)
+        pin = cfg.get("pin")
+        triggered = False
+        if GPIO and pin is not None:
+            sensor_state = GPIO.input(pin)  # 0 or 1
+            triggered = (sensor_state == 1)
+        status[sensor_key] = {
+            "label": label,
+            "pin": pin,
+            "triggered": triggered
+        }
+    return status
 
-def get_valve_status(valve_id):
-    return valve_status.get(valve_id, "unknown")
+def monitor_water_level_sensors():
+    """
+    Continuously monitor sensor changes. If the fill or drain sensor triggers,
+    turn off its associated valve.
+    
+    This function should be started in a background thread, for example
+    in your Flask app startup or main script. 
+    """
+    from services.valve_relay_service import (
+        get_valve_id_by_name,
+        turn_off_valve,
+        is_valve_on
+    )
+    from status_namespace import emit_status_update
+
+    global _last_sensor_state
+
+    while True:
+        try:
+            current_state = get_water_level_status()
+
+            # Compare with the previously stored state to detect changes
+            if current_state != _last_sensor_state:
+                _last_sensor_state = current_state
+
+                # Load which sensors/valves are assigned for fill & drain
+                settings = load_settings()
+                fill_sensor_key  = settings.get("water_fill_sensor")   # e.g. "sensor1"
+                drain_sensor_key = settings.get("water_drain_sensor")  # e.g. "sensor3"
+                fill_valve_name  = settings.get("water_fill_valve")    # e.g. "Fill"
+                drain_valve_name = settings.get("water_drain_valve")   # e.g. "Drain"
+
+                # If the assigned fill sensor is triggered, turn off the fill valve
+                if fill_sensor_key and fill_sensor_key in current_state:
+                    if current_state[fill_sensor_key]["triggered"]:  # If sensor is HIGH
+                        if fill_valve_name:
+                            fill_valve_id = get_valve_id_by_name(fill_valve_name)
+                            if fill_valve_id and is_valve_on(fill_valve_id):
+                                turn_off_valve(fill_valve_id)
+                                print(f"Fill sensor '{fill_sensor_key}' triggered; turning off valve '{fill_valve_name}'.")
+
+                # If the assigned drain sensor is triggered, turn off the drain valve
+                if drain_sensor_key and drain_sensor_key in current_state:
+                    if current_state[drain_sensor_key]["triggered"]:
+                        if drain_valve_name:
+                            drain_valve_id = get_valve_id_by_name(drain_valve_name)
+                            if drain_valve_id and is_valve_on(drain_valve_id):
+                                turn_off_valve(drain_valve_id)
+                                print(f"Drain sensor '{drain_sensor_key}' triggered; turning off valve '{drain_valve_name}'.")
+
+                # Emit a status update so clients see changes right away
+                emit_status_update()
+
+        except Exception as e:
+            print(f"Error monitoring water level sensors: {e}")
+
+        time.sleep(0.5)
