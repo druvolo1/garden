@@ -27,113 +27,120 @@
     <h1>pH Dosing System</h1>
     <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <!-- Single row container that spans full width and has flex columns -->
-    <div class="data-container" style="
-      width: 100%;
-      display: flex;
-      flex-wrap: nowrap;  /* set to 'wrap' if you want it to break on smaller screens */
-      gap: 20px;
-    ">
-      <!-- 1) System Name -->
-      <div style="flex: 1;">
-        <label style="display: block; margin-bottom: 0.5rem;">System Name</label>
-        <div id="system-name-display">Loading...</div>
-      </div>
+    <!-- ========== LOCAL ZONE CONTAINER ========== -->
+    <div id="local-zone-container">
+      <h2 style="margin-top: 0;">Local Zone</h2>
+      <div class="data-container" style="
+        width: 100%;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 20px;
+      ">
+        <!-- 1) System Name -->
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 0.5rem;">System Name</label>
+          <div id="system-name-display">Loading...</div>
+        </div>
 
-      <!-- 2) pH Reading -->
-      <div style="flex: 1;">
-        <label style="display: block; margin-bottom: 0.5rem;">pH</label>
-        <div id="ph-display">Loading pH...</div>
-      </div>
+        <!-- 2) pH Reading -->
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 0.5rem;">pH</label>
+          <div id="ph-display">Loading pH...</div>
+        </div>
 
-      <!-- 3) Water Level Sensor #1 (give these a slightly larger flex to make them wider) -->
-      <div style="flex: 1.3;">
-        <label style="display: block; margin-bottom: 0.5rem;">Sensor 1</label>
-        <div id="water-level-col1"></div>
-      </div>
+        <!-- 3) Water Level Sensor #1 (wider flex) -->
+        <div style="flex: 1.3;">
+          <label style="display: block; margin-bottom: 0.5rem;">Sensor 1</label>
+          <div id="water-level-col1"></div>
+        </div>
 
-      <!-- 4) Water Level Sensor #2 -->
-      <div style="flex: 1.3;">
-        <label style="display: block; margin-bottom: 0.5rem;">Sensor 2</label>
-        <div id="water-level-col2"></div>
-      </div>
+        <!-- 4) Water Level Sensor #2 -->
+        <div style="flex: 1.3;">
+          <label style="display: block; margin-bottom: 0.5rem;">Sensor 2</label>
+          <div id="water-level-col2"></div>
+        </div>
 
-      <!-- 5) Water Level Sensor #3 -->
-      <div style="flex: 1.3;">
-        <label style="display: block; margin-bottom: 0.5rem;">Sensor 3</label>
-        <div id="water-level-col3"></div>
-      </div>
+        <!-- 5) Water Level Sensor #3 -->
+        <div style="flex: 1.3;">
+          <label style="display: block; margin-bottom: 0.5rem;">Sensor 3</label>
+          <div id="water-level-col3"></div>
+        </div>
 
-     <!-- 6) Fill Valve -->
+        <!-- 6) Fill Valve -->
         <div style="flex: 1; display: none;" id="fill-valve-container">
-            <label style="display: block; margin-bottom: 0.5rem;">
+          <label style="display: block; margin-bottom: 0.5rem;">
             Fill Valve:
             <span id="fill-valve-status">Unknown</span>
-            </label>
-            <div style="display: flex; gap: 8px;">
+          </label>
+          <div style="display: flex; gap: 8px;">
             <button id="fill-valve-on"  disabled>On</button>
             <button id="fill-valve-off" disabled>Off</button>
-            </div>
+          </div>
         </div>
-        
+
         <!-- 7) Drain Valve -->
         <div style="flex: 1; display: none;" id="drain-valve-container">
-            <label style="display: block; margin-bottom: 0.5rem;">
+          <label style="display: block; margin-bottom: 0.5rem;">
             Drain Valve:
             <span id="drain-valve-status">Unknown</span>
-            </label>
-            <div style="display: flex; gap: 8px;">
+          </label>
+          <div style="display: flex; gap: 8px;">
             <button id="drain-valve-on"  disabled>On</button>
             <button id="drain-valve-off" disabled>Off</button>
-            </div>
+          </div>
         </div>
-  
+      </div>
     </div>
+
+    <!--
+      Additional plants will each create their own container here.
+      We append them dynamically in JS. 
+    -->
+    <div id="remote-zones-container"></div>
   </main>
 
   <script>
+    // ============ ON LOAD ============
     document.addEventListener('DOMContentLoaded', async function () {
-      const socket = io("/status", {
+      // 1. Connect to local /status
+      const localSocket = io("/status", {
         reconnectionAttempts: 5,
         reconnectionDelay: 2000,
-        transports: ["websocket"]  // Force WebSocket transport
+        transports: ["websocket"]
       });
 
-      // 1) Fetch system name
-      fetchSystemName();
-
-      // 2) Socket setup
-      socket.on('connect', () => {
-        console.log("WebSocket connected successfully.");
-        fetchWaterLevel();
-
-        // Conditionally fetch pH if assigned
+      localSocket.on('connect', () => {
+        console.log("Local WebSocket connected successfully.");
+        fetchWaterLevelLocal();
         fetch('/api/settings')
           .then(r => r.json())
           .then(settings => {
             if (settings.usb_roles && settings.usb_roles.ph_probe) {
-              fetchInitialPh();
+              fetchInitialPhLocal();
+            }
+            // If we have additional_plants, handle them
+            if (settings.additional_plants && settings.additional_plants.length > 0) {
+              initAdditionalPlants(settings.additional_plants);
             }
           });
       });
 
-      socket.on('disconnect', () => {
-        console.log("WebSocket disconnected.");
+      localSocket.on('disconnect', () => {
+        console.log("Local WebSocket disconnected.");
       });
 
-      socket.on('connect_error', (error) => {
-        console.error("WebSocket connection error:", error);
+      localSocket.on('connect_error', (error) => {
+        console.error("Local WebSocket connection error:", error);
       });
 
-      // pH real-time updates
-      socket.on('ph_update', (data) => {
-        console.log("Received ph_update:", data);
+      // pH real-time updates (LOCAL)
+      localSocket.on('ph_update', (data) => {
         updatePhDisplay(data.ph);
       });
 
-      // General status updates
-      socket.on('status_update', (data) => {
-        console.log("Received status_update:", data);
+      // status_update (LOCAL)
+      localSocket.on('status_update', (data) => {
+        console.log("[LOCAL] status_update:", data);
         if (data.current_ph !== undefined) {
           updatePhDisplay(data.current_ph);
         }
@@ -145,194 +152,486 @@
         }
       });
 
-      // 3) Drain/Fill logic
+      // 2. Drain/Fill logic for local
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
-          // If no pH probe, show placeholder
           if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
-            console.log("No pH probe assigned.");
             document.getElementById('ph-display').textContent = "No pH probe assigned";
           } else {
-            fetchInitialPh();
+            fetchInitialPhLocal();
           }
 
-          // If no valve_relay, hide fill & drain
           if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
-            console.log("No valve_relay device assigned. Hiding fill/drain columns.");
-            return;
+            return; // no local valve
           }
 
-          // If fill_valve + drain_valve + IP are valid, show them
           if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
-            // Show fill container
-            const fillContainer  = document.getElementById('fill-valve-container');
-            fillContainer.style.display = 'block';
-            //document.getElementById('fill-valve-name').textContent = settings.water_fill_valve;
+            document.getElementById('fill-valve-container').style.display = 'block';
+            document.getElementById('drain-valve-container').style.display = 'block';
 
-            // Show drain container
-            const drainContainer = document.getElementById('drain-valve-container');
-            drainContainer.style.display = 'block';
-            //document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
-
-            // Enable On/Off
             document.getElementById('fill-valve-on').disabled  = false;
             document.getElementById('fill-valve-off').disabled = false;
             document.getElementById('drain-valve-on').disabled  = false;
             document.getElementById('drain-valve-off').disabled = false;
 
-            // Initial statuses
-            fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  null);
-            fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', null);
+            fetchValveStatusLocal(settings.water_fill_valve,  'fill-valve-status');
+            fetchValveStatusLocal(settings.water_drain_valve, 'drain-valve-status');
 
-            // Button listeners
             document.getElementById('fill-valve-on').addEventListener('click', () => {
-              setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
+              setValveStateLocal(settings.water_fill_valve, 'fill-valve-status', 'on');
             });
             document.getElementById('fill-valve-off').addEventListener('click', () => {
-              setValveState(settings.water_fill_valve, 'fill-valve-status', 'off');
+              setValveStateLocal(settings.water_fill_valve, 'fill-valve-status', 'off');
             });
             document.getElementById('drain-valve-on').addEventListener('click', () => {
-              setValveState(settings.water_drain_valve, 'drain-valve-status', 'on');
+              setValveStateLocal(settings.water_drain_valve, 'drain-valve-status', 'on');
             });
             document.getElementById('drain-valve-off').addEventListener('click', () => {
-              setValveState(settings.water_drain_valve, 'drain-valve-status', 'off');
+              setValveStateLocal(settings.water_drain_valve, 'drain-valve-status', 'off');
             });
-          } else {
-            console.log("No fill/drain config found. Keeping fill/drain columns hidden.");
           }
         })
-        .catch(err => console.error('Error fetching settings:', err));
-
-      // --- Valve Helpers ---
-      async function setValveState(valveName, statusId, action) {
-        try {
-          const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
-          const response = await fetch(url, { method: 'POST' });
-          const data = await response.json();
-          if (data.status === 'success' && data.action) {
-            updateValveDisplay(statusId, null, data.action);
-          } else {
-            console.error('Error setting valve state:', data.error || 'unknown');
-          }
-        } catch (err) {
-          console.error('Error setting valve state:', err);
-        }
-      }
-
-      async function fetchValveStatus(valveName, statusId, buttonId) {
-        try {
-          const url = '/api/valve_relay/' + encodeURIComponent(valveName) + '/status';
-          const res = await fetch(url);
-          const data = await res.json();
-          if (data.status === 'success') {
-            updateValveDisplay(statusId, buttonId, data.valve_status);
-          } else {
-            console.error('Valve status error:', data.error || 'Unknown error');
-          }
-        } catch (err) {
-          console.error('Error fetching valve status:', err);
-        }
-      }
-
-      function updateValveDisplay(statusId, buttonId, newStatus) {
-        const statusSpan = document.getElementById(statusId);
-        const status = newStatus.toLowerCase();
-        statusSpan.textContent = (status === 'on') ? 'On' : 'Off';
-
-        // Identify which valve prefix (fill-valve / drain-valve)
-        const prefix = statusId.replace('-status', '');
-        const onButton  = document.getElementById(prefix + '-on');
-        const offButton = document.getElementById(prefix + '-off');
-        if (!onButton || !offButton) return;
-
-        // Clear existing classes
-        onButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
-        offButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
-
-        // Apply new
-        if (status === 'on') {
-          onButton.classList.add('btn-on-active');
-          offButton.classList.add('btn-inactive');
-        } else {
-          onButton.classList.add('btn-inactive');
-          offButton.classList.add('btn-off-active');
-        }
-      }
-
-      // --- pH, Water, System Name Helpers ---
-      async function fetchInitialPh() {
-        try {
-          const response = await fetch('/api/ph/latest');
-          const data = await response.json();
-          updatePhDisplay(data.ph);
-        } catch (error) {
-          console.error("Error fetching pH data:", error);
-        }
-      }
-
-      async function fetchWaterLevel() {
-        try {
-          const response = await fetch('/api/water_level/');
-          const data = await response.json();
-          renderWaterLevel(data);
-        } catch (error) {
-          console.error("Error fetching water level:", error);
-        }
-      }
-
-      async function fetchSystemName() {
-        try {
-          const response = await fetch('/api/settings/system_name');
-          const data = await response.json();
-          document.getElementById('system-name-display').textContent = data.system_name || 'Zone 1';
-        } catch (error) {
-          console.error("Error fetching system name:", error);
-          document.getElementById('system-name-display').textContent = 'Zone 1 (Error)';
-        }
-      }
-
-      function updatePhDisplay(ph) {
-        const phDisplay = document.getElementById('ph-display');
-        phDisplay.textContent = ph
-          ? parseFloat(ph).toFixed(2)
-          : "pH data unavailable";
-      }
-
-      function renderWaterLevel(waterLevel) {
-        const col1 = document.getElementById('water-level-col1');
-        const col2 = document.getElementById('water-level-col2');
-        const col3 = document.getElementById('water-level-col3');
-
-        col1.textContent = "";
-        col2.textContent = "";
-        col3.textContent = "";
-
-        if (!waterLevel) {
-          col1.textContent = "No water-level data.";
-          return;
-        }
-
-        const sensorKeys = Object.keys(waterLevel);
-
-        // Show up to 3 sensors side by side
-        if (sensorKeys.length > 0) {
-          const s1 = waterLevel[sensorKeys[0]];
-          col1.textContent = (s1.label || sensorKeys[0]) + ": " +
-            (s1.triggered ? "⚠️ Not Present" : "✅ Present");
-        }
-        if (sensorKeys.length > 1) {
-          const s2 = waterLevel[sensorKeys[1]];
-          col2.textContent = (s2.label || sensorKeys[1]) + ": " +
-            (s2.triggered ? "⚠️ Not Present" : "✅ Present");
-        }
-        if (sensorKeys.length > 2) {
-          const s3 = waterLevel[sensorKeys[2]];
-          col3.textContent = (s3.label || sensorKeys[2]) + ": " +
-            (s3.triggered ? "⚠️ Not Present" : "✅ Present");
-        }
-      }
+        .catch(err => console.error('[LOCAL] Error fetching settings:', err));
     });
+
+    // ====================== ADDITIONAL PLANTS LOGIC ======================
+    function initAdditionalPlants(plants) {
+      // For each additional host, create a container and connect to remote WebSocket
+      plants.forEach((host) => {
+        console.log("Setting up remote plant:", host);
+        createRemotePlantContainer(host);
+        connectRemotePlant(host);
+      });
+    }
+
+    function createRemotePlantContainer(host) {
+      // Container to hold zone info
+      const container = document.createElement('div');
+      container.classList.add('data-container');
+      container.style.marginTop = "20px";
+
+      // We'll create an ID we can use for reference
+      const zoneId = host.replace(/[^a-zA-Z0-9]/g, "_"); // sanitize
+      container.id = `zone-container-${zoneId}`;
+
+      // Title
+      const h2 = document.createElement('h2');
+      h2.textContent = `Remote Zone: ${host}`;
+      container.appendChild(h2);
+
+      // Now create the same row structure
+      const rowDiv = document.createElement('div');
+      rowDiv.style.display = "flex";
+      rowDiv.style.flexWrap = "nowrap";
+      rowDiv.style.gap = "20px";
+      rowDiv.style.width = "100%";
+
+      // We'll replicate the local columns but each with a unique ID
+      // For example: system name => #zone-container-192_168_1_10-system-name-display
+
+      // 1) System Name
+      rowDiv.appendChild(createColumn("System Name", `${zoneId}-system-name-display`));
+      // 2) pH
+      rowDiv.appendChild(createColumn("pH", `${zoneId}-ph-display`));
+      // 3) Sensor #1
+      rowDiv.appendChild(createColumn("Sensor 1", `${zoneId}-water-level-col1`, 1.3));
+      // 4) Sensor #2
+      rowDiv.appendChild(createColumn("Sensor 2", `${zoneId}-water-level-col2`, 1.3));
+      // 5) Sensor #3
+      rowDiv.appendChild(createColumn("Sensor 3", `${zoneId}-water-level-col3`, 1.3));
+      // 6) Fill Valve
+      rowDiv.appendChild(createValveColumn("Fill Valve", `${zoneId}-fill-valve-status`, `${zoneId}-fill-valve-on`, `${zoneId}-fill-valve-off`, "fill-valve-container-remote"));
+      // 7) Drain Valve
+      rowDiv.appendChild(createValveColumn("Drain Valve", `${zoneId}-drain-valve-status`, `${zoneId}-drain-valve-on`, `${zoneId}-drain-valve-off`, "drain-valve-container-remote"));
+
+      container.appendChild(rowDiv);
+
+      // Append to #remote-zones-container
+      document.getElementById('remote-zones-container').appendChild(container);
+    }
+
+    function createColumn(labelText, valueId, flexAmount=1) {
+      const col = document.createElement('div');
+      col.style.flex = flexAmount;
+      const label = document.createElement('label');
+      label.style.display = "block";
+      label.style.marginBottom = "0.5rem";
+      label.textContent = labelText;
+
+      const valueDiv = document.createElement('div');
+      valueDiv.id = valueId;
+      valueDiv.textContent = "Loading...";
+
+      col.appendChild(label);
+      col.appendChild(valueDiv);
+      return col;
+    }
+
+    function createValveColumn(labelText, statusSpanId, onBtnId, offBtnId, containerId) {
+      const col = document.createElement('div');
+      col.style.flex = 1;
+      col.style.display = "none";  // we show it if remote config is assigned
+      col.id = containerId;        // so we can show/hide
+
+      const label = document.createElement('label');
+      label.style.display = "block";
+      label.style.marginBottom = "0.5rem";
+      label.innerHTML = `${labelText}: <span id="${statusSpanId}">Unknown</span>`;
+      col.appendChild(label);
+
+      const btnRow = document.createElement('div');
+      btnRow.style.display = "flex";
+      btnRow.style.gap = "8px";
+
+      const onButton = document.createElement('button');
+      onButton.textContent = "On";
+      onButton.id = onBtnId;
+      onButton.disabled = true;
+
+      const offButton = document.createElement('button');
+      offButton.textContent = "Off";
+      offButton.id = offBtnId;
+      offButton.disabled = true;
+
+      btnRow.appendChild(onButton);
+      btnRow.appendChild(offButton);
+      col.appendChild(btnRow);
+
+      return col;
+    }
+
+    function connectRemotePlant(host) {
+      // Attempt to connect to host on /status
+      const url = `http://${host}/status`;  // If you need https or a custom port, adjust
+      console.log("Connecting to remote socket:", url);
+
+      const remoteSocket = io(url, {
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        transports: ["websocket"]
+      });
+
+      remoteSocket.on('connect', () => {
+        console.log(`[REMOTE ${host}] connected`);
+        // Now fetch remote settings to see if we have valve_relay, fill, drain, etc.
+        fetchRemoteSettings(host);
+        fetchRemotePh(host);
+        fetchRemoteWaterLevel(host);
+      });
+
+      remoteSocket.on('disconnect', () => {
+        console.log(`[REMOTE ${host}] disconnected`);
+      });
+
+      remoteSocket.on('connect_error', (err) => {
+        console.error(`[REMOTE ${host}] connect_error:`, err);
+      });
+
+      remoteSocket.on('ph_update', (data) => {
+        // e.g. data = { ph: 5.99 }
+        updateRemotePhDisplay(host, data.ph);
+      });
+
+      remoteSocket.on('status_update', (data) => {
+        console.log(`[REMOTE ${host}] status_update:`, data);
+        if (data.current_ph !== undefined) {
+          updateRemotePhDisplay(host, data.current_ph);
+        }
+        if (data.water_level) {
+          renderRemoteWaterLevel(host, data.water_level);
+        }
+        if (data.system_name !== undefined) {
+          const zoneId = sanitizeHost(host);
+          document.getElementById(`${zoneId}-system-name-display`).textContent = data.system_name;
+        }
+      });
+    }
+
+    // ========== REMOTE Fetch Helpers ==========
+    async function fetchRemoteSettings(host) {
+      try {
+        const url = `http://${host}/api/settings`;
+        const r = await fetch(url);
+        const settings = await r.json();
+
+        // System name
+        const zoneId = sanitizeHost(host);
+        const sysNameEl = document.getElementById(`${zoneId}-system-name-display`);
+        if (settings.system_name) sysNameEl.textContent = settings.system_name;
+
+        // If they have a pH probe, we can fetch pH
+        if (settings.usb_roles && settings.usb_roles.ph_probe) {
+          fetchRemotePh(host);
+        } else {
+          document.getElementById(`${zoneId}-ph-display`).textContent = "No pH probe assigned";
+        }
+
+        // If they have a valve_relay assigned & fill/drain config, show those columns
+        if (settings.usb_roles && settings.usb_roles.valve_relay &&
+            settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
+          // Show fill/drain columns
+          document.getElementById(`fill-valve-container-remote`).style.display = "block";
+          document.getElementById(`drain-valve-container-remote`).style.display = "block";
+
+          // Enable on/off
+          document.getElementById(`${sanitizeHost(host)}-fill-valve-on`).disabled  = false;
+          document.getElementById(`${sanitizeHost(host)}-fill-valve-off`).disabled = false;
+          document.getElementById(`${sanitizeHost(host)}-drain-valve-on`).disabled  = false;
+          document.getElementById(`${sanitizeHost(host)}-drain-valve-off`).disabled = false;
+
+          // Fetch initial valve statuses
+          fetchValveStatusRemote(host, settings.water_fill_valve,  `${sanitizeHost(host)}-fill-valve-status`);
+          fetchValveStatusRemote(host, settings.water_drain_valve, `${sanitizeHost(host)}-drain-valve-status`);
+
+          // Attach button listeners
+          document.getElementById(`${sanitizeHost(host)}-fill-valve-on`).addEventListener('click', () => {
+            setValveStateRemote(host, settings.water_fill_valve, `${sanitizeHost(host)}-fill-valve-status`, 'on');
+          });
+          document.getElementById(`${sanitizeHost(host)}-fill-valve-off`).addEventListener('click', () => {
+            setValveStateRemote(host, settings.water_fill_valve, `${sanitizeHost(host)}-fill-valve-status`, 'off');
+          });
+          document.getElementById(`${sanitizeHost(host)}-drain-valve-on`).addEventListener('click', () => {
+            setValveStateRemote(host, settings.water_drain_valve, `${sanitizeHost(host)}-drain-valve-status`, 'on');
+          });
+          document.getElementById(`${sanitizeHost(host)}-drain-valve-off`).addEventListener('click', () => {
+            setValveStateRemote(host, settings.water_drain_valve, `${sanitizeHost(host)}-drain-valve-status`, 'off');
+          });
+        }
+      } catch (error) {
+        console.error(`[REMOTE ${host}] Error fetching settings:`, error);
+      }
+    }
+
+    async function fetchRemotePh(host) {
+      try {
+        const url = `http://${host}/api/ph/latest`;
+        const r = await fetch(url);
+        const data = await r.json();
+        updateRemotePhDisplay(host, data.ph);
+      } catch (error) {
+        console.error(`[REMOTE ${host}] Error fetching pH:`, error);
+      }
+    }
+
+    async function fetchRemoteWaterLevel(host) {
+      try {
+        const url = `http://${host}/api/water_level/`;
+        const r = await fetch(url);
+        const data = await r.json();
+        renderRemoteWaterLevel(host, data);
+      } catch (error) {
+        console.error(`[REMOTE ${host}] Error fetching water level:`, error);
+      }
+    }
+
+    // ========== REMOTE Valve Helpers ==========
+    async function fetchValveStatusRemote(host, valveName, statusId) {
+      try {
+        const url = `http://${host}/api/valve_relay/${encodeURIComponent(valveName)}/status`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === 'success') {
+          updateValveDisplay(statusId, null, data.valve_status);
+        } else {
+          console.error(`[REMOTE ${host}] Valve status error:`, data.error);
+        }
+      } catch (err) {
+        console.error(`[REMOTE ${host}] Error fetching valve status:`, err);
+      }
+    }
+
+    async function setValveStateRemote(host, valveName, statusId, action) {
+      try {
+        const url = `http://${host}/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+        const response = await fetch(url, { method: 'POST' });
+        const data = await response.json();
+        if (data.status === 'success' && data.action) {
+          updateValveDisplay(statusId, null, data.action);
+        } else {
+          console.error(`[REMOTE ${host}] Error setting valve state:`, data.error);
+        }
+      } catch (err) {
+        console.error(`[REMOTE ${host}] Error setting valve state:`, err);
+      }
+    }
+
+    // ========== REMOTE UI Updates ==========
+    function updateRemotePhDisplay(host, phValue) {
+      const zoneId = sanitizeHost(host);
+      const el = document.getElementById(`${zoneId}-ph-display`);
+      if (!el) return;
+      el.textContent = phValue
+        ? parseFloat(phValue).toFixed(2)
+        : "pH data unavailable";
+    }
+
+    function renderRemoteWaterLevel(host, waterLevel) {
+      const zoneId = sanitizeHost(host);
+      const col1 = document.getElementById(`${zoneId}-water-level-col1`);
+      const col2 = document.getElementById(`${zoneId}-water-level-col2`);
+      const col3 = document.getElementById(`${zoneId}-water-level-col3`);
+      if (!col1 || !col2 || !col3) return;
+
+      col1.textContent = "";
+      col2.textContent = "";
+      col3.textContent = "";
+
+      if (!waterLevel) {
+        col1.textContent = "No water-level data.";
+        return;
+      }
+
+      const sensorKeys = Object.keys(waterLevel);
+      if (sensorKeys.length > 0) {
+        const s1 = waterLevel[sensorKeys[0]];
+        col1.textContent = (s1.label || sensorKeys[0]) + ": " +
+          (s1.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+      if (sensorKeys.length > 1) {
+        const s2 = waterLevel[sensorKeys[1]];
+        col2.textContent = (s2.label || sensorKeys[1]) + ": " +
+          (s2.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+      if (sensorKeys.length > 2) {
+        const s3 = waterLevel[sensorKeys[2]];
+        col3.textContent = (s3.label || sensorKeys[2]) + ": " +
+          (s3.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+    }
+
+    // ========== LOCAL Fetch Helpers ==========
+    async function fetchInitialPhLocal() {
+      try {
+        const response = await fetch('/api/ph/latest');
+        const data = await response.json();
+        updatePhDisplay(data.ph);
+      } catch (error) {
+        console.error("Error fetching pH data:", error);
+      }
+    }
+
+    async function fetchWaterLevelLocal() {
+      try {
+        const response = await fetch('/api/water_level/');
+        const data = await response.json();
+        renderWaterLevel(data);
+      } catch (error) {
+        console.error("Error fetching water level:", error);
+      }
+    }
+
+    async function fetchSystemName() {
+      try {
+        const response = await fetch('/api/settings/system_name');
+        const data = await response.json();
+        document.getElementById('system-name-display').textContent = data.system_name || 'Zone 1';
+      } catch (error) {
+        console.error("Error fetching system name:", error);
+        document.getElementById('system-name-display').textContent = 'Zone 1 (Error)';
+      }
+    }
+
+    // ========== LOCAL Valve Helpers ==========
+    async function fetchValveStatusLocal(valveName, statusId) {
+      try {
+        const url = '/api/valve_relay/' + encodeURIComponent(valveName) + '/status';
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === 'success') {
+          updateValveDisplay(statusId, null, data.valve_status);
+        } else {
+          console.error('[LOCAL] Valve status error:', data.error);
+        }
+      } catch (err) {
+        console.error('[LOCAL] Error fetching valve status:', err);
+      }
+    }
+
+    async function setValveStateLocal(valveName, statusId, action) {
+      try {
+        const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+        const response = await fetch(url, { method: 'POST' });
+        const data = await response.json();
+        if (data.status === 'success' && data.action) {
+          updateValveDisplay(statusId, null, data.action);
+        } else {
+          console.error('[LOCAL] Error setting valve state:', data.error || 'unknown');
+        }
+      } catch (err) {
+        console.error('[LOCAL] Error setting valve state:', err);
+      }
+    }
+
+    // ========== UI Updates (LOCAL) ==========
+    function updatePhDisplay(ph) {
+      const phDisplay = document.getElementById('ph-display');
+      phDisplay.textContent = ph
+        ? parseFloat(ph).toFixed(2)
+        : "pH data unavailable";
+    }
+
+    function renderWaterLevel(waterLevel) {
+      const col1 = document.getElementById('water-level-col1');
+      const col2 = document.getElementById('water-level-col2');
+      const col3 = document.getElementById('water-level-col3');
+
+      col1.textContent = "";
+      col2.textContent = "";
+      col3.textContent = "";
+
+      if (!waterLevel) {
+        col1.textContent = "No water-level data.";
+        return;
+      }
+
+      const sensorKeys = Object.keys(waterLevel);
+      if (sensorKeys.length > 0) {
+        const s1 = waterLevel[sensorKeys[0]];
+        col1.textContent = (s1.label || sensorKeys[0]) + ": " +
+          (s1.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+      if (sensorKeys.length > 1) {
+        const s2 = waterLevel[sensorKeys[1]];
+        col2.textContent = (s2.label || sensorKeys[1]) + ": " +
+          (s2.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+      if (sensorKeys.length > 2) {
+        const s3 = waterLevel[sensorKeys[2]];
+        col3.textContent = (s3.label || sensorKeys[2]) + ": " +
+          (s3.triggered ? "⚠️ Not Present" : "✅ Present");
+      }
+    }
+
+    // ========== SHARED HELPER FOR VALVE DISPLAY BUTTON COLORS ==========
+    function updateValveDisplay(statusId, buttonId, newStatus) {
+      const statusSpan = document.getElementById(statusId);
+      if (!statusSpan) return;
+      const status = (newStatus || "").toLowerCase();
+      statusSpan.textContent = (status === 'on') ? 'On' : 'Off';
+
+      // figure out prefix
+      const prefix = statusId.replace('-status', '');
+      const onButton  = document.getElementById(prefix + '-on');
+      const offButton = document.getElementById(prefix + '-off');
+      if (!onButton || !offButton) return;
+
+      onButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
+      offButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
+
+      if (status === 'on') {
+        onButton.classList.add('btn-on-active');
+        offButton.classList.add('btn-inactive');
+      } else {
+        onButton.classList.add('btn-inactive');
+        offButton.classList.add('btn-off-active');
+      }
+    }
+
+    // We sanitize the host => "192_168_1_45"
+    function sanitizeHost(host) {
+      return host.replace(/[^a-zA-Z0-9]/g, "_");
+    }
   </script>
 </body>
 </html>
