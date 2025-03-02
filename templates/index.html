@@ -306,7 +306,7 @@
 
     function connectRemotePlant(host) {
       // Attempt to connect to host on /status
-      const url = `http://${host}/status`;  // If you need https or a custom port, adjust
+      const url = `http://${host}:8000/status`;  // If you need https or a custom port, adjust
       console.log("Connecting to remote socket:", url);
 
       const remoteSocket = io(url, {
@@ -354,7 +354,7 @@
     // ========== REMOTE Fetch Helpers ==========
     async function fetchRemoteSettings(host) {
       try {
-        const url = `http://${host}/api/settings`;
+        const url = `http://${host}:8000/api/settings`;
         const r = await fetch(url);
         const settings = await r.json();
 
@@ -408,7 +408,7 @@
 
     async function fetchRemotePh(host) {
       try {
-        const url = `http://${host}/api/ph/latest`;
+        const url = `http://${host}:8000/api/ph/latest`;
         const r = await fetch(url);
         const data = await r.json();
         updateRemotePhDisplay(host, data.ph);
@@ -419,7 +419,7 @@
 
     async function fetchRemoteWaterLevel(host) {
       try {
-        const url = `http://${host}/api/water_level/`;
+        const url = `http://${host}:8000/api/water_level/`;
         const r = await fetch(url);
         const data = await r.json();
         renderRemoteWaterLevel(host, data);
@@ -431,7 +431,7 @@
     // ========== REMOTE Valve Helpers ==========
     async function fetchValveStatusRemote(host, valveName, statusId) {
       try {
-        const url = `http://${host}/api/valve_relay/${encodeURIComponent(valveName)}/status`;
+        const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/status`;
         const res = await fetch(url);
         const data = await res.json();
         if (data.status === 'success') {
@@ -446,7 +446,7 @@
 
     async function setValveStateRemote(host, valveName, statusId, action) {
       try {
-        const url = `http://${host}/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+        const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
         const response = await fetch(url, { method: 'POST' });
         const data = await response.json();
         if (data.status === 'success' && data.action) {
