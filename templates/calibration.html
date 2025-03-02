@@ -282,6 +282,12 @@
             appendPhLog(`Live pH update: ${data.ph}`);
           }
         });
+        socket.on("ec_update", data => {
+            if (data?.ec !== undefined) {
+                document.getElementById("current-ec").textContent = data.ec;
+                console.log("Live EC update:", data.ec);
+            }
+            });
 
         // Calibration
         function sendPhCalCommand(level) {

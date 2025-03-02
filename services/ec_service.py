@@ -11,6 +11,8 @@ from eventlet import tpool
 from utils.settings_utils import load_settings
 from services.error_service import set_error, clear_error
 from eventlet import event
+from app import socketio
+
 
 ec_command_queue = Queue()
 ec_stop_event = event.Event()
@@ -28,11 +30,6 @@ def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def parse_ec_buffer():
-    """
-    Parses 'ec_buffer' for line(s). If a line is numeric, we treat it as an EC reading (in µS/cm),
-    convert it to mS/cm, round to two decimal places, and store it in `latest_ec_value`.
-    If it’s '*OK' or '*ER', we handle command acknowledgment from queue.
-    """
     global ec_buffer, latest_ec_value, last_ec_command
 
     while '\r' in ec_buffer:
@@ -45,28 +42,22 @@ def parse_ec_buffer():
 
         # Check for ack responses
         if line in ("*OK", "*ER"):
-            if last_ec_command:
-                log_with_timestamp(f"EC meter response '{line}' to command: {last_ec_command}")
-                last_ec_command = None
-            else:
-                log_with_timestamp(f"EC meter got response {line}, but no command was pending.")
-
-            # If we have queued commands, send next
-            if not ec_command_queue.empty():
-                next_cmd = ec_command_queue.get()
-                last_ec_command = next_cmd
-                send_ec_command(next_cmd)
+            ...
             continue
 
         # Attempt to parse a numeric EC reading (µS/cm)
         try:
             ec_val_uS = float(line)
-            # Convert from µS/cm → mS/cm and round to 2 decimals
+            # Convert from µS/cm → mS/cm
             ec_val_mS = round(ec_val_uS / 1000.0, 2)
 
             with ec_lock:
                 latest_ec_value = ec_val_mS
+
             log_with_timestamp(f"Updated latest EC value (in mS/cm): {latest_ec_value}")
+
+            # NEW: emit a Socket.IO event for live updates
+            socketio.emit("ec_update", {"ec": ec_val_mS})
 
         except ValueError as e:
             log_with_timestamp(f"Discarding non-numeric or invalid EC line: '{line}' ({e})")
