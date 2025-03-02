@@ -22,43 +22,44 @@ if not os.path.exists(SETTINGS_FILE):
     with open(SETTINGS_FILE, "w") as f:
         # NEW default settings now include water_valve_ip, fill, drain, etc.
         json.dump({
-           "system_name": "ZoneX",
-        "ph_range": {"min": 5.5, "max": 6.5},
-        "ph_target": 5.8,
-        "max_dosing_amount": 5,
-        "dosing_interval": 1.0,
-        "system_volume": 5.5,
-        "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-        "auto_dosing_enabled": True,
-        "time_zone": "America/New_York",
-        "daylight_savings_enabled": True,
-        "usb_roles": {
-            "ph_probe": None,
-            "relay": None,
-            "valve_relay": None
-        },
-        "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
-        "relay_ports": {"ph_up": 1, "ph_down": 2},
-        "water_valve_ip": "",
-        "water_fill_valve": "",
-        "water_drain_valve": "",
-        "valve_labels": {
-            "1": "Valve #1",
-            "2": "Valve #2",
-            "3": "Valve #3",
-            "4": "Valve #4",
-            "5": "Valve #5",
-            "6": "Valve #6",
-            "7": "Valve #7",
-            "8": "Valve #8"
-        },
-        "water_level_sensors": {
-            "sensor1": {"label": "Full",  "pin": 22},
-            "sensor2": {"label": "3 Gal", "pin": 23},
-            "sensor3": {"label": "Empty", "pin": 24}
-        },
-        # NEW fields
-        "plant_info": {}
+            "system_name": "ZoneX",
+            "ph_range": {"min": 5.5, "max": 6.5},
+            "ph_target": 5.8,
+            "max_dosing_amount": 5,
+            "dosing_interval": 1.0,
+            "system_volume": 5.5,
+            "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
+            "auto_dosing_enabled": True,
+            "time_zone": "America/New_York",
+            "daylight_savings_enabled": True,
+            "usb_roles": {
+                "ph_probe": None,
+                "relay": None,
+                "valve_relay": None
+            },
+            "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+            "relay_ports": {"ph_up": 1, "ph_down": 2},
+            "water_valve_ip": "",
+            "water_fill_valve": "",
+            "water_drain_valve": "",
+            "valve_labels": {
+                "1": "Valve #1",
+                "2": "Valve #2",
+                "3": "Valve #3",
+                "4": "Valve #4",
+                "5": "Valve #5",
+                "6": "Valve #6",
+                "7": "Valve #7",
+                "8": "Valve #8"
+            },
+            "water_level_sensors": {
+                "sensor1": {"label": "Full",  "pin": 22},
+                "sensor2": {"label": "3 Gal", "pin": 23},
+                "sensor3": {"label": "Empty", "pin": 24}
+            },
+            # NEW fields
+            "plant_info": {},
+            "additional_plants": []  # <-- NEW: default empty array
         }, f, indent=4)
 
 # API endpoint: Get all settings
@@ -101,6 +102,7 @@ def update_settings():
         water_sensors_updated = True
 
     # Merge all remaining top-level keys (system_name, ph_range, ph_target, etc.)
+    # This automatically merges any "additional_plants" array the front-end sends.
     current_settings.update(new_settings)
 
     # Save changes
@@ -166,7 +168,8 @@ def reset_settings():
             "sensor3": {"label": "Empty", "pin": 24}
         },
         # NEW fields
-        "plant_info": {}
+        "plant_info": {},
+        "additional_plants": []   # <--- reset to empty array
     }
     save_settings(default_settings)
 
@@ -207,7 +210,6 @@ def list_usb_devices():
     emit_status_update()
 
     return jsonify(devices)
-
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
@@ -257,7 +259,6 @@ def assign_usb_device():
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
-
 
 # API endpoint: Get System Name
 @settings_blueprint.route('/system_name', methods=['GET'])

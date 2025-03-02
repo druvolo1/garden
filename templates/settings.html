@@ -252,6 +252,19 @@
         </form>
       </div>
 
+      <!-- Additional Plants Section -->
+      <div class="data-container">
+        <h2>Additional Plants</h2>
+
+        <!-- Existing entries will appear here -->
+        <div id="plants-list" style="margin-bottom: 10px;"></div>
+
+        <!-- Add new entry -->
+        <label for="new-plant-input">New IP / DNS:</label>
+        <input type="text" id="new-plant-input" placeholder="e.g. 192.168.1.45 or myplant.local">
+        <button type="button" id="add-plant-btn">+ Add</button>
+      </div>
+
       <!-- Application Update Section -->
       <div class="data-container">
         <h2>Application Updates</h2>
@@ -447,20 +460,8 @@
           document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
         }
 
-        // If user clicks "Retrieve Valves"
-        document.getElementById('retrieve-valves').onclick = () => {
-          const ipInput = document.getElementById('water-valve-ip').value.trim();
-          if (!ipInput) {
-            alert("No IP provided. If you really want no IP, leave it blank and click 'Save Valve Assignments'.");
-            return;
-          }
-          retrieveValvesFromIP(ipInput)
-            .then(() => console.log('Valves retrieved successfully'))
-            .catch(error => {
-              console.error('Fetch error:', error);
-              alert(`Error retrieving valves: ${error.message}`);
-            });
-        };
+        // Render Additional Plants
+        renderAdditionalPlants(settings.additional_plants || []);
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -535,7 +536,7 @@
       .catch(error => console.error('Error saving settings:', error));
     }
 
-    // ========== FORM SUBMISSIONS BELOW ==========
+    // ==================== FORM SUBMISSIONS ====================
 
     document.getElementById('ph-form').addEventListener('submit', e => {
       e.preventDefault();
@@ -658,6 +659,76 @@
       };
       saveSettings("/api/settings", payload);
     });
+
+    // ========== Additional Plants Logic ==========
+
+    // 1) Render the array of "additional_plants"
+    function renderAdditionalPlants(plantsArray) {
+      const container = document.getElementById('plants-list');
+      container.innerHTML = ""; // clear old content
+
+      plantsArray.forEach((plant, index) => {
+        // Each entry row
+        const rowDiv = document.createElement('div');
+        rowDiv.style.display = "flex";
+        rowDiv.style.justifyContent = "space-between";
+        rowDiv.style.alignItems = "center";
+        rowDiv.style.marginBottom = "5px";
+
+        // Show the IP/DNS
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = plant;
+        rowDiv.appendChild(labelSpan);
+
+        // Delete button
+        const delBtn = document.createElement('button');
+        delBtn.textContent = "Delete";
+        delBtn.onclick = () => deletePlant(plant);
+        rowDiv.appendChild(delBtn);
+
+        container.appendChild(rowDiv);
+      });
+    }
+
+    // 2) Add new plant
+    document.getElementById('add-plant-btn').addEventListener('click', () => {
+      const newVal = document.getElementById('new-plant-input').value.trim();
+      if (!newVal) {
+        alert("Please enter an IP or DNS name.");
+        return;
+      }
+      // Load current settings to get additional_plants
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const arr = settings.additional_plants || [];
+          // Optionally check for duplicates
+          if (arr.includes(newVal)) {
+            alert("That entry already exists!");
+            return;
+          }
+          arr.push(newVal);
+
+          // Save back to /api/settings
+          saveSettings("/api/settings", { additional_plants: arr });
+
+          // Clear the input
+          document.getElementById('new-plant-input').value = "";
+        })
+        .catch(err => console.error("Error adding new plant:", err));
+    });
+
+    // 3) Delete existing
+    function deletePlant(plant) {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          let arr = settings.additional_plants || [];
+          arr = arr.filter(item => item !== plant); // remove the one we’re deleting
+          saveSettings("/api/settings", { additional_plants: arr });
+        })
+        .catch(err => console.error("Error deleting plant:", err));
+    }
 
     // Update Code & Restart
     document.getElementById('update-code-btn').addEventListener('click', () => {
