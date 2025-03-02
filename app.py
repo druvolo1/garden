@@ -1,5 +1,3 @@
-# File: app.py
-
 import socket
 import eventlet
 import subprocess
@@ -23,7 +21,7 @@ from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
 from api.valve_relay import valve_relay_blueprint
 
-# <-- IMPORTANT: Import the update_code blueprint
+# IMPORTANT: Import the update_code blueprint
 from api.update_code import update_code_blueprint
 
 from status_namespace import StatusNamespace, emit_status_update
@@ -69,13 +67,7 @@ def get_local_ip():
     return ip
 
 def auto_dosing_loop():
-    """
-    Periodically checks settings to see if auto-dosing is enabled and if it's time to dose.
-    If the dosing interval has changed, resets the timer.
-    If auto-dosing is disabled, it resets the auto-dose state and waits.
-    """
     from api.settings import load_settings
-
     log_with_timestamp("Inside auto dosing loop")
     while True:
         try:
@@ -83,7 +75,6 @@ def auto_dosing_loop():
             auto_enabled = settings.get("auto_dosing_enabled", False)
             interval_hours = float(settings.get("dosing_interval", 0))
 
-            # If auto-dosing is disabled or the interval is invalid, reset and wait.
             if not auto_enabled or interval_hours <= 0:
                 reset_auto_dose_timer()
                 eventlet.sleep(5)
@@ -91,18 +82,15 @@ def auto_dosing_loop():
 
             now = datetime.now()
 
-            # If the interval changed, reset next_dose_time.
             if auto_dose_state.get("last_interval") != interval_hours:
                 auto_dose_state["last_interval"] = interval_hours
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
                 log_with_timestamp(f"Interval changed; next dose time reset to {auto_dose_state['next_dose_time']}")
 
-            # If next_dose_time is not set, initialize it.
             if not auto_dose_state.get("next_dose_time"):
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
                 log_with_timestamp(f"Next dose time initialized to {auto_dose_state['next_dose_time']}")
 
-            # If it's time to dose, perform auto-dose.
             if now >= auto_dose_state["next_dose_time"]:
                 dose_type, dose_amount = perform_auto_dose(settings)
                 if dose_amount > 0:
@@ -150,9 +138,7 @@ def broadcast_status():
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
-            # Use the same emit_status_update() that includes valve_relays, water_level, etc.
             emit_status_update()
-            # Wait 5 seconds before sending again
             eventlet.sleep(5)
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
@@ -173,34 +159,22 @@ def start_threads():
     # Start background tasks
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
-    log_with_timestamp("Broadcast_ph_readings spawned.")
-
     log_with_timestamp("Spawning auto_dosing_loop...")
     eventlet.spawn(auto_dosing_loop)
-    log_with_timestamp("Auto_dosing_loop spawned.")
-
     log_with_timestamp("Spawning serial reader...")
     eventlet.spawn(serial_reader)
-    log_with_timestamp("Serial reader spawned.")
-
     log_with_timestamp("Spawning status broadcaster...")
     eventlet.spawn(broadcast_status)
-    log_with_timestamp("Status broadcaster spawned.")
-
     log_with_timestamp("Spawning hardware error checker...")
     eventlet.spawn(check_for_hardware_errors)
-    log_with_timestamp("Hardware error checker spawned.")
-
     log_with_timestamp("Spawning water level sensor monitor...")
     eventlet.spawn(monitor_water_level_sensors)
-    log_with_timestamp("Water level sensor monitor spawned.")
 
     # If there's a valve device assigned, start it
     from services.valve_relay_service import init_valve_thread
     init_valve_thread()
 
-
-# IMPORTANT: Start threads at module level so Gunicorn sees them
+# Initialize threads at module level so Gunicorn sees them:
 start_threads()
 
 # Register all Blueprints
@@ -212,8 +186,15 @@ app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 
-# <-- IMPORTANT: Add this line to register the update_code blueprint
+# IMPORTANT: Register the new blueprint
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
+
+# -------------- OPTIONAL: Remove or comment out the old route --------------
+# @app.route('/api/system/update_code', methods=['POST'])
+# def update_code_and_restart():
+#     # old approach with `git pull` etc.
+#     return jsonify({"status":"failure","message":"This route is deprecated."}), 400
+# ----------------------------------------------------------------------------
 
 @app.route('/')
 def index():
@@ -245,7 +226,7 @@ def handle_connect():
         socketio.emit('ph_update', {'ph': current})
 
 @app.route('/api/ph/latest', methods=['GET'])
-def get_latest_ph():
+def get_ph_latest():
     ph_value = get_latest_ph_reading()
     if ph_value is not None:
         return jsonify({"status": "success", "ph": ph_value}), 200
@@ -283,109 +264,15 @@ def api_manual_dosage():
     auto_dose_state["next_dose_time"] = None
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
-@app.route('/api/device/config', methods=['GET', 'POST'])
-def device_config():
-    if request.method == 'GET':
-        try:
-            hostname = get_hostname()
-            eth0 = get_ip_config("eth0")
-            wlan0 = get_ip_config("wlan0")
-            wlan0["ssid"] = get_wifi_config()  # add WiFi SSID to the wlan0 dict
-
-            tz = get_timezone()
-            dls = is_daylight_savings()
-            ntp = get_ntp_server()
-
-            response = {
-                "status": "success",
-                "config": {
-                    "hostname": hostname,
-                    "eth0": eth0,
-                    "wlan0": wlan0,
-                    "timezone": tz,
-                    "daylight_savings": dls,
-                    "ntp_server": ntp
-                }
-            }
-            return jsonify(response), 200
-        except Exception as e:
-            return jsonify({"status": "failure", "message": str(e)}), 500
-
-    if request.method == 'POST':
-        try:
-            data = request.get_json() or {}
-
-            if "hostname" in data:
-                set_hostname(data["hostname"])
-
-            if "interface" in data:
-                iface = data["interface"]
-                dhcp = data.get("dhcp", False)
-                ip_address = data.get("ip_address", "")
-                subnet_mask = data.get("subnet_mask", "255.255.255.0")
-                gateway = data.get("gateway", "")
-                dns1 = data.get("dns1", "")
-                dns2 = data.get("dns2", "")
-
-                set_ip_config(
-                    iface, dhcp, ip_address, subnet_mask,
-                    gateway, dns1, dns2
-                )
-
-                if iface == "wlan0":
-                    ssid = data.get("wifi_ssid", "")
-                    password = data.get("wifi_password", "")
-                    if ssid and password:
-                        set_wifi_config(ssid, password)
-
-            if "timezone" in data:
-                set_timezone(data["timezone"])
-            if "ntp_server" in data:
-                set_ntp_server(data["ntp_server"])
-
-            return jsonify({"status": "success", "message": "Settings updated."}), 200
-
-        except Exception as e:
-            return jsonify({"status": "failure", "message": str(e)}), 500
-
 @app.route("/api/device/timezones", methods=["GET"])
 def device_timezones():
     try:
         output = subprocess.check_output(["timedatectl", "list-timezones"]).decode().splitlines()
         all_timezones = sorted(output)
         return jsonify({"status": "success", "timezones": all_timezones}), 200
-
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
 
-@app.route('/api/system/update_code', methods=['POST'])
-def update_code_and_restart():
-    REPO_DIR = os.path.join(os.getcwd())
-    try:
-        # 1) GIT PULL
-        pull_output = subprocess.check_output(["git", "pull"], cwd=REPO_DIR, stderr=subprocess.STDOUT)
-        pull_output_str = pull_output.decode("utf-8", errors="replace")
-
-        # 2) RESTART (systemd service example)
-        subprocess.check_output(["sudo", "systemctl", "restart", "my-gunicorn-service"], stderr=subprocess.STDOUT)
-
-        return jsonify({
-            "status": "success",
-            "output": pull_output_str
-        })
-
-    except subprocess.CalledProcessError as e:
-        err_msg = e.output.decode("utf-8", errors="replace") if e.output else str(e)
-        return jsonify({
-            "status": "failure",
-            "error": str(e),
-            "output": err_msg
-        }), 500
-    except Exception as ex:
-        return jsonify({
-            "status": "failure",
-            "error": str(ex)
-        }), 500
 
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")

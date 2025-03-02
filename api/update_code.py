@@ -7,10 +7,11 @@ from flask import Blueprint, jsonify
 
 update_code_blueprint = Blueprint('update_code', __name__)
 
-# If you want the final code to live in "garden" subfolder of your current directory:
-TARGET_DIR = "/home/dave/garden"   # Adjust as needed
-GIT_URL    = "https://github.com/druvolo1/garden.git"
-SERVICE_NAME = "garden.service"  # the systemd service to restart after update
+# Adjust paths/names to match your environment
+TARGET_DIR   = "/home/dave/garden"              # Where to clone the repo
+GIT_URL      = "https://github.com/druvolo1/garden.git"
+SERVICE_NAME = "garden.service"                 # The systemd service to restart
+PIP_COMMAND  = "pip"                            # Or an absolute path, e.g. "/home/dave/garden/venv/bin/pip"
 
 def run_cmd(cmd_list, cwd=None):
     """
@@ -36,40 +37,50 @@ def run_cmd(cmd_list, cwd=None):
 @update_code_blueprint.route('/pull', methods=['POST'])
 def pull_and_restart():
     """
-    1) Remove the old 'garden' directory (optional if you prefer 'git pull', but recommended for a fresh clone)
-    2) Clone https://github.com/druvolo1/garden.git into TARGET_DIR
-    3) pip install -r requirements.txt in that folder
+    1) Remove the old 'garden' directory for a fresh clone
+    2) Clone the Git repo into TARGET_DIR
+    3) pip install -r requirements.txt
     4) systemctl restart garden.service
-    Returns JSON with step-by-step logs.
+    Returns JSON logs of each step.
     """
     steps_output = []
     try:
-        # 1) Remove existing folder (optional if you prefer a truly fresh clone each time)
+        # 1) Remove existing folder (fresh start)
         if os.path.exists(TARGET_DIR):
             out, err = run_cmd(["rm", "-rf", TARGET_DIR])
             steps_output.append(out)
             if err:
-                # If that fails, we can error out
-                return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+                return jsonify({
+                    "status":"failure","error":err,
+                    "output":"\n".join(steps_output)
+                }), 500
 
         # 2) Clone the repo
         out, err = run_cmd(["git", "clone", GIT_URL, TARGET_DIR])
         steps_output.append(out)
         if err:
-            return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+            return jsonify({
+                "status":"failure","error":err,
+                "output":"\n".join(steps_output)
+            }), 500
 
-        # 3) pip install
-        # If 'pip' is the correct command for your environment. If not, specify the absolute path.
-        out, err = run_cmd(["pip", "install", "-r", "requirements.txt"], cwd=TARGET_DIR)
+        # 3) pip install -r requirements.txt
+        out, err = run_cmd([PIP_COMMAND, "install", "-r", "requirements.txt"], cwd=TARGET_DIR)
         steps_output.append(out)
         if err:
-            return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+            return jsonify({
+                "status":"failure","error":err,
+                "output":"\n".join(steps_output)
+            }), 500
 
         # 4) Restart the systemd service
         out, err = run_cmd(["sudo", "systemctl", "restart", SERVICE_NAME])
         steps_output.append(out)
         if err:
-            return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+            return jsonify({
+                "status":"failure","error":err,
+                "output":"\n".join(steps_output)
+            }), 500
 
         # If everything succeeded
         return jsonify({
