@@ -29,7 +29,8 @@ def log_with_timestamp(msg):
 
 def parse_ec_buffer():
     """
-    Parses 'ec_buffer' for line(s). If a line is numeric, we treat it as an EC reading.
+    Parses 'ec_buffer' for line(s). If a line is numeric, we treat it as an EC reading (in µS/cm),
+    convert it to mS/cm, and store it in `latest_ec_value`.
     If it’s '*OK' or '*ER', we handle command acknowledgment from queue.
     """
     global ec_buffer, latest_ec_value, last_ec_command
@@ -42,7 +43,7 @@ def parse_ec_buffer():
             log_with_timestamp("Skipping empty line from EC parse.")
             continue
 
-        # Check for ack responses (like pH)
+        # Check for ack responses
         if line in ("*OK", "*ER"):
             if last_ec_command:
                 log_with_timestamp(f"EC meter response '{line}' to command: {last_ec_command}")
@@ -57,17 +58,20 @@ def parse_ec_buffer():
                 send_ec_command(next_cmd)
             continue
 
-        # Attempt to parse a numeric EC reading
+        # Attempt to parse a numeric EC reading (µS/cm)
         try:
-            # E.g. if your meter outputs "1234" for 1.234 mS, or something similar
-            ec_val = float(line)
-            # Optionally check range if you know typical min/max
-            if ec_val < 0 or ec_val > 9999:
-                raise ValueError(f"EC out of plausible range: {ec_val}")
+            ec_val_uS = float(line)
+            # Convert from µS/cm → mS/cm
+            ec_val_mS = ec_val_uS / 1000.0
+
+            # You can optionally check range if desired:
+            # e.g., if ec_val_mS < 0.0 or ec_val_mS > 500.0:
+            #    raise ValueError(f"EC out of plausible range: {ec_val_mS} mS/cm")
 
             with ec_lock:
-                latest_ec_value = ec_val
-            log_with_timestamp(f"Updated latest EC value: {latest_ec_value}")
+                latest_ec_value = ec_val_mS
+            log_with_timestamp(f"Updated latest EC value (in mS/cm): {latest_ec_value}")
+
         except ValueError as e:
             log_with_timestamp(f"Discarding non-numeric or invalid EC line: '{line}' ({e})")
 
@@ -89,7 +93,6 @@ def ec_serial_reader():
     log_with_timestamp("EC serial reader started.")
 
     while not ec_stop_event.ready():
-        # 1) Check assigned device
         settings = load_settings()
         ec_path = settings.get("usb_roles", {}).get("ec_meter")
         if not ec_path:
@@ -98,7 +101,6 @@ def ec_serial_reader():
             eventlet.sleep(5)
             continue
 
-        # 2) Attempt to open EC device
         try:
             ec_ser = serial.Serial(ec_path, baudrate=9600, timeout=1)
             clear_error("EC_USB_OFFLINE")
@@ -106,7 +108,6 @@ def ec_serial_reader():
             with ec_lock:
                 ec_buffer = ""
 
-            # 3) Main read loop
             while not ec_stop_event.ready():
                 raw = tpool.execute(ec_ser.read, 100)
                 if raw:
@@ -154,7 +155,7 @@ def stop_ec_serial_reader():
 
 def get_latest_ec_reading():
     """
-    Returns the most recent EC reading if the ec_meter is assigned & we have data,
+    Returns the most recent EC reading in mS/cm if the ec_meter is assigned & we have data,
     else None.
     """
     settings = load_settings()
@@ -167,7 +168,7 @@ def get_latest_ec_reading():
 
 def enqueue_calibration_command(level):
     """
-    Similar to pH: for example 'Cal,low', 'Cal,high', etc. 
+    Similar to pH: for example 'Cal,low', 'Cal,high', etc.
     Add your own logic. We'll do dummy commands for now.
     """
     valid = {
