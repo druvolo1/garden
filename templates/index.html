@@ -31,15 +31,22 @@
         <h1>pH Dosing System</h1>
         <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-        <!-- pH Reading Container (hidden if no pH probe) -->
-        <div class="data-container" id="ph-reading-section" style="display: none;">
-            <h2>Current pH Reading</h2>
-            <div id="ph-display" class="data-box">Loading...</div>
-        </div>
+        <!-- Single "Zone 1" container that holds both pH reading & water-level -->
+        <div class="data-container" id="zone1-container">
+            <h2>Zone 1</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <!-- pH Reading Section -->
+                <div id="ph-reading-section" style="flex: 1; display: none;">
+                    <h3>Current pH Reading</h3>
+                    <div id="ph-display" class="data-box">Loading...</div>
+                </div>
 
-        <div class="data-container">
-            <h2>Water Level Sensors</h2>
-            <div id="water-level-status" class="data-box"></div>
+                <!-- Water Level Sensors Section -->
+                <div style="flex: 1;">
+                    <h3>Water Level Sensors</h3>
+                    <div id="water-level-status" class="data-box">Loading...</div>
+                </div>
+            </div>
         </div>
 
         <!-- Drain and Fill Section (hidden if no valve_relay assigned) -->
@@ -180,7 +187,6 @@
                         document.getElementById('drain-valve-off').addEventListener('click', () => {
                             setValveState(settings.water_drain_valve, 'drain-valve-status', 'off');
                         });
-
                     } else {
                         console.log("No fill/drain config found. Hiding Drain and Fill.");
                         drainFillSection.style.display = 'none';
@@ -222,7 +228,7 @@
 
             // Update the display for On/Off
             function updateValveDisplay(statusId, buttonId, newStatus) {
-                // 1. Update the text (as before)
+                // 1. Update the text
                 const statusSpan = document.getElementById(statusId);
                 const status = newStatus.toLowerCase();
                 statusSpan.textContent = (status === 'on') ? 'On' : 'Off';
@@ -239,17 +245,15 @@
 
                 // 4. Apply the correct classes
                 if (status === 'on') {
-                    // Valve is ON => the “On” button is green, the “Off” button is grey
+                    // Valve is ON => "On" button is active, "Off" is inactive
                     onButton.classList.add('btn-on-active');
                     offButton.classList.add('btn-inactive');
                 } else {
-                    // Valve is OFF => the “Off” button is red, the “On” button is grey
+                    // Valve is OFF => "Off" button is active, "On" is inactive
                     onButton.classList.add('btn-inactive');
                     offButton.classList.add('btn-off-active');
                 }
             }
-
-
 
             // 4. Existing Helpers
             async function fetchInitialPh() {
