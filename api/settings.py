@@ -194,7 +194,6 @@ def list_usb_devices():
         print("Executing command: ls /dev/serial/by-path")
         result = subprocess.check_output("ls /dev/serial/by-path", shell=True).decode().splitlines()
         devices = [{"device": f"/dev/serial/by-path/{dev}"} for dev in result]
-
         print("USB devices found:", devices)
     except subprocess.CalledProcessError as e:
         print(f"Error listing USB devices: {e}")
@@ -203,22 +202,31 @@ def list_usb_devices():
         print(f"Unexpected error: {e}")
         devices = []
 
+    # 1) Load settings
     settings = load_settings()
+
+    # 2) Get the current usb_roles from settings
     usb_roles = settings.get("usb_roles", {})
 
-    # Remove any device from usb_roles if not in currently connected devices
+    # 3) Figure out which paths are actually connected
     connected_paths = [dev["device"] for dev in devices]
-    for role, assigned_device in usb_roles.items():
-        if assigned_device not in connected_paths:
+
+    # 4) Only remove assignments that no longer match an existing path
+    modified = False
+    for role, assigned_device in list(usb_roles.items()):
+        if assigned_device not in connected_paths and assigned_device is not None:
             usb_roles[role] = None
+            modified = True
 
-    settings["usb_roles"] = usb_roles
-    save_settings(settings)
+    # 5) If something changed, save the settings
+    if modified:
+        settings["usb_roles"] = usb_roles
+        save_settings(settings)
 
-    # Emit a status_update event
+    # 6) Emit a status update and return the devices list
     emit_status_update()
-
     return jsonify(devices)
+
 
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
