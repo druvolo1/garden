@@ -233,6 +233,7 @@ legend {
     flex: 1;               /* each button expands to share the row equally */
     margin: 0;             /* override default margin */
     text-align: center;
+    padding: 16px 14px;
     width: auto !important; /* override any global width:100% rules */
   }
   
