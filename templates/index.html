@@ -27,56 +27,61 @@
     <h1>pH Dosing System</h1>
     <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <!-- Table container: System Name + pH + Water Level Sensors -->
-    <div class="data-container" id="system_name-container">
-      <!--<h2>Zone 1</h2>-->
-      <table style="width:100%; border-collapse: collapse;">
-        <thead>
-          <tr>
-            <th style="text-align: left; width: 20%;">System Name</th>
-            <th style="text-align: left; width: 15%;">pH</th>
-            <th style="text-align: left;" colspan="3">Water Level Sensors</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <!-- System Name -->
-            <td id="system-name-display" style="vertical-align: middle;">Loading...</td>
-            <!-- pH reading -->
-            <td id="ph-display" class="data-box" style="vertical-align: middle;">Loading pH...</td>
-            <!-- Water Level Sensor columns -->
-            <td id="water-level-col1" class="data-box"></td>
-            <td id="water-level-col2" class="data-box"></td>
-            <td id="water-level-col3" class="data-box"></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- Single flex container with 7 columns (system name, pH, sensor1, sensor2, sensor3, fill, drain) -->
+    <div class="data-container" style="display: flex; flex-wrap: nowrap; gap: 20px;">
+      <!-- 1) System Name -->
+      <div style="flex: 1;">
+        <label style="display: block; margin-bottom: 0.5rem;">System Name</label>
+        <div id="system-name-display">Loading...</div>
+      </div>
 
-    <!-- Drain and Fill Section (hidden if no valve_relay assigned) -->
-    <div class="data-container" id="drain-fill-section" style="display: none;">
-      <h2>Drain and Fill</h2>
-      <div style="display: flex; flex-wrap: wrap; gap: 20px;">
-        <!-- Fill Valve -->
-        <div style="flex: 1;">
-          <p>Fill Valve (<span id="fill-valve-name"></span>) Status:
-            <span id="fill-valve-status">Unknown</span>
-          </p>
-          <div style="display: flex; gap: 8px;">
-            <button id="fill-valve-on"  disabled style="flex: 1;">On</button>
-            <button id="fill-valve-off" disabled style="flex: 1;">Off</button>
-          </div>
+      <!-- 2) pH Reading -->
+      <div style="flex: 1;">
+        <label style="display: block; margin-bottom: 0.5rem;">pH</label>
+        <div id="ph-display">Loading pH...</div>
+      </div>
+
+      <!-- 3) Water Level Sensor #1 -->
+      <div style="flex: 1;">
+        <label style="display: block; margin-bottom: 0.5rem;">Sensor 1</label>
+        <div id="water-level-col1"></div>
+      </div>
+
+      <!-- 4) Water Level Sensor #2 -->
+      <div style="flex: 1;">
+        <label style="display: block; margin-bottom: 0.5rem;">Sensor 2</label>
+        <div id="water-level-col2"></div>
+      </div>
+
+      <!-- 5) Water Level Sensor #3 -->
+      <div style="flex: 1;">
+        <label style="display: block; margin-bottom: 0.5rem;">Sensor 3</label>
+        <div id="water-level-col3"></div>
+      </div>
+
+      <!-- 6) Fill Valve (hidden if not assigned/configured) -->
+      <div style="flex: 1; display: none;" id="fill-valve-container">
+        <label style="display: block; margin-bottom: 0.5rem;">Fill Valve</label>
+        <div>
+          (<span id="fill-valve-name"></span>) Status:
+          <span id="fill-valve-status">Unknown</span>
         </div>
+        <div style="margin-top: 0.5rem; display: flex; gap: 8px;">
+          <button id="fill-valve-on"  disabled>On</button>
+          <button id="fill-valve-off" disabled>Off</button>
+        </div>
+      </div>
 
-        <!-- Drain Valve -->
-        <div style="flex: 1;">
-          <p>Drain Valve (<span id="drain-valve-name"></span>) Status:
-            <span id="drain-valve-status">Unknown</span>
-          </p>
-          <div style="display: flex; gap: 8px;">
-            <button id="drain-valve-on"  disabled style="flex: 1;">On</button>
-            <button id="drain-valve-off" disabled style="flex: 1;">Off</button>
-          </div>
+      <!-- 7) Drain Valve (hidden if not assigned/configured) -->
+      <div style="flex: 1; display: none;" id="drain-valve-container">
+        <label style="display: block; margin-bottom: 0.5rem;">Drain Valve</label>
+        <div>
+          (<span id="drain-valve-name"></span>) Status:
+          <span id="drain-valve-status">Unknown</span>
+        </div>
+        <div style="margin-top: 0.5rem; display: flex; gap: 8px;">
+          <button id="drain-valve-on"  disabled>On</button>
+          <button id="drain-valve-off" disabled>Off</button>
         </div>
       </div>
     </div>
@@ -90,10 +95,10 @@
         transports: ["websocket"]  // Force WebSocket transport
       });
 
-      // 1. System name
+      // 1) Fetch system name
       fetchSystemName();
 
-      // 2. Socket setup
+      // 2) Socket setup
       socket.on('connect', () => {
         console.log("WebSocket connected successfully.");
         fetchWaterLevel();
@@ -136,11 +141,11 @@
         }
       });
 
-      // 3. Drain/Fill
+      // 3) Drain/Fill logic
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
-          // pH assignment
+          // If no pH probe, display a placeholder
           if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
             console.log("No pH probe assigned.");
             document.getElementById('ph-display').textContent = "No pH probe assigned";
@@ -148,18 +153,22 @@
             fetchInitialPh();
           }
 
-          // Drain/Fill container
-          const drainFillSection = document.getElementById('drain-fill-section');
+          // If no valve_relay is assigned, both fill/drain are hidden
           if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
-            console.log("No valve_relay device assigned. Hiding Drain and Fill.");
-            drainFillSection.style.display = 'none';
+            console.log("No valve_relay device assigned. Hiding fill/drain columns.");
             return;
           }
 
-          // If config is valid, show drain/fill
+          // If fill_valve + drain_valve are configured + IP
           if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
-            drainFillSection.style.display = 'block';
-            document.getElementById('fill-valve-name').textContent  = settings.water_fill_valve;
+            // Show fill container
+            const fillContainer  = document.getElementById('fill-valve-container');
+            fillContainer.style.display = 'block';
+            document.getElementById('fill-valve-name').textContent = settings.water_fill_valve;
+
+            // Show drain container
+            const drainContainer = document.getElementById('drain-valve-container');
+            drainContainer.style.display = 'block';
             document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
 
             // Enable On/Off
@@ -168,11 +177,11 @@
             document.getElementById('drain-valve-on').disabled  = false;
             document.getElementById('drain-valve-off').disabled = false;
 
-            // Initial statuses
+            // Fetch initial statuses
             fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  null);
             fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', null);
 
-            // Button listeners
+            // Attach button listeners
             document.getElementById('fill-valve-on').addEventListener('click', () => {
               setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
             });
@@ -186,13 +195,12 @@
               setValveState(settings.water_drain_valve, 'drain-valve-status', 'off');
             });
           } else {
-            console.log("No fill/drain config found. Hiding Drain and Fill.");
-            drainFillSection.style.display = 'none';
+            console.log("No fill/drain config found. Keeping fill/drain columns hidden.");
           }
         })
         .catch(err => console.error('Error fetching settings:', err));
 
-      // Helpers for valves
+      // --- Valve Helpers ---
       async function setValveState(valveName, statusId, action) {
         try {
           const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
@@ -248,7 +256,7 @@
         }
       }
 
-      // Other helpers (pH, water level, system name)
+      // --- pH, Water, System Name Helpers ---
       async function fetchInitialPh() {
         try {
           const response = await fetch('/api/ph/latest');
