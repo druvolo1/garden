@@ -164,26 +164,33 @@ def get_latest_ec_reading():
 
 def enqueue_calibration_command(level):
     """
-    Similar to pH: for example 'Cal,low', 'Cal,high', etc.
-    Add your own logic. We'll do dummy commands for now.
+    Enqueues one of the EC calibration steps:
+      - "dry"   => Cal,dry
+      - "low"   => Cal,low,12880
+      - "high"  => Cal,high,80000
+      - "clear" => Cal,clear
     """
     valid = {
-        "low": "Cal,low,1.00",   # hypothetical low standard
-        "high": "Cal,high,5.00",
+        "dry":   "Cal,dry",
+        "low":   "Cal,low,12880",
+        "high":  "Cal,high,80000",
         "clear": "Cal,clear"
     }
+
     if level not in valid:
         return {
             "status": "failure",
-            "message": f"Invalid calibration level: {level}"
+            "message": f"Invalid calibration level: {level}. Must be one of {list(valid.keys())}"
         }
 
     cmd = valid[level]
     ec_command_queue.put(cmd)
+
     return {
         "status": "success",
         "message": f"EC calibration command enqueued: {cmd}"
     }
+
 
 def restart_ec_serial_reader():
     """

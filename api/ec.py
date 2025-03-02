@@ -26,8 +26,8 @@ def ec_reading():
 @ec_blueprint.route('/calibrate/<level>', methods=['POST'])
 def ec_calibration(level):
     """
-    Example calibration route (similar to pH).
-    For now, just enqueues the command and returns a success/failure JSON.
+    Calibrate the EC sensor.
+    Valid levels: "dry", "low", "high", "clear"
     """
     response = enqueue_calibration_command(level)
     if response["status"] == "success":

@@ -8,6 +8,53 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+      /* NEW: optional minimal styles for smaller buttons and side-by-side layout */
+      .calibration-container {
+        display: flex;
+        gap: 2rem; /* space between pH and EC sections */
+        flex-wrap: wrap; /* so it won’t overflow on small screens */
+      }
+
+      .cal-section {
+        flex: 1 1 300px; /* each section grows/shrinks, min 300px wide */
+        border: 1px solid #ccc;
+        padding: 1rem;
+        border-radius: 6px;
+      }
+
+      .cal-section h2 {
+        margin-top: 0;
+      }
+
+      .cal-btn {
+        padding: 0.25rem 0.5rem; /* smaller button padding */
+        margin: 0.25rem;         /* small margin */
+        font-size: 0.9rem;       /* smaller font */
+      }
+
+      .danger {
+        background-color: #e74c3c; 
+        color: white;
+      }
+
+      .data-box {
+        font-size: 1.2rem; 
+        margin: 0.25rem 0; 
+        padding: 0.5rem; 
+        background-color: #f0f0f0;
+        border-radius: 4px;
+      }
+
+      .success-log {
+        color: green;
+      }
+
+      .error-log {
+        color: red;
+      }
+    </style>
 </head>
 <body>
 
@@ -24,90 +71,204 @@
     </nav>
 
     <main>
-        <h1>pH Probe Calibration</h1>
-        <p class="subtitle">Ensure accurate readings with proper calibration.</p>
+        <h1>Calibration</h1>
+        <p class="subtitle">Ensure accurate readings for pH and EC if assigned.</p>
 
-        <div class="data-container">
-            <h2>Current pH Value</h2>
-            <div id="ph-display" class="data-box"><span id="current-ph">--</span></div>
-        </div>
+        <!-- NEW: We'll load which devices are assigned and dynamically show pH/EC sections. -->
+        <div class="calibration-container">
+            
+            <!-- pH SECTION -->
+            <div id="ph-section" class="cal-section" style="display: none;">
+                <h2>pH Probe</h2>
+                <div>
+                    <h3>Current pH Value</h3>
+                    <div class="data-box"><span id="current-ph">--</span></div>
+                </div>
 
-        <div class="data-container">
-            <h2>Calibration Controls</h2>
-            <button id="calibrate-low">Calibrate Low (4.00)</button>
-            <button id="calibrate-mid">Calibrate Mid (7.00)</button>
-            <button id="calibrate-high">Calibrate High (10.00)</button>
-            <button id="clear-calibration" class="danger">Clear Calibration</button>
-        </div>
+                <div>
+                    <h3>pH Calibration</h3>
+                    <!-- Smaller buttons -->
+                    <button class="cal-btn" id="calibrate-ph-low">Low (4.00)</button>
+                    <button class="cal-btn" id="calibrate-ph-mid">Mid (7.00)</button>
+                    <button class="cal-btn" id="calibrate-ph-high">High (10.00)</button>
+                    <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
+                </div>
 
-        <div class="data-container">
-            <h2>Calibration Log</h2>
-            <ul id="log-list"></ul>
-        </div>
+                <div>
+                    <h3>pH Calibration Log</h3>
+                    <ul id="ph-log-list"></ul>
+                </div>
+            </div>
+            
+            <!-- EC SECTION -->
+            <div id="ec-section" class="cal-section" style="display: none;">
+                <h2>EC Meter</h2>
+                <div>
+                    <h3>Current EC (mS/cm)</h3>
+                    <div class="data-box"><span id="current-ec">--</span></div>
+                </div>
+
+                <div>
+                    <h3>EC Calibration</h3>
+                    <!-- "dry", "low", "high", or "clear" -->
+                    <button class="cal-btn" id="calibrate-ec-dry">Dry</button>
+                    <button class="cal-btn" id="calibrate-ec-low">Low (12.88)</button>
+                    <button class="cal-btn" id="calibrate-ec-high">High (80.00)</button>
+                    <button class="cal-btn danger" id="clear-ec-cal">Clear</button>
+                </div>
+
+                <div>
+                    <h3>EC Calibration Log</h3>
+                    <ul id="ec-log-list"></ul>
+                </div>
+            </div>
+
+        </div> <!-- .calibration-container -->
+
     </main>
     
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const socket = io.connect(window.location.origin);
 
-            function appendToLog(message, isError = false) {
-                const logItem = document.createElement("li");
-                logItem.textContent = message;
-                logItem.classList.add(isError ? "error-log" : "success-log");
-                document.getElementById("log-list").prepend(logItem);
+            // Logging utilities
+            function appendPhLog(message, isError = false) {
+                const li = document.createElement("li");
+                li.textContent = message;
+                li.classList.add(isError ? "error-log" : "success-log");
+                document.getElementById("ph-log-list").prepend(li);
+            }
+            function appendEcLog(message, isError = false) {
+                const li = document.createElement("li");
+                li.textContent = message;
+                li.classList.add(isError ? "error-log" : "success-log");
+                document.getElementById("ec-log-list").prepend(li);
             }
 
-            function fetchLatestPh() {
-                fetch('/api/ph/latest')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data?.ph !== undefined) {
-                            document.getElementById("current-ph").textContent = data.ph;
-                            appendToLog(`Initial pH: ${data.ph}`);
-                        } else {
+            // We'll check if pH or EC is assigned by fetching settings
+            fetch("/api/settings")
+              .then(r => r.json())
+              .then(settings => {
+                  const usbRoles = settings.usb_roles || {};
+                  // pH presence
+                  const phDevice = usbRoles.ph_probe;
+                  if (phDevice) {
+                      document.getElementById("ph-section").style.display = "block";
+                      initPhStuff();
+                  }
+                  // EC presence
+                  const ecDevice = usbRoles.ec_meter;
+                  if (ecDevice) {
+                      document.getElementById("ec-section").style.display = "block";
+                      initEcStuff();
+                  }
+              })
+              .catch(err => console.error("Error fetching settings:", err));
+
+            // ============== PH STUFF ==============
+            function initPhStuff() {
+                // We'll fetch the initial pH
+                function fetchLatestPh() {
+                    fetch('/api/ph/latest')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data?.ph !== undefined) {
+                                document.getElementById("current-ph").textContent = data.ph;
+                                appendPhLog(`Initial pH: ${data.ph}`);
+                            } else {
+                                document.getElementById("current-ph").textContent = "--";
+                                appendPhLog("No initial pH data available.", true);
+                            }
+                        })
+                        .catch(() => {
                             document.getElementById("current-ph").textContent = "--";
-                            appendToLog("No initial pH data available.");
-                        }
-                    })
-                    .catch(() => {
-                        document.getElementById("current-ph").textContent = "--";
-                        appendToLog("Error fetching pH data.", true);
-                    });
-            }
-
-            setTimeout(fetchLatestPh, 0);
-
-            socket.on("connect", () => {
-                appendToLog("WebSocket connected.");
-                fetchLatestPh();
-            });
-
-            socket.on("ph_update", (data) => {
-                if (data?.ph !== undefined) {
-                    document.getElementById("current-ph").textContent = data.ph;
-                    appendToLog(`Live pH update: ${data.ph}`);
-                } else {
-                    appendToLog("Invalid pH data received.", true);
+                            appendPhLog("Error fetching pH data.", true);
+                        });
                 }
-            });
+                fetchLatestPh();
 
-            function sendCalibrationCommand(level) {
-                fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === "success") {
-                            appendToLog(`Calibration (${level}) successful: ${data.message}`);
-                        } else {
-                            appendToLog(`Calibration (${level}) failed: ${data.message}`, true);
-                        }
-                    })
-                    .catch(() => appendToLog(`Failed to send ${level} calibration command.`, true));
+                // WebSocket events
+                socket.on("connect", () => {
+                    appendPhLog("WebSocket connected (for pH).");
+                    fetchLatestPh();
+                });
+                socket.on("ph_update", (data) => {
+                    if (data?.ph !== undefined) {
+                        document.getElementById("current-ph").textContent = data.ph;
+                        appendPhLog(`Live pH update: ${data.ph}`);
+                    }
+                });
+
+                // Calibration
+                function sendPhCalCommand(level) {
+                    fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === "success") {
+                                appendPhLog(`pH Calibration (${level}) success: ${data.message}`);
+                            } else {
+                                appendPhLog(`pH Calibration (${level}) fail: ${data.message}`, true);
+                            }
+                        })
+                        .catch(() => appendPhLog(`Failed pH ${level} calibration cmd.`, true));
+                }
+
+                document.getElementById("calibrate-ph-low").addEventListener("click", () => sendPhCalCommand("low"));
+                document.getElementById("calibrate-ph-mid").addEventListener("click", () => sendPhCalCommand("mid"));
+                document.getElementById("calibrate-ph-high").addEventListener("click", () => sendPhCalCommand("high"));
+                document.getElementById("clear-ph-cal").addEventListener("click", () => sendPhCalCommand("clear"));
             }
 
-            document.getElementById("calibrate-low").addEventListener("click", () => sendCalibrationCommand("low"));
-            document.getElementById("calibrate-mid").addEventListener("click", () => sendCalibrationCommand("mid"));
-            document.getElementById("calibrate-high").addEventListener("click", () => sendCalibrationCommand("high"));
-            document.getElementById("clear-calibration").addEventListener("click", () => sendCalibrationCommand("clear"));
+            // ============== EC STUFF ==============
+            function initEcStuff() {
+                // We'll fetch the initial EC
+                function fetchLatestEc() {
+                    fetch('/api/ec/latest')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data?.ec !== undefined) {
+                                document.getElementById("current-ec").textContent = data.ec;
+                                appendEcLog(`Initial EC: ${data.ec}`);
+                            } else {
+                                document.getElementById("current-ec").textContent = "--";
+                                appendEcLog("No initial EC data available.", true);
+                            }
+                        })
+                        .catch(() => {
+                            document.getElementById("current-ec").textContent = "--";
+                            appendEcLog("Error fetching EC data.", true);
+                        });
+                }
+                fetchLatestEc();
+
+                // For EC, we might not have a real-time broadcast yet, but let's check if you do
+                socket.on("connect", () => {
+                    appendEcLog("WebSocket connected (for EC).");
+                    fetchLatestEc();
+                });
+                // If you do want real-time EC updates in a different event, you'd handle it here
+                // e.g. socket.on("ec_update", data => { ... })
+
+                // Calibration
+                function sendEcCalCommand(level) {
+                    // levels: "dry", "low", "high", "clear"
+                    fetch(`/api/ec/calibrate/${level}`, { method: "POST" })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === "success") {
+                                appendEcLog(`EC Calibration (${level}) success: ${data.message}`);
+                            } else {
+                                appendEcLog(`EC Calibration (${level}) fail: ${data.message}`, true);
+                            }
+                        })
+                        .catch(() => appendEcLog(`Failed EC ${level} calibration cmd.`, true));
+                }
+
+                document.getElementById("calibrate-ec-dry").addEventListener("click", () => sendEcCalCommand("dry"));
+                document.getElementById("calibrate-ec-low").addEventListener("click", () => sendEcCalCommand("low"));
+                document.getElementById("calibrate-ec-high").addEventListener("click", () => sendEcCalCommand("high"));
+                document.getElementById("clear-ec-cal").addEventListener("click", () => sendEcCalCommand("clear"));
+            }
         });
     </script>  
 
