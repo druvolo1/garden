@@ -221,16 +221,28 @@ legend {
     pointer-events: none; /* block clicks and focus */
   }
   /* Calibration-specific overrides to keep buttons in one row & narrower */
+/* Override to make the calibration button row fill container width */
 .cal-btn-row {
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;  /* wrap if they don't fit in a single line on narrow screens */
-    gap: 0.5rem;      /* small horizontal space between buttons */
-}
-
-.cal-btn {
-    width: auto !important;    /* override width:100% from global style */
-    margin-top: 0 !important;  /* remove the extra top margin */
-    padding: 8px 14px;         /* if you want them smaller, adjust here */
-    flex: 0 0 auto;            /* ensure they only take as much room as needed */
-}
+    width: 100%;           /* occupy full width of parent */
+    gap: 8px;              /* space between buttons */
+    margin: 0.5rem 0;      /* top/bottom spacing */
+  }
+  
+  .cal-btn {
+    flex: 1;               /* each button expands to share the row equally */
+    margin: 0;             /* override default margin */
+    text-align: center;
+    width: auto !important; /* override any global width:100% rules */
+  }
+  
+  /* Improve visibility of pH/EC values by darkening background & lightening text */
+  .data-box {
+    font-size: 1.2rem;
+    margin: 0.25rem 0;
+    padding: 0.5rem;
+    background-color: #2a2a2a; /* darker background */
+    color: #ffffff;            /* lighter text */
+    border-radius: 4px;
+  }
+  
