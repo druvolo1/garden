@@ -23,30 +23,28 @@
   </nav>
 
   <main>
-    <!-- Display System Name -->
-    <h1 id="system-name-display" style="margin-bottom: 0.5rem;">Loading...</h1>
-
     <!-- Title -->
     <h1>pH Dosing System</h1>
     <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <!-- Single container: pH + Water Level Sensors in a table -->
+    <!-- Table container: System Name + pH + Water Level Sensors -->
     <div class="data-container" id="zone1-container">
       <h2>Zone 1</h2>
       <table style="width:100%; border-collapse: collapse;">
         <thead>
           <tr>
-            <!-- First column: pH -->
-            <th style="text-align: left; width: 20%;">pH</th>
-            <!-- Next columns: Water Level Sensors, spanning three columns -->
+            <th style="text-align: left; width: 20%;">System Name</th>
+            <th style="text-align: left; width: 15%;">pH</th>
             <th style="text-align: left;" colspan="3">Water Level Sensors</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <!-- pH reading goes here -->
-            <td id="ph-display" class="data-box">Loading pH...</td>
-            <!-- Up to three sensors, each cell side by side -->
+            <!-- System Name -->
+            <td id="system-name-display" style="vertical-align: middle;">Loading...</td>
+            <!-- pH reading -->
+            <td id="ph-display" class="data-box" style="vertical-align: middle;">Loading pH...</td>
+            <!-- Water Level Sensor columns -->
             <td id="water-level-col1" class="data-box"></td>
             <td id="water-level-col2" class="data-box"></td>
             <td id="water-level-col3" class="data-box"></td>
@@ -92,7 +90,7 @@
         transports: ["websocket"]  // Force WebSocket transport
       });
 
-      // 1. Fetch system name
+      // 1. System name
       fetchSystemName();
 
       // 2. Socket setup
@@ -138,19 +136,19 @@
         }
       });
 
-      // 3. Drain/Fill Logic
+      // 3. Drain/Fill
       fetch('/api/settings')
         .then(res => res.json())
         .then(settings => {
-          // Check pH probe assignment
+          // pH assignment
           if (!settings.usb_roles || !settings.usb_roles.ph_probe) {
-            console.log("No pH probe assigned. We'll just hide the pH display if desired.");
+            console.log("No pH probe assigned.");
             document.getElementById('ph-display').textContent = "No pH probe assigned";
           } else {
             fetchInitialPh();
           }
 
-          // Drain/Fill Container
+          // Drain/Fill container
           const drainFillSection = document.getElementById('drain-fill-section');
           if (!settings.usb_roles || !settings.usb_roles.valve_relay) {
             console.log("No valve_relay device assigned. Hiding Drain and Fill.");
@@ -158,23 +156,23 @@
             return;
           }
 
-          // Check if water_valve_ip + fill_valve + drain_valve exist
+          // If config is valid, show drain/fill
           if (settings.water_valve_ip && settings.water_fill_valve && settings.water_drain_valve) {
             drainFillSection.style.display = 'block';
             document.getElementById('fill-valve-name').textContent  = settings.water_fill_valve;
             document.getElementById('drain-valve-name').textContent = settings.water_drain_valve;
 
-            // Enable On/Off buttons
+            // Enable On/Off
             document.getElementById('fill-valve-on').disabled  = false;
             document.getElementById('fill-valve-off').disabled = false;
             document.getElementById('drain-valve-on').disabled  = false;
             document.getElementById('drain-valve-off').disabled = false;
 
-            // Fetch initial statuses
+            // Initial statuses
             fetchValveStatus(settings.water_fill_valve,  'fill-valve-status',  null);
             fetchValveStatus(settings.water_drain_valve, 'drain-valve-status', null);
 
-            // Attach On/Off listeners
+            // Button listeners
             document.getElementById('fill-valve-on').addEventListener('click', () => {
               setValveState(settings.water_fill_valve, 'fill-valve-status', 'on');
             });
@@ -194,7 +192,7 @@
         })
         .catch(err => console.error('Error fetching settings:', err));
 
-      // Helper to set valve on/off
+      // Helpers for valves
       async function setValveState(valveName, statusId, action) {
         try {
           const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
@@ -210,7 +208,6 @@
         }
       }
 
-      // Helper to fetch a valve’s current status
       async function fetchValveStatus(valveName, statusId, buttonId) {
         try {
           const url = '/api/valve_relay/' + encodeURIComponent(valveName) + '/status';
@@ -226,24 +223,22 @@
         }
       }
 
-      // Update the display for On/Off
       function updateValveDisplay(statusId, buttonId, newStatus) {
-        // 1. Update the text
         const statusSpan = document.getElementById(statusId);
         const status = newStatus.toLowerCase();
         statusSpan.textContent = (status === 'on') ? 'On' : 'Off';
 
-        // 2. Determine which valve prefix (fill-valve / drain-valve)
+        // Identify which valve prefix (fill-valve / drain-valve)
         const prefix = statusId.replace('-status', '');
         const onButton  = document.getElementById(prefix + '-on');
         const offButton = document.getElementById(prefix + '-off');
         if (!onButton || !offButton) return;
 
-        // 3. Clear existing classes
+        // Clear existing classes
         onButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
         offButton.classList.remove('btn-on-active','btn-off-active','btn-inactive');
 
-        // 4. Apply classes
+        // Apply new
         if (status === 'on') {
           onButton.classList.add('btn-on-active');
           offButton.classList.add('btn-inactive');
@@ -253,7 +248,7 @@
         }
       }
 
-      // 4. Existing Helpers
+      // Other helpers (pH, water level, system name)
       async function fetchInitialPh() {
         try {
           const response = await fetch('/api/ph/latest');
@@ -293,38 +288,36 @@
       }
 
       function renderWaterLevel(waterLevel) {
-        // Each sensor gets its own cell: water-level-col1, col2, col3
         const col1 = document.getElementById('water-level-col1');
         const col2 = document.getElementById('water-level-col2');
         const col3 = document.getElementById('water-level-col3');
 
-        // Clear existing text
         col1.textContent = "";
         col2.textContent = "";
         col3.textContent = "";
 
         if (!waterLevel) {
-          // If no data at all
           col1.textContent = "No water-level data.";
           return;
         }
 
-        // Convert sensors to array for easy indexing
         const sensorKeys = Object.keys(waterLevel);
 
-        // If you have more than 3 sensors, you can expand or wrap as needed.
-        // This example just shows the first 3 in columns.
+        // Show up to 3 sensors side by side
         if (sensorKeys.length > 0) {
           const s1 = waterLevel[sensorKeys[0]];
-          col1.textContent = `${s1.label || sensorKeys[0]}: ${s1.triggered ? "⚠️ Not Present" : "✅ Present"}`;
+          col1.textContent = (s1.label || sensorKeys[0]) + ": " +
+            (s1.triggered ? "⚠️ Not Present" : "✅ Present");
         }
         if (sensorKeys.length > 1) {
           const s2 = waterLevel[sensorKeys[1]];
-          col2.textContent = `${s2.label || sensorKeys[1]}: ${s2.triggered ? "⚠️ Not Present" : "✅ Present"}`;
+          col2.textContent = (s2.label || sensorKeys[1]) + ": " +
+            (s2.triggered ? "⚠️ Not Present" : "✅ Present");
         }
         if (sensorKeys.length > 2) {
           const s3 = waterLevel[sensorKeys[2]];
-          col3.textContent = `${s3.label || sensorKeys[2]}: ${s3.triggered ? "⚠️ Not Present" : "✅ Present"}`;
+          col3.textContent = (s3.label || sensorKeys[2]) + ": " +
+            (s3.triggered ? "⚠️ Not Present" : "✅ Present");
         }
       }
     });
