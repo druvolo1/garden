@@ -1,6 +1,9 @@
-from flask_socketio import Namespace, SocketIO
+# File: status_namespace.py (or wherever you keep your emit_status_update logic)
+
+from flask_socketio import Namespace
 from services.ph_service import get_latest_ph_reading
-from utils.settings_utils import load_settings  # Import from utils
+from services.ec_service import get_latest_ec_reading  # <-- import for EC
+from utils.settings_utils import load_settings
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
@@ -11,7 +14,8 @@ def log_with_timestamp(msg):
 
 def emit_status_update():
     """
-    Emit a status_update event with the latest settings and system status.
+    Emit a status_update event with the latest settings and system status,
+    now including EC info.
     """
     try:
         from app import socketio  # Import socketio from your main app file
@@ -38,24 +42,18 @@ def emit_status_update():
         # 4. Water level
         water_level_info = get_water_level_status()
 
-        # --------------------------------
-        # 5. Conditionally add Valve Info
-        # --------------------------------
+        # 5. Valve info logic
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
         water_valve_ip     = settings.get("water_valve_ip")
         water_fill_valve   = settings.get("water_fill_valve")
         water_drain_valve  = settings.get("water_drain_valve")
 
-        # If a valve_relay is assigned OR we have valid water_valve_ip + fill_valve + drain_valve
         need_valve_info = bool(valve_relay_device) or (water_valve_ip and water_fill_valve and water_drain_valve)
-
         valve_info = None
 
         if need_valve_info:
-            # Build valve_info by reading each label's current state
             from services.valve_relay_service import get_valve_status
             valve_labels = settings.get("valve_labels", {})
-
             valve_relays = {}
             for valve_id_str, label in valve_labels.items():
                 valve_id = int(valve_id_str)
@@ -66,23 +64,23 @@ def emit_status_update():
                 }
 
             valve_info = {
-                "water_valve_ip":     water_valve_ip,
-                "water_fill_valve":   water_fill_valve,
-                "water_drain_valve":  water_drain_valve,
-                "valve_labels":       valve_labels,
-                "valve_relays":       valve_relays
+                "water_valve_ip":    water_valve_ip,
+                "water_fill_valve":  water_fill_valve,
+                "water_drain_valve": water_drain_valve,
+                "valve_labels":      valve_labels,
+                "valve_relays":      valve_relays
             }
 
         # 6. Construct the final status payload
         status = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
+            "current_ec": get_latest_ec_reading(),     # <-- NEW: add the EC reading
             "auto_dose_state": auto_dose_copy,
             "plant_info": plant_info,
             "water_level": water_level_info,
             "errors": []
         }
-
         if valve_info is not None:
             status["valve_info"] = valve_info
 
