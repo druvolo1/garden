@@ -11,7 +11,7 @@ except ImportError:
 
 import requests  # <-- Import requests so we can call the local API
 from utils.settings_utils import load_settings
-from status_namespace import emit_status_update
+
 
 _pins_lock = threading.Lock()
 _pins_inited = False
@@ -79,6 +79,7 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
+    import status_namespace
     """
     Continuously monitor sensor changes. If the fill or drain sensor is triggered,
     POST to the local valve_relay API to turn that valve off.
