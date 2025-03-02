@@ -67,7 +67,7 @@ if not os.path.exists(SETTINGS_FILE):
 
 
 # API endpoint: Get all settings
-@settings_blueprint.route('/', methods=['GET'])
+@settings_blueprint.route('', methods=['GET'])
 def get_settings():
     settings = load_settings()
     # Inject our code-based version
