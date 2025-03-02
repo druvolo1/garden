@@ -11,7 +11,8 @@ from utils.settings_utils import load_settings, save_settings
 from services.mdns_service import update_mdns_service
 
 # Create the Blueprint for settings
-settings_blueprint = Blueprint('settings', __name__)
+settings_blueprint = Blueprint('settings', __name__, url_prefix='/api/settings', strict_slashes=False)
+
 
 # Path to the settings file
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
@@ -67,7 +68,7 @@ if not os.path.exists(SETTINGS_FILE):
 
 
 # API endpoint: Get all settings
-@settings_blueprint.route('', methods=['GET'])
+@settings_blueprint.route('/', methods=['GET'])
 def get_settings():
     settings = load_settings()
     # Inject our code-based version
