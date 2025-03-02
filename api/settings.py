@@ -41,7 +41,7 @@ if not os.path.exists(SETTINGS_FILE):
                 "valve_relay": None,
                 "ec_meter": None  # <--- NEW
             },
-            "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+            "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
             "water_valve_ip": "",
             "water_fill_valve": "",
@@ -155,7 +155,7 @@ def reset_settings():
             "valve_relay": None,
             "ec_meter": None
         },
-        "pump_calibration": {"pump1": 2.3, "pump2": 2.3},
+        "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
         "relay_ports": {"ph_up": 1, "ph_down": 2},
         "water_valve_ip": "",
         "water_fill_valve": "",
