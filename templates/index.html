@@ -124,41 +124,34 @@
           renderSensors("local", data.settings.water_level_sensors, data.water_level);
         }
 
-        // D) Valves if assigned
-        if (data.valve_info) {
-          // Show fill/drain containers
+        // D) Valves
+        if (data.settings && (data.settings.water_valve_ip || data.usb_roles?.valve_relay)) {
           document.getElementById("local-fill-container").style.display = "block";
           document.getElementById("local-drain-container").style.display = "block";
 
           const fillOnBtn  = document.getElementById("local-fill-on");
           const fillOffBtn = document.getElementById("local-fill-off");
-          const drainOnBtn  = document.getElementById("local-drain-on");
-          const drainOffBtn = document.getElementById("local-drain-off");
+          const drainOnBtn = document.getElementById("local-drain-on");
+          const drainOffBtn= document.getElementById("local-drain-off");
 
           fillOnBtn.disabled  = false;
           fillOffBtn.disabled = false;
           drainOnBtn.disabled  = false;
           drainOffBtn.disabled = false;
 
-          // get fill & drain valve names from valve_info
-          const fillValveName  = data.valve_info.water_fill_valve;
-          const drainValveName = data.valve_info.water_drain_valve;
+          // The remote host controlling the valves
+          const controllingHost = data.settings.water_valve_ip || window.location.hostname;
 
-          // If these are known statuses, update them
-          const valveRelays = data.valve_info.valve_relays || {};
-          for (let valveIdStr in valveRelays) {
-            if (!valveRelays.hasOwnProperty(valveIdStr)) continue;
-            // If label matches fill or drain, we can update
-            // Or if fillValveName is numeric
-            // But simpler to just call fetchValveStatusLocal when user clicks
-          }
+          // Valve names
+          const fillValveName  = data.settings.water_fill_valve;
+          const drainValveName = data.settings.water_drain_valve;
 
-          // Attach click events (if not done yet)
+          // Attach event handlers if not already attached
           if (!fillOnBtn.onclick) {
-            fillOnBtn.onclick = () => setValveLocal(fillValveName, "local-fill-status", "on");
-            fillOffBtn.onclick = () => setValveLocal(fillValveName, "local-fill-status", "off");
-            drainOnBtn.onclick = () => setValveLocal(drainValveName, "local-drain-status", "on");
-            drainOffBtn.onclick = () => setValveLocal(drainValveName, "local-drain-status", "off");
+            fillOnBtn.onclick  = () => setValveLocal(controllingHost, fillValveName,  "local-fill-status",  "on");
+            fillOffBtn.onclick = () => setValveLocal(controllingHost, fillValveName,  "local-fill-status",  "off");
+            drainOnBtn.onclick  = () => setValveLocal(controllingHost, drainValveName, "local-drain-status", "on");
+            drainOffBtn.onclick = () => setValveLocal(controllingHost, drainValveName, "local-drain-status", "off");
           }
         }
       });
@@ -200,8 +193,9 @@
     }
 
     // =========== VALVE CONTROL (LOCAL) ===========
-    function setValveLocal(valveName, statusSpanId, action) {
-      const url = `/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
+    // Now 4 parameters: (host, valveName, statusSpanId, action)
+    function setValveLocal(host, valveName, statusSpanId, action) {
+      const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
       fetch(url, { method:'POST' })
         .then(r => r.json())
         .then(data => {
@@ -228,7 +222,7 @@
       container.className = "data-container";
       container.style.marginBottom = "20px";
       container.innerHTML = `
-         <h2>Remote Zone: <a href="http://${host}:8000" target="_blank">${host}</a></h2>
+        <h2>Remote Zone: <a href="http://${host}:8000" target="_blank">${host}</a></h2>
         <div id="${zoneId}-row" style="display:flex; flex-wrap:nowrap; gap:20px; width:100%;">
           <div style="flex:1;">
             <label>System Name</label>
