@@ -41,6 +41,12 @@
           <div id="local-ph-display">Loading...</div>
         </div>
 
+        <!-- EC -->
+        <div style="flex:1;">
+          <label style="display:block; margin-bottom: 0.3rem;">EC (mS/cm)</label>
+          <div id="local-ec-display">N/A</div>
+        </div>
+
         <!-- Sensor #1 -->
         <div style="flex:1.2;">
           <label>Sensor 1</label>
@@ -117,14 +123,27 @@
         // B) pH
         if (data.current_ph !== undefined) {
           document.getElementById("local-ph-display").textContent = parseFloat(data.current_ph).toFixed(2);
+        } else {
+          // If pH is missing or no device assigned, show "N/A"
+          document.getElementById("local-ph-display").textContent = "N/A";
         }
 
-        // C) Water Level
+        // C) EC
+        // You might be storing the EC reading in a field like data.current_ec, or data.ec_update, etc.
+        // If you have an actual field from your server called "current_ec", do something like:
+        if (data.current_ec !== undefined) {
+          document.getElementById("local-ec-display").textContent = parseFloat(data.current_ec).toFixed(2);
+        } else {
+          // If no reading or no device
+          document.getElementById("local-ec-display").textContent = "N/A";
+        }
+
+        // D) Water Level
         if (data.water_level && data.settings && data.settings.water_level_sensors) {
           renderSensors("local", data.settings.water_level_sensors, data.water_level);
         }
 
-        // D) Valves
+        // E) Valves
         if (data.settings && (data.settings.water_valve_ip || data.usb_roles?.valve_relay)) {
           document.getElementById("local-fill-container").style.display = "block";
           document.getElementById("local-drain-container").style.display = "block";
@@ -193,7 +212,6 @@
     }
 
     // =========== VALVE CONTROL (LOCAL) ===========
-    // Now 4 parameters: (host, valveName, statusSpanId, action)
     function setValveLocal(host, valveName, statusSpanId, action) {
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
       fetch(url, { method:'POST' })
@@ -231,6 +249,10 @@
           <div style="flex:1;">
             <label>pH</label>
             <div id="${zoneId}-ph-display">Loading...</div>
+          </div>
+          <div style="flex:1;">
+            <label>EC (mS/cm)</label>
+            <div id="${zoneId}-ec-display">N/A</div>
           </div>
           <div style="flex:1.2;">
             <label>Sensor 1</label>
@@ -294,7 +316,18 @@
 
         // pH
         if (data.current_ph !== undefined) {
-          document.getElementById(`${zoneId}-ph-display`).textContent = parseFloat(data.current_ph).toFixed(2);
+          document.getElementById(`${zoneId}-ph-display`).textContent =
+            parseFloat(data.current_ph).toFixed(2);
+        } else {
+          document.getElementById(`${zoneId}-ph-display`).textContent = "N/A";
+        }
+
+        // EC
+        if (data.current_ec !== undefined) {
+          document.getElementById(`${zoneId}-ec-display`).textContent =
+            parseFloat(data.current_ec).toFixed(2);
+        } else {
+          document.getElementById(`${zoneId}-ec-display`).textContent = "N/A";
         }
 
         // Water level sensors
@@ -304,7 +337,6 @@
 
         // Valves
         if (data.valve_info) {
-          // show containers
           document.getElementById(`${zoneId}-fill-container`).style.display = "block";
           document.getElementById(`${zoneId}-drain-container`).style.display = "block";
 
@@ -321,7 +353,6 @@
           const fillValveName  = data.valve_info.water_fill_valve;
           const drainValveName = data.valve_info.water_drain_valve;
 
-          // attach event listeners if not present
           if (!fillOnBtn.onclick) {
             fillOnBtn.onclick = () => remoteSetValve(host, fillValveName, `${zoneId}-fill-status`, "on");
             fillOffBtn.onclick = () => remoteSetValve(host, fillValveName, `${zoneId}-fill-status`, "off");
@@ -347,11 +378,6 @@
         .catch(err => console.error(`[REMOTE ${host}] valve fetch error:`, err));
     }
 
-    // =========== Reuse the same renderSensors ===========
-
-    // The same 'renderSensors' function is used by local and remote
-    // We just pass in a unique prefix like "zone1_local" or "local"
-    // and it populates #prefix-sensor1-display etc. with label + triggered state
   </script>
 </body>
 </html>
