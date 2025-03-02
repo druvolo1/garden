@@ -23,7 +23,6 @@ PROGRAM_VERSION = "1.0.1"
 if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
-        # NEW default settings (removed program_version field)
         json.dump({
             "system_name": "ZoneX",
             "ph_range": {"min": 5.5, "max": 6.5},
@@ -177,7 +176,6 @@ def reset_settings():
         # NEW fields
         "plant_info": {},
         "additional_plants": []
-        # (NOTE: No "program_version" here anymore)
     }
     save_settings(default_settings)
 
