@@ -732,28 +732,29 @@
 
     // Update Code & Restart
     document.getElementById('update-code-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to pull the latest code and restart the application?")) {
-        return;
-      }
-      fetch("/api/system/update_code", { method: "POST" })
-        .then(res => res.json())
-        .then(data => {
-          console.log("Update response:", data);
-          const updateStatus = document.getElementById('update-status');
-          if (data.status === "success") {
-            updateStatus.textContent =
-              "Update successful. Output:\n" + data.output +
-              "\nRestarting... The page may become unavailable briefly.";
-          } else {
-            updateStatus.textContent =
-              "Failed to update. Error: " + (data.error || "Unknown") +
-              "\n" + (data.output || "");
-          }
-        })
-        .catch(err => {
-          document.getElementById('update-status').textContent = "Fetch error: " + err;
+        if (!confirm("Are you sure you want to update the code and restart?")) return;
+
+        fetch("/api/update_code/pull", { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+            console.log("Update response:", data);
+            const updateStatus = document.getElementById('update-status');
+            if (data.status === "success") {
+                updateStatus.textContent =
+                "Update successful!\nOutput:\n" + data.output +
+                "\nRestarting... The page may become unavailable briefly.";
+                // Optional auto-refresh after a delay
+                setTimeout(() => { window.location.reload(); }, 5000);
+            } else {
+                updateStatus.textContent =
+                "Update failed:\n" + (data.error || "Unknown error") + "\n" + (data.output || "");
+            }
+            })
+            .catch(err => {
+            document.getElementById('update-status').textContent = "Fetch error: " + err;
+            });
         });
-    });
+
   </script>
 </body>
 </html>
