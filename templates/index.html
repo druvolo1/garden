@@ -27,9 +27,13 @@
     <h1>pH Dosing System</h1>
     <p class="subtitle">Monitor & adjust your garden’s pH with precision.</p>
 
-    <!-- Single row using flex: system name, pH, sensors 1..3, fill valve, drain valve -->
-    <div class="data-container" style="display: flex; flex-wrap: nowrap; gap: 20px;">
-      
+    <!-- Single row container that spans full width and has flex columns -->
+    <div class="data-container" style="
+      width: 100%;
+      display: flex;
+      flex-wrap: nowrap;  /* set to 'wrap' if you want it to break on smaller screens */
+      gap: 20px;
+    ">
       <!-- 1) System Name -->
       <div style="flex: 1;">
         <label style="display: block; margin-bottom: 0.5rem;">System Name</label>
@@ -42,19 +46,19 @@
         <div id="ph-display">Loading pH...</div>
       </div>
 
-      <!-- 3) Water Level Sensor #1 (wider flex) -->
+      <!-- 3) Water Level Sensor #1 (give these a slightly larger flex to make them wider) -->
       <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 1</label>
         <div id="water-level-col1"></div>
       </div>
 
-      <!-- 4) Water Level Sensor #2 (wider flex) -->
+      <!-- 4) Water Level Sensor #2 -->
       <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 2</label>
         <div id="water-level-col2"></div>
       </div>
 
-      <!-- 5) Water Level Sensor #3 (wider flex) -->
+      <!-- 5) Water Level Sensor #3 -->
       <div style="flex: 1.3;">
         <label style="display: block; margin-bottom: 0.5rem;">Sensor 3</label>
         <div id="water-level-col3"></div>
@@ -63,7 +67,7 @@
       <!-- 6) Fill Valve -->
       <div style="flex: 1; display: none;" id="fill-valve-container">
         <label style="display: block; margin-bottom: 0.5rem;">
-          Fill Valve (<span id="fill-valve-name"></span>): 
+          Fill Valve (<span id="fill-valve-name"></span>):
           <span id="fill-valve-status">Unknown</span>
         </label>
         <div style="display: flex; gap: 8px;">
@@ -75,7 +79,7 @@
       <!-- 7) Drain Valve -->
       <div style="flex: 1; display: none;" id="drain-valve-container">
         <label style="display: block; margin-bottom: 0.5rem;">
-          Drain Valve (<span id="drain-valve-name"></span>): 
+          Drain Valve (<span id="drain-valve-name"></span>):
           <span id="drain-valve-status">Unknown</span>
         </label>
         <div style="display: flex; gap: 8px;">
@@ -83,7 +87,6 @@
           <button id="drain-valve-off" disabled>Off</button>
         </div>
       </div>
-
     </div>
   </main>
 
@@ -127,7 +130,7 @@
         updatePhDisplay(data.ph);
       });
 
-      // General status updates (may include pH, water_level, system_name, etc.)
+      // General status updates
       socket.on('status_update', (data) => {
         console.log("Received status_update:", data);
         if (data.current_ph !== undefined) {
