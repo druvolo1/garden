@@ -39,7 +39,7 @@ nav ul li a.active {
 
 /* Main Content */
 main {
-    max-width: 800px;
+    max-width: 90vw;
     margin: 40px auto;
     text-align: center;
 }
