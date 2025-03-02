@@ -228,7 +228,7 @@
       container.className = "data-container";
       container.style.marginBottom = "20px";
       container.innerHTML = `
-        <h2>Remote Zone: ${host}</h2>
+         <h2>Remote Zone: <a href="http://${host}:8000" target="_blank">${host}</a></h2>
         <div id="${zoneId}-row" style="display:flex; flex-wrap:nowrap; gap:20px; width:100%;">
           <div style="flex:1;">
             <label>System Name</label>
