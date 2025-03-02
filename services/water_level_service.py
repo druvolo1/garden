@@ -66,7 +66,7 @@ def force_cleanup_and_init():
 
     # Emit a status update to notify all clients immediately
     from status_namespace import emit_status_update  # Import emit_status_update
-    emit_status_update()
+    threading.Timer(0.5, emit_status_update).start()
 
 def get_water_level_status():
     """
