@@ -82,7 +82,7 @@ def valve_status_by_name(valve_name):
 @valve_relay_blueprint.route('/all_status', methods=['GET'])
 def all_valve_status():
     """
-    Returns a dictionary of all valve IDs + labels + statuses.
+    Returns a dictionary of all valves (1..8) with label + status.
     Example:
       {
         "status": "success",
@@ -90,21 +90,23 @@ def all_valve_status():
           "1": {"label": "Fill Valve", "status": "on"},
           "2": {"label": "Drain Valve", "status": "off"},
           ...
+          "8": {"label": "", "status": "off"}
         }
       }
     """
     settings = load_settings()
-    valve_labels = settings.get("valve_labels", {})  # e.g. {"1": "Fill", "2": "Drain"}
+    valve_labels = settings.get("valve_labels", {})  # e.g. {"1":"Fill","2":"Drain"}
     result = {}
 
-    # We have up to 8 valves, but you can adjust if you want more or fewer
-    for valve_id_str in valve_labels:
-        valve_id = int(valve_id_str)
-        label = valve_labels[valve_id_str]
-        status = get_valve_status(valve_id)
+    # Always include valves 1..8
+    for i in range(1, 9):
+        valve_id_str = str(i)
+        label = valve_labels.get(valve_id_str, "")
+        status = get_valve_status(i)   # e.g. "on" or "off"
         result[valve_id_str] = {"label": label, "status": status}
 
     return jsonify({"status": "success", "valves": result})
+
 
 @valve_relay_blueprint.route('/label/<int:valve_id>', methods=['POST'])
 def set_valve_label(valve_id):
