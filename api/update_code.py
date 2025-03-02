@@ -46,14 +46,14 @@ def pull_and_restart():
     steps_output = []
     try:
         # 1) Remove existing folder (fresh start)
-        if os.path.exists(TARGET_DIR):
-            out, err = run_cmd(["rm", "-rf", TARGET_DIR])
-            steps_output.append(out)
-            if err:
-                return jsonify({
-                    "status":"failure","error":err,
-                    "output":"\n".join(steps_output)
-                }), 500
+        #if os.path.exists(TARGET_DIR):
+        #    out, err = run_cmd(["rm", "-rf", TARGET_DIR])
+        #    steps_output.append(out)
+        #    if err:
+        #        return jsonify({
+        #            "status":"failure","error":err,
+        #            "output":"\n".join(steps_output)
+        #        }), 500
 
         # 2) Clone the repo
         out, err = run_cmd(["git", "clone", GIT_URL, TARGET_DIR])
