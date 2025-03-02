@@ -1,2 +1,2 @@
 import socket
-socket.gethostbyname("zone7.local")
+socket.gethostbyname("Garden.local")
