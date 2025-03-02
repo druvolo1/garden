@@ -268,9 +268,13 @@
       <!-- Application Update Section -->
       <div class="data-container">
         <h2>Application Updates</h2>
+        <!-- Show current version here -->
+        <p>Current Version: <span id="program-version"></span></p>
+
         <button id="update-code-btn">Update Code &amp; Restart</button>
         <div id="update-status"></div>
       </div>
+
     </div>
   </main>
 
@@ -462,6 +466,9 @@
 
         // Render Additional Plants
         renderAdditionalPlants(settings.additional_plants || []);
+
+        // Display the program version in the Application Updates area
+        document.getElementById('program-version').textContent = settings.program_version || 'N/A';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -754,8 +761,6 @@
             document.getElementById('update-status').textContent = "Fetch error: " + err;
             });
         });
-
-
   </script>
 </body>
 </html>

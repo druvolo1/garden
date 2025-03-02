@@ -59,7 +59,8 @@ if not os.path.exists(SETTINGS_FILE):
             },
             # NEW fields
             "plant_info": {},
-            "additional_plants": []  # <-- NEW: default empty array
+            "additional_plants": [],  # <-- NEW: default empty array
+            "program_version": "1.0.0"  # <-- NEW: for display in the UI
         }, f, indent=4)
 
 # API endpoint: Get all settings
@@ -169,7 +170,8 @@ def reset_settings():
         },
         # NEW fields
         "plant_info": {},
-        "additional_plants": []   # <--- reset to empty array
+        "additional_plants": [],   # <--- reset to empty array
+        "program_version": "1.0.0"  # <--- reset to the default
     }
     save_settings(default_settings)
 
