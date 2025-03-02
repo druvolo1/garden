@@ -79,7 +79,7 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
-    import status_namespace
+    from status_namespace import emit_status_update
     """
     Continuously monitor sensor changes. If the fill or drain sensor is triggered,
     POST to the local valve_relay API to turn that valve off.
