@@ -118,7 +118,7 @@ def update_settings():
     # If water-level pins changed, reinit them
     if water_sensors_updated:
         from services.water_level_service import force_cleanup_and_init
-        force_cleanup_and_init()
+       # force_cleanup_and_init()
 
     # If auto-dosing changed, reset timer
     if auto_dosing_changed:
