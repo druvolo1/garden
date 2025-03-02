@@ -103,7 +103,7 @@ def monitor_water_level_sensors():
 
                 # If the assigned fill sensor is triggered, turn off the fill valve
                 if fill_sensor_key and fill_sensor_key in current_state:
-                    if current_state[fill_sensor_key]["triggered"] and fill_valve_name:
+                    if not current_state[fill_sensor_key]["triggered"] and fill_valve_name:
                         turn_off_valve_by_name(fill_valve_name)
 
                 # If the assigned drain sensor is triggered, turn off the drain valve
