@@ -76,7 +76,7 @@ def get_settings():
 
 
 # API endpoint: Update settings
-@settings_blueprint.route('/', methods=['POST'])
+@settings_blueprint.route('', methods=['POST'])
 def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
