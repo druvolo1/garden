@@ -206,6 +206,17 @@
             <option value="">Select Drain Valve</option>
           </select>
 
+            <hr>
+            <label for="fill-sensor">Fill Valve Sensor:</label>
+            <select id="fill-sensor">
+            <option value="">Select Fill Sensor</option>
+            </select>
+
+            <label for="drain-sensor">Drain Valve Sensor:</label>
+            <select id="drain-sensor">
+            <option value="">Select Drain Sensor</option>
+            </select>
+            
           <button type="submit">Save Valve Assignments</button>
         </form>
       </div>
@@ -318,68 +329,68 @@
     }
 
     function fetchUsbDevices() {
-      console.log('Rescanning USB devices...');
-      Promise.all([
-        fetch("/api/settings/usb_devices").then(r => r.json()),
-        fetch("/api/settings/").then(r => r.json())
-      ])
-      .then(([devices, settings]) => {
-        console.log('Devices:', devices);
-        console.log('Settings:', settings);
+        console.log('Rescanning USB devices...');
+        Promise.all([
+            fetch("/api/settings/usb_devices").then(r => r.json()),
+            fetch("/api/settings/").then(r => r.json())
+        ])
+        .then(([devices, settings]) => {
+            console.log('Devices:', devices);
+            console.log('Settings:', settings);
 
-        // For each role, we'll re-populate the dropdown
-        const phDevSelect     = document.getElementById('ph-device');
-        const dosingDevSelect = document.getElementById('dosing-relay-device');
-        const valveDevSelect  = document.getElementById('valve-relay-device');
-        const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
+            // For each role, we'll re-populate the dropdown
+            const phDevSelect     = document.getElementById('ph-device');
+            const dosingDevSelect = document.getElementById('dosing-relay-device');
+            const valveDevSelect  = document.getElementById('valve-relay-device');
+            const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
 
-        const assignedPh      = settings.usb_roles?.ph_probe    || "";
-        const assignedDosing  = settings.usb_roles?.relay       || "";
-        const assignedValve   = settings.usb_roles?.valve_relay || "";
-        const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
+            const assignedPh      = settings.usb_roles?.ph_probe    || "";
+            const assignedDosing  = settings.usb_roles?.relay       || "";
+            const assignedValve   = settings.usb_roles?.valve_relay || "";
+            const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
 
-        phDevSelect.innerHTML     = '<option value="">Select a device</option>';
-        dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
-        valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
-        ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
+            phDevSelect.innerHTML     = '<option value="">Select a device</option>';
+            dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
+            valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
+            ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
 
-        devices.forEach(dev => {
-          // pH Option
-          const phOption = document.createElement('option');
-          phOption.value = dev.device;
-          phOption.textContent = dev.device;
-          if (phOption.value === assignedPh) {
-            phOption.selected = true;
-          }
-          phDevSelect.appendChild(phOption);
+            devices.forEach(dev => {
+            // pH Option
+            const phOption = document.createElement('option');
+            phOption.value = dev.device;
+            phOption.textContent = dev.device;
+            if (phOption.value === assignedPh) {
+                phOption.selected = true;
+            }
+            phDevSelect.appendChild(phOption);
 
-          // Dosing Relay
-          const dosingOption = document.createElement('option');
-          dosingOption.value = dev.device;
-          dosingOption.textContent = dev.device;
-          if (dosingOption.value === assignedDosing) {
-            dosingOption.selected = true;
-          }
-          dosingDevSelect.appendChild(dosingOption);
+            // Dosing Relay
+            const dosingOption = document.createElement('option');
+            dosingOption.value = dev.device;
+            dosingOption.textContent = dev.device;
+            if (dosingOption.value === assignedDosing) {
+                dosingOption.selected = true;
+            }
+            dosingDevSelect.appendChild(dosingOption);
 
-          // Valve Relay
-          const valveOption = document.createElement('option');
-          valveOption.value = dev.device;
-          valveOption.textContent = dev.device;
-          if (valveOption.value === assignedValve) {
-            valveOption.selected = true;
-          }
-          valveDevSelect.appendChild(valveOption);
+            // Valve Relay
+            const valveOption = document.createElement('option');
+            valveOption.value = dev.device;
+            valveOption.textContent = dev.device;
+            if (valveOption.value === assignedValve) {
+                valveOption.selected = true;
+            }
+            valveDevSelect.appendChild(valveOption);
 
-          // EC Meter (NEW)
-          const ecOption = document.createElement('option');
-          ecOption.value = dev.device;
-          ecOption.textContent = dev.device;
-          if (ecOption.value === assignedEC) {
-            ecOption.selected = true;
-          }
-          ecMeterSelect.appendChild(ecOption);
-        });
+            // EC Meter (NEW)
+            const ecOption = document.createElement('option');
+            ecOption.value = dev.device;
+            ecOption.textContent = dev.device;
+            if (ecOption.value === assignedEC) {
+                ecOption.selected = true;
+            }
+            ecMeterSelect.appendChild(ecOption);
+            });
 
         // 1) If NO pH probe => disable pH range
         const isPhProbeAssigned  = Boolean(assignedPh);
@@ -605,6 +616,8 @@
         water_valve_ip:    document.getElementById('water-valve-ip').value,
         water_fill_valve:  document.getElementById('fill-valve').value,
         water_drain_valve: document.getElementById('drain-valve').value
+        water_fill_sensor:  document.getElementById('fill-sensor').value,
+        water_drain_sensor: document.getElementById('drain-sensor').value
       };
       saveSettings("/api/settings/", payload);
     });
