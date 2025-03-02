@@ -139,18 +139,21 @@
       });
 
       // status_update (LOCAL)
-      localSocket.on('status_update', (data) => {
+      socket.on('status_update', (data) => {
         console.log("[LOCAL] status_update:", data);
+
+        if (data.settings && data.settings.system_name !== undefined) {
+            document.getElementById('system-name-display').textContent = data.settings.system_name;
+        }
+
         if (data.current_ph !== undefined) {
-          updatePhDisplay(data.current_ph);
+            updatePhDisplay(data.current_ph);
         }
         if (data.water_level) {
-          renderWaterLevel(data.water_level);
+            renderWaterLevel(data.water_level);
         }
-        if (data.system_name !== undefined) {
-          document.getElementById('system-name-display').textContent = data.system_name;
-        }
-      });
+    });
+
 
       // 2. Drain/Fill logic for local
       fetch('/api/settings')
