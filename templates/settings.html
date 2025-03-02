@@ -392,122 +392,145 @@
             ecMeterSelect.appendChild(ecOption);
             });
 
-        // 1) If NO pH probe => disable pH range
-        const isPhProbeAssigned  = Boolean(assignedPh);
-        const phRangeContainer   = document.getElementById('ph-range-container');
-        if (!isPhProbeAssigned) {
-          phRangeContainer.classList.add('disabled-section');
-          phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
-        } else {
-          phRangeContainer.classList.remove('disabled-section');
-          phRangeContainer.removeAttribute('data-disabled-title');
-        }
+            // 1) If NO pH probe => disable pH range
+            const isPhProbeAssigned = Boolean(assignedPh);
+            const phRangeContainer  = document.getElementById('ph-range-container');
+            if (!isPhProbeAssigned) {
+            phRangeContainer.classList.add('disabled-section');
+            phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
+            } else {
+            phRangeContainer.classList.remove('disabled-section');
+            phRangeContainer.removeAttribute('data-disabled-title');
+            }
 
-        // 2) If NO pH OR NO dosing => disable the big 4
-        const isDosingRelayAssigned = Boolean(assignedDosing);
-        const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
+            // 2) If NO pH OR NO dosing => disable the big 4
+            const isDosingRelayAssigned = Boolean(assignedDosing);
+            const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
 
-        const generalSettings   = document.getElementById('general-settings-container');
-        const dosageStrength    = document.getElementById('dosage-strength-container');
-        const pumpCalibration   = document.getElementById('pump-calibration-container');
-        const relayPortSection  = document.getElementById('relay-port-container');
+            const generalSettings  = document.getElementById('general-settings-container');
+            const dosageStrength   = document.getElementById('dosage-strength-container');
+            const pumpCalibration  = document.getElementById('pump-calibration-container');
+            const relayPortSection = document.getElementById('relay-port-container');
 
-        if (mustDisableBig4) {
-          generalSettings.classList.add('disabled-section');
-          generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+            if (mustDisableBig4) {
+            generalSettings.classList.add('disabled-section');
+            generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-          dosageStrength.classList.add('disabled-section');
-          dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+            dosageStrength.classList.add('disabled-section');
+            dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-          pumpCalibration.classList.add('disabled-section');
-          pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+            pumpCalibration.classList.add('disabled-section');
+            pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-          relayPortSection.classList.add('disabled-section');
-          relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-        } else {
-          generalSettings.classList.remove('disabled-section');
-          generalSettings.removeAttribute('data-disabled-title');
+            relayPortSection.classList.add('disabled-section');
+            relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+            } else {
+            generalSettings.classList.remove('disabled-section');
+            generalSettings.removeAttribute('data-disabled-title');
 
-          dosageStrength.classList.remove('disabled-section');
-          dosageStrength.removeAttribute('data-disabled-title');
+            dosageStrength.classList.remove('disabled-section');
+            dosageStrength.removeAttribute('data-disabled-title');
 
-          pumpCalibration.classList.remove('disabled-section');
-          pumpCalibration.removeAttribute('data-disabled-title');
+            pumpCalibration.classList.remove('disabled-section');
+            pumpCalibration.removeAttribute('data-disabled-title');
 
-          relayPortSection.classList.remove('disabled-section');
-          relayPortSection.removeAttribute('data-disabled-title');
-        }
+            relayPortSection.classList.remove('disabled-section');
+            relayPortSection.removeAttribute('data-disabled-title');
+            }
 
-        // Show/hide the Dosing Relay warning
-        const relayWarning = document.getElementById('relay-warning');
-        relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
+            // Show/hide the Dosing Relay warning
+            const relayWarning = document.getElementById('relay-warning');
+            relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
-        // pH Range
-        document.getElementById('ph-min').value = settings.ph_range?.min || '';
-        document.getElementById('ph-max').value = settings.ph_range?.max || '';
+            // pH Range
+            document.getElementById('ph-min').value = settings.ph_range?.min || '';
+            document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
-        // General (dosing) settings
-        document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
-        document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
-        document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
-        document.getElementById('system-volume').value   = settings.system_volume     || '';
-        document.getElementById('auto-dosing').checked   = !!settings.auto_dosing_enabled;
+            // General (dosing) settings
+            document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
+            document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
+            document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
+            document.getElementById('system-volume').value   = settings.system_volume     || '';
+            document.getElementById('auto-dosing').checked   = !!settings.auto_dosing_enabled;
 
-        // System Info
-        const plantInfo = settings.plant_info || {};
-        document.getElementById('system-name').value      = settings.system_name || '';
-        document.getElementById('plant-name').value       = plantInfo.name       || '';
-        document.getElementById('plant-start-date').value = plantInfo.start_date|| '';
-        updateWeeksSinceStart(plantInfo.start_date);
+            // System Info
+            const plantInfo = settings.plant_info || {};
+            document.getElementById('system-name').value      = settings.system_name || '';
+            document.getElementById('plant-name').value       = plantInfo.name       || '';
+            document.getElementById('plant-start-date').value = plantInfo.start_date || '';
 
-        // Dosage Strength
-        document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
-        document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+            // Update "Weeks Since Start" display
+            updateWeeksSinceStart(plantInfo.start_date);
 
-        // Pump Calibration
-        document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
-        document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
+            // Dosage Strength
+            document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
+            document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
 
-        // Relay Ports
-        const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
-        document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
-        document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
+            // Pump Calibration
+            document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
+            document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
 
-        // Water Level Sensors
-        const sensors = settings.water_level_sensors || {
-          sensor1: { label: "Full", pin: 22 },
-          sensor2: { label: "3 Gal", pin: 23 },
-          sensor3: { label: "Empty", pin: 24 }
-        };
-        document.getElementById('sensor1-label').value = sensors.sensor1.label;
-        document.getElementById('sensor1-pin').value   = sensors.sensor1.pin;
-        document.getElementById('sensor2-label').value = sensors.sensor2.label;
-        document.getElementById('sensor2-pin').value   = sensors.sensor2.pin;
-        document.getElementById('sensor3-label').value = sensors.sensor3.label;
-        document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
+            // Relay Ports
+            const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
+            document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
+            document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
 
-        // Water Valve
-        document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
-        if (settings.water_valve_ip) {
-          retrieveValvesFromIP(settings.water_valve_ip)
-            .then(() => {
-              document.getElementById('fill-valve').value  = settings.water_fill_valve  || '';
-              document.getElementById('drain-valve').value = settings.water_drain_valve || '';
-            })
-            .catch(err => console.error('Auto-retrieve error:', err));
-        } else {
-          document.getElementById('fill-valve').innerHTML  = '<option value="">Select Fill Valve</option>';
-          document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
-        }
+            // Water Level Sensors
+            const sensors = settings.water_level_sensors || {
+            sensor1: { label: "Full", pin: 22 },
+            sensor2: { label: "3 Gal", pin: 23 },
+            sensor3: { label: "Empty", pin: 24 }
+            };
+            document.getElementById('sensor1-label').value = sensors.sensor1.label;
+            document.getElementById('sensor1-pin').value   = sensors.sensor1.pin;
+            document.getElementById('sensor2-label').value = sensors.sensor2.label;
+            document.getElementById('sensor2-pin').value   = sensors.sensor2.pin;
+            document.getElementById('sensor3-label').value = sensors.sensor3.label;
+            document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
 
-        // Additional plants
-        renderAdditionalPlants(settings.additional_plants || []);
+            // Populate the Fill & Drain Sensor dropdowns (NEW)
+            const fillSensorSelect  = document.getElementById('fill-sensor');
+            const drainSensorSelect = document.getElementById('drain-sensor');
 
-        // Program version
-        document.getElementById('program-version').textContent = settings.program_version || 'N/A';
-      })
-      .catch(err => console.error('Error scanning devices or fetching settings:', err));
+            fillSensorSelect.innerHTML  = '<option value="">Select Fill Sensor</option>';
+            drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
+
+            Object.keys(sensors).forEach(sensorKey => {
+            const sensorLabel = sensors[sensorKey].label || sensorKey;
+
+            const fillOption = new Option(sensorLabel, sensorKey);
+            fillSensorSelect.add(fillOption);
+
+            const drainOption = new Option(sensorLabel, sensorKey);
+            drainSensorSelect.add(drainOption);
+            });
+
+            fillSensorSelect.value  = settings.water_fill_sensor  || '';
+            drainSensorSelect.value = settings.water_drain_sensor || '';
+
+            // Water Valve
+            document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
+            if (settings.water_valve_ip) {
+            retrieveValvesFromIP(settings.water_valve_ip)
+                .then(() => {
+                document.getElementById('fill-valve').value  = settings.water_fill_valve  || '';
+                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
+                })
+                .catch(err => console.error('Auto-retrieve error:', err));
+            } else {
+            document.getElementById('fill-valve').innerHTML  = '<option value="">Select Fill Valve</option>';
+            document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
+            }
+
+            // Additional plants
+            renderAdditionalPlants(settings.additional_plants || []);
+
+            // Program version
+            document.getElementById('program-version').textContent = settings.program_version || 'N/A';
+        })
+        .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
+
 
     function retrieveValvesFromIP(ipInput) {
       return new Promise((resolve, reject) => {
