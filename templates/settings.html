@@ -285,6 +285,15 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       fetchUsbDevices();
+      document.getElementById('retrieve-valves').addEventListener('click', () => {
+        const ipInput = document.getElementById('water-valve-ip').value.trim();
+        retrieveValvesFromIP(ipInput)
+            .then(valves => {
+            // Optionally do something on success
+            console.log("Valves retrieved:", valves);
+            })
+            .catch(err => console.error('Error retrieving valves:', err));
+        });
     });
 
     function updateWeeksSinceStart(startDateStr) {
