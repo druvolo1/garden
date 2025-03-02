@@ -16,11 +16,14 @@ settings_blueprint = Blueprint('settings', __name__)
 # Path to the settings file
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
+# >>> Define your in-code program version here <<<
+PROGRAM_VERSION = "1.0.0"
+
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
-        # NEW default settings now include water_valve_ip, fill, drain, etc.
+        # NEW default settings (removed program_version field)
         json.dump({
             "system_name": "ZoneX",
             "ph_range": {"min": 5.5, "max": 6.5},
@@ -59,15 +62,18 @@ if not os.path.exists(SETTINGS_FILE):
             },
             # NEW fields
             "plant_info": {},
-            "additional_plants": [],  # <-- NEW: default empty array
-            "program_version": "1.0.0"  # <-- NEW: for display in the UI
+            "additional_plants": []  # <-- default empty array
         }, f, indent=4)
+
 
 # API endpoint: Get all settings
 @settings_blueprint.route('/', methods=['GET'])
 def get_settings():
     settings = load_settings()
+    # Inject our code-based version
+    settings["program_version"] = PROGRAM_VERSION
     return jsonify(settings)
+
 
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
@@ -128,10 +134,10 @@ def update_settings():
 
     return jsonify({"status": "success", "settings": current_settings})
 
+
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
-    # NEW default settings including water_valve_ip, fill, drain, etc.
     default_settings = {
         "system_name": "ZoneX",
         "ph_range": {"min": 5.5, "max": 6.5},
@@ -170,8 +176,8 @@ def reset_settings():
         },
         # NEW fields
         "plant_info": {},
-        "additional_plants": [],   # <--- reset to empty array
-        "program_version": "1.0.0"  # <--- reset to the default
+        "additional_plants": []
+        # (NOTE: No "program_version" here anymore)
     }
     save_settings(default_settings)
 
@@ -179,6 +185,7 @@ def reset_settings():
     emit_status_update()
 
     return jsonify({"status": "success", "settings": default_settings})
+
 
 # API endpoint: List USB devices
 @settings_blueprint.route('/usb_devices', methods=['GET'])
@@ -201,8 +208,9 @@ def list_usb_devices():
     usb_roles = settings.get("usb_roles", {})
 
     # Remove any device from usb_roles that is not currently connected
+    connected_paths = [dev["device"] for dev in devices]
     for role, assigned_device in usb_roles.items():
-        if assigned_device not in [dev["device"] for dev in devices]:
+        if assigned_device not in connected_paths:
             usb_roles[role] = None
 
     settings["usb_roles"] = usb_roles
@@ -212,6 +220,7 @@ def list_usb_devices():
     emit_status_update()
 
     return jsonify(devices)
+
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
@@ -227,26 +236,26 @@ def assign_usb_device():
     settings = load_settings()
     old_device = settings.get("usb_roles", {}).get(role)
 
-    # If the assignment is changing (including going from non‐None to None or vice versa),
-    # for the valve_relay role, we want to stop the old thread.
+    # If the assignment is changing for valve_relay, stop old thread
     if role == "valve_relay" and old_device != device:
-        # Stop the currently running thread (if any)
         stop_valve_thread()
 
-    # Now update the assignment in the settings
+    # Update assignment
     if not device:
-        # Clear the role if no device is provided
         settings["usb_roles"][role] = None
     else:
-        # Ensure no duplication across roles
+        # Ensure no duplication
         for other_role, assigned_device in settings.get("usb_roles", {}).items():
             if assigned_device == device and other_role != role:
-                return jsonify({"status": "failure", "error": f"Device already assigned to {other_role}"}), 400
+                return jsonify({
+                    "status": "failure",
+                    "error": f"Device already assigned to {other_role}"
+                }), 400
         settings.setdefault("usb_roles", {})[role] = device
 
     save_settings(settings)
 
-    # For pH probe or Dosing relay, you might re-init their logic too if needed
+    # Re-init logic if needed
     if role == "ph_probe":
         from services.ph_service import restart_serial_reader
         restart_serial_reader()
@@ -255,18 +264,20 @@ def assign_usb_device():
         from services.pump_relay_service import reinitialize_relay_service
         reinitialize_relay_service()
 
-    # If the new device is non‐empty for valve_relay, start the thread
+    # If new valve device assigned, start thread
     if role == "valve_relay" and device:
         init_valve_thread()
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
 
+
 # API endpoint: Get System Name
 @settings_blueprint.route('/system_name', methods=['GET'])
 def get_system_name():
     settings = load_settings()
     return jsonify({"system_name": settings.get("system_name", "ZoneX")})
+
 
 # API endpoint: Set System Name
 @settings_blueprint.route('/system_name', methods=['POST'])
@@ -278,7 +289,7 @@ def set_system_name():
     if system_name:
         settings["system_name"] = system_name
         save_settings(settings)
-        # Re-register mDNS if you want immediate change
+        # Re-register mDNS
         update_mdns_service(system_name=system_name, port=8000)
         # Emit a status_update event
         emit_status_update()
