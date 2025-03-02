@@ -24,7 +24,7 @@ if not os.path.exists(SETTINGS_FILE):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump({
-            "system_name": "ZoneX",
+            "system_name": "Garden",
             "ph_range": {"min": 5.5, "max": 6.5},
             "ph_target": 5.8,
             "max_dosing_amount": 5,
@@ -81,8 +81,8 @@ def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
 
-    # Use ZoneX as fallback
-    old_system_name = current_settings.get("system_name", "ZoneX")
+    # Use Garden as fallback
+    old_system_name = current_settings.get("system_name", "Garden")
 
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
@@ -125,7 +125,7 @@ def update_settings():
         reset_auto_dose_timer()
 
     # Check if system_name changed; if so, re-register mDNS
-    new_system_name = current_settings.get("system_name", "ZoneX")
+    new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
         update_mdns_service(system_name=new_system_name, port=8000)
 
@@ -139,7 +139,7 @@ def update_settings():
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
     default_settings = {
-        "system_name": "ZoneX",
+        "system_name": "Garden",
         "ph_range": {"min": 5.5, "max": 6.5},
         "ph_target": 5.8,
         "max_dosing_amount": 5,
@@ -275,7 +275,7 @@ def assign_usb_device():
 @settings_blueprint.route('/system_name', methods=['GET'])
 def get_system_name():
     settings = load_settings()
-    return jsonify({"system_name": settings.get("system_name", "ZoneX")})
+    return jsonify({"system_name": settings.get("system_name", "Garden")})
 
 
 # API endpoint: Set System Name
@@ -293,4 +293,4 @@ def set_system_name():
         # Emit a status_update event
         emit_status_update()
 
-    return jsonify({"system_name": settings.get("system_name", "ZoneX")})
+    return jsonify({"system_name": settings.get("system_name", "Garden")})
