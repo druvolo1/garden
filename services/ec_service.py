@@ -30,7 +30,7 @@ def log_with_timestamp(msg):
 def parse_ec_buffer():
     """
     Parses 'ec_buffer' for line(s). If a line is numeric, we treat it as an EC reading (in µS/cm),
-    convert it to mS/cm, and store it in `latest_ec_value`.
+    convert it to mS/cm, round to two decimal places, and store it in `latest_ec_value`.
     If it’s '*OK' or '*ER', we handle command acknowledgment from queue.
     """
     global ec_buffer, latest_ec_value, last_ec_command
@@ -61,12 +61,8 @@ def parse_ec_buffer():
         # Attempt to parse a numeric EC reading (µS/cm)
         try:
             ec_val_uS = float(line)
-            # Convert from µS/cm → mS/cm
-            ec_val_mS = ec_val_uS / 1000.0
-
-            # You can optionally check range if desired:
-            # e.g., if ec_val_mS < 0.0 or ec_val_mS > 500.0:
-            #    raise ValueError(f"EC out of plausible range: {ec_val_mS} mS/cm")
+            # Convert from µS/cm → mS/cm and round to 2 decimals
+            ec_val_mS = round(ec_val_uS / 1000.0, 2)
 
             with ec_lock:
                 latest_ec_value = ec_val_mS
@@ -155,8 +151,8 @@ def stop_ec_serial_reader():
 
 def get_latest_ec_reading():
     """
-    Returns the most recent EC reading in mS/cm if the ec_meter is assigned & we have data,
-    else None.
+    Returns the most recent EC reading in mS/cm (rounded to 2 decimals)
+    if the ec_meter is assigned & we have data, else None.
     """
     settings = load_settings()
     ec_path = settings.get("usb_roles", {}).get("ec_meter")
