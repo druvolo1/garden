@@ -36,8 +36,10 @@ def run_cmd(cmd_list, cwd=None):
 @update_code_blueprint.route("/pull", methods=["POST"])
 def pull_and_restart():
     """
-    1) If TARGET_DIR is a Git repo -> run 'git pull' there
-       Otherwise -> 'git clone' into TARGET_DIR
+    1) If TARGET_DIR is a Git repo -> run 'git pull'. If it reports 'Already up to date.',
+       we skip the pip install and systemctl restart (nothing changed).
+       Otherwise -> proceed with pip install & restart.
+       If TARGET_DIR is not a Git repo -> 'git clone' into TARGET_DIR.
     2) pip install -r requirements.txt
     3) systemctl restart SERVICE_NAME
     Returns JSON logs of each step.
@@ -49,30 +51,54 @@ def pull_and_restart():
             # We have an existing repo => do git pull
             out, err = run_cmd(["git", "pull"], cwd=TARGET_DIR)
             steps_output.append(out)
+
             if err:
-                return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+                return jsonify({
+                    "status": "failure",
+                    "error": err,
+                    "output": "\n".join(steps_output)
+                }), 500
+
+            # If we see "Already up to date." in the git output, just exit cleanly
+            if "Already up to date." in out:
+                return jsonify({
+                    "status": "success",
+                    "output": "No new commits. Already up to date.\nNothing else to do."
+                })
         else:
             # No .git => clone fresh
-            # Make sure parent directories exist
             parent_dir = os.path.dirname(TARGET_DIR)
             if parent_dir and not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
+
             out, err = run_cmd(["git", "clone", GIT_URL, TARGET_DIR])
             steps_output.append(out)
             if err:
-                return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+                return jsonify({
+                    "status": "failure",
+                    "error": err,
+                    "output": "\n".join(steps_output)
+                }), 500
 
         # 2) pip install -r requirements.txt
         out, err = run_cmd([PIP_COMMAND, "install", "-r", "requirements.txt"], cwd=TARGET_DIR)
         steps_output.append(out)
         if err:
-            return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
 
         # 3) systemctl restart
         out, err = run_cmd(["sudo", "systemctl", "restart", SERVICE_NAME])
         steps_output.append(out)
         if err:
-            return jsonify({"status":"failure","error":err,"output":"\n".join(steps_output)}), 500
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
 
         # If we got here, everything succeeded
         return jsonify({
@@ -87,4 +113,3 @@ def pull_and_restart():
             "error": str(ex),
             "output": "\n".join(steps_output)
         }), 500
-
