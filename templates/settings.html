@@ -192,31 +192,47 @@
       <div class="data-container">
         <h2>Water Valve Assignment</h2>
         <form id="water-valve-form">
-          <label for="water-valve-ip">Valve Controller IP:</label>
-          <input type="text" id="water-valve-ip">
-          <button type="button" id="retrieve-valves">Retrieve Valves</button>
+          
+          <!-- Fill Valve -->
+          <h3>Fill Valve Assignment</h3>
+          <label for="fill-valve-ip">Fill Valve IP:</label>
+          <input type="text" id="fill-valve-ip">
+          <button type="button" id="retrieve-fill-valves">Retrieve Fill Valves</button>
 
+          <br><br>
           <label for="fill-valve">Fill Valve:</label>
           <select id="fill-valve">
             <option value="">Select Fill Valve</option>
           </select>
 
+          <br><br>
+          <label for="fill-sensor">Fill Valve Sensor:</label>
+          <select id="fill-sensor">
+            <option value="">Select Fill Sensor</option>
+          </select>
+
+          <hr>
+
+          <!-- Drain Valve -->
+          <h3>Drain Valve Assignment</h3>
+          <label for="drain-valve-ip">Drain Valve IP:</label>
+          <input type="text" id="drain-valve-ip">
+          <button type="button" id="retrieve-drain-valves">Retrieve Drain Valves</button>
+
+          <br><br>
           <label for="drain-valve">Drain Valve:</label>
           <select id="drain-valve">
             <option value="">Select Drain Valve</option>
           </select>
 
-            <hr>
-            <label for="fill-sensor">Fill Valve Sensor:</label>
-            <select id="fill-sensor">
-            <option value="">Select Fill Sensor</option>
-            </select>
-
-            <label for="drain-sensor">Drain Valve Sensor:</label>
-            <select id="drain-sensor">
+          <br><br>
+          <label for="drain-sensor">Drain Valve Sensor:</label>
+          <select id="drain-sensor">
             <option value="">Select Drain Sensor</option>
-            </select>
-            
+          </select>
+
+          <hr>
+
           <button type="submit">Save Valve Assignments</button>
         </form>
       </div>
@@ -295,16 +311,8 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // We only call fetchUsbDevices() now – no single “retrieve-valves” leftover
       fetchUsbDevices();
-      document.getElementById('retrieve-valves').addEventListener('click', () => {
-        const ipInput = document.getElementById('water-valve-ip').value.trim();
-        retrieveValvesFromIP(ipInput)
-            .then(valves => {
-            // Optionally do something on success
-            console.log("Valves retrieved:", valves);
-            })
-            .catch(err => console.error('Error retrieving valves:', err));
-        });
     });
 
     function updateWeeksSinceStart(startDateStr) {
@@ -329,214 +337,231 @@
     }
 
     function fetchUsbDevices() {
-        console.log('Rescanning USB devices...');
-        Promise.all([
-            fetch("/api/settings/usb_devices").then(r => r.json()),
-            fetch("/api/settings/").then(r => r.json())
-        ])
-        .then(([devices, settings]) => {
-            console.log('Devices:', devices);
-            console.log('Settings:', settings);
+      console.log('Rescanning USB devices...');
+      Promise.all([
+        fetch("/api/settings/usb_devices").then(r => r.json()),
+        fetch("/api/settings/").then(r => r.json())
+      ])
+      .then(([devices, settings]) => {
+        console.log('Devices:', devices);
+        console.log('Settings:', settings);
 
-            // For each role, we'll re-populate the dropdown
-            const phDevSelect     = document.getElementById('ph-device');
-            const dosingDevSelect = document.getElementById('dosing-relay-device');
-            const valveDevSelect  = document.getElementById('valve-relay-device');
-            const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
+        // For each role, we'll re-populate the dropdown
+        const phDevSelect     = document.getElementById('ph-device');
+        const dosingDevSelect = document.getElementById('dosing-relay-device');
+        const valveDevSelect  = document.getElementById('valve-relay-device');
+        const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
 
-            const assignedPh      = settings.usb_roles?.ph_probe    || "";
-            const assignedDosing  = settings.usb_roles?.relay       || "";
-            const assignedValve   = settings.usb_roles?.valve_relay || "";
-            const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
+        const assignedPh      = settings.usb_roles?.ph_probe    || "";
+        const assignedDosing  = settings.usb_roles?.relay       || "";
+        const assignedValve   = settings.usb_roles?.valve_relay || "";
+        const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
 
-            phDevSelect.innerHTML     = '<option value="">Select a device</option>';
-            dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
-            valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
-            ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
+        phDevSelect.innerHTML     = '<option value="">Select a device</option>';
+        dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
+        valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
+        ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
 
-            devices.forEach(dev => {
-            // pH Option
-            const phOption = document.createElement('option');
-            phOption.value = dev.device;
-            phOption.textContent = dev.device;
-            if (phOption.value === assignedPh) {
-                phOption.selected = true;
-            }
-            phDevSelect.appendChild(phOption);
+        devices.forEach(dev => {
+          // pH Option
+          const phOption = document.createElement('option');
+          phOption.value = dev.device;
+          phOption.textContent = dev.device;
+          if (phOption.value === assignedPh) {
+            phOption.selected = true;
+          }
+          phDevSelect.appendChild(phOption);
 
-            // Dosing Relay
-            const dosingOption = document.createElement('option');
-            dosingOption.value = dev.device;
-            dosingOption.textContent = dev.device;
-            if (dosingOption.value === assignedDosing) {
-                dosingOption.selected = true;
-            }
-            dosingDevSelect.appendChild(dosingOption);
+          // Dosing Relay
+          const dosingOption = document.createElement('option');
+          dosingOption.value = dev.device;
+          dosingOption.textContent = dev.device;
+          if (dosingOption.value === assignedDosing) {
+            dosingOption.selected = true;
+          }
+          dosingDevSelect.appendChild(dosingOption);
 
-            // Valve Relay
-            const valveOption = document.createElement('option');
-            valveOption.value = dev.device;
-            valveOption.textContent = dev.device;
-            if (valveOption.value === assignedValve) {
-                valveOption.selected = true;
-            }
-            valveDevSelect.appendChild(valveOption);
+          // Valve Relay
+          const valveOption = document.createElement('option');
+          valveOption.value = dev.device;
+          valveOption.textContent = dev.device;
+          if (valveOption.value === assignedValve) {
+            valveOption.selected = true;
+          }
+          valveDevSelect.appendChild(valveOption);
 
-            // EC Meter (NEW)
-            const ecOption = document.createElement('option');
-            ecOption.value = dev.device;
-            ecOption.textContent = dev.device;
-            if (ecOption.value === assignedEC) {
-                ecOption.selected = true;
-            }
-            ecMeterSelect.appendChild(ecOption);
-            });
+          // EC Meter (NEW)
+          const ecOption = document.createElement('option');
+          ecOption.value = dev.device;
+          ecOption.textContent = dev.device;
+          if (ecOption.value === assignedEC) {
+            ecOption.selected = true;
+          }
+          ecMeterSelect.appendChild(ecOption);
+        });
 
-            // 1) If NO pH probe => disable pH range
-            const isPhProbeAssigned = Boolean(assignedPh);
-            const phRangeContainer  = document.getElementById('ph-range-container');
-            if (!isPhProbeAssigned) {
-            phRangeContainer.classList.add('disabled-section');
-            phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
-            } else {
-            phRangeContainer.classList.remove('disabled-section');
-            phRangeContainer.removeAttribute('data-disabled-title');
-            }
+        // 1) If NO pH probe => disable pH range
+        const isPhProbeAssigned = Boolean(assignedPh);
+        const phRangeContainer  = document.getElementById('ph-range-container');
+        if (!isPhProbeAssigned) {
+          phRangeContainer.classList.add('disabled-section');
+          phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
+        } else {
+          phRangeContainer.classList.remove('disabled-section');
+          phRangeContainer.removeAttribute('data-disabled-title');
+        }
 
-            // 2) If NO pH OR NO dosing => disable the big 4
-            const isDosingRelayAssigned = Boolean(assignedDosing);
-            const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
+        // 2) If NO pH OR NO dosing => disable the big 4
+        const isDosingRelayAssigned = Boolean(assignedDosing);
+        const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
 
-            const generalSettings  = document.getElementById('general-settings-container');
-            const dosageStrength   = document.getElementById('dosage-strength-container');
-            const pumpCalibration  = document.getElementById('pump-calibration-container');
-            const relayPortSection = document.getElementById('relay-port-container');
+        const generalSettings  = document.getElementById('general-settings-container');
+        const dosageStrength   = document.getElementById('dosage-strength-container');
+        const pumpCalibration  = document.getElementById('pump-calibration-container');
+        const relayPortSection = document.getElementById('relay-port-container');
 
-            if (mustDisableBig4) {
-            generalSettings.classList.add('disabled-section');
-            generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+        if (mustDisableBig4) {
+          generalSettings.classList.add('disabled-section');
+          generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-            dosageStrength.classList.add('disabled-section');
-            dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+          dosageStrength.classList.add('disabled-section');
+          dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-            pumpCalibration.classList.add('disabled-section');
-            pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+          pumpCalibration.classList.add('disabled-section');
+          pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
 
-            relayPortSection.classList.add('disabled-section');
-            relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-            } else {
-            generalSettings.classList.remove('disabled-section');
-            generalSettings.removeAttribute('data-disabled-title');
+          relayPortSection.classList.add('disabled-section');
+          relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
+        } else {
+          generalSettings.classList.remove('disabled-section');
+          generalSettings.removeAttribute('data-disabled-title');
 
-            dosageStrength.classList.remove('disabled-section');
-            dosageStrength.removeAttribute('data-disabled-title');
+          dosageStrength.classList.remove('disabled-section');
+          dosageStrength.removeAttribute('data-disabled-title');
 
-            pumpCalibration.classList.remove('disabled-section');
-            pumpCalibration.removeAttribute('data-disabled-title');
+          pumpCalibration.classList.remove('disabled-section');
+          pumpCalibration.removeAttribute('data-disabled-title');
 
-            relayPortSection.classList.remove('disabled-section');
-            relayPortSection.removeAttribute('data-disabled-title');
-            }
+          relayPortSection.classList.remove('disabled-section');
+          relayPortSection.removeAttribute('data-disabled-title');
+        }
 
-            // Show/hide the Dosing Relay warning
-            const relayWarning = document.getElementById('relay-warning');
-            relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
+        // Show/hide the Dosing Relay warning
+        const relayWarning = document.getElementById('relay-warning');
+        relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
 
-            // pH Range
-            document.getElementById('ph-min').value = settings.ph_range?.min || '';
-            document.getElementById('ph-max').value = settings.ph_range?.max || '';
+        // pH Range
+        document.getElementById('ph-min').value = settings.ph_range?.min || '';
+        document.getElementById('ph-max').value = settings.ph_range?.max || '';
 
-            // General (dosing) settings
-            document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
-            document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
-            document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
-            document.getElementById('system-volume').value   = settings.system_volume     || '';
-            document.getElementById('auto-dosing').checked   = !!settings.auto_dosing_enabled;
+        // General (dosing) settings
+        document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
+        document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
+        document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
+        document.getElementById('system-volume').value   = settings.system_volume     || '';
+        document.getElementById('auto-dosing').checked   = !!settings.auto_dosing_enabled;
 
-            // System Info
-            const plantInfo = settings.plant_info || {};
-            document.getElementById('system-name').value      = settings.system_name || '';
-            document.getElementById('plant-name').value       = plantInfo.name       || '';
-            document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+        // System Info
+        const plantInfo = settings.plant_info || {};
+        document.getElementById('system-name').value      = settings.system_name || '';
+        document.getElementById('plant-name').value       = plantInfo.name       || '';
+        document.getElementById('plant-start-date').value = plantInfo.start_date || '';
 
-            // Update "Weeks Since Start" display
-            updateWeeksSinceStart(plantInfo.start_date);
+        // Update "Weeks Since Start" display
+        updateWeeksSinceStart(plantInfo.start_date);
 
-            // Dosage Strength
-            document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
-            document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
+        // Dosage Strength
+        document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
+        document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
 
-            // Pump Calibration
-            document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
-            document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
+        // Pump Calibration
+        document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
+        document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
 
-            // Relay Ports
-            const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
-            document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
-            document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
+        // Relay Ports
+        const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
+        document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
+        document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
 
-            // Water Level Sensors
-            const sensors = settings.water_level_sensors || {
-            sensor1: { label: "Full", pin: 22 },
-            sensor2: { label: "3 Gal", pin: 23 },
-            sensor3: { label: "Empty", pin: 24 }
-            };
-            document.getElementById('sensor1-label').value = sensors.sensor1.label;
-            document.getElementById('sensor1-pin').value   = sensors.sensor1.pin;
-            document.getElementById('sensor2-label').value = sensors.sensor2.label;
-            document.getElementById('sensor2-pin').value   = sensors.sensor2.pin;
-            document.getElementById('sensor3-label').value = sensors.sensor3.label;
-            document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
+        // Water Level Sensors
+        const sensors = settings.water_level_sensors || {
+          sensor1: { label: "Full", pin: 22 },
+          sensor2: { label: "3 Gal", pin: 23 },
+          sensor3: { label: "Empty", pin: 24 }
+        };
+        document.getElementById('sensor1-label').value = sensors.sensor1.label;
+        document.getElementById('sensor1-pin').value   = sensors.sensor1.pin;
+        document.getElementById('sensor2-label').value = sensors.sensor2.label;
+        document.getElementById('sensor2-pin').value   = sensors.sensor2.pin;
+        document.getElementById('sensor3-label').value = sensors.sensor3.label;
+        document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
 
-            // Populate the Fill & Drain Sensor dropdowns (NEW)
-            const fillSensorSelect  = document.getElementById('fill-sensor');
-            const drainSensorSelect = document.getElementById('drain-sensor');
+        // Populate the Fill & Drain Sensor dropdowns (NEW)
+        const fillSensorSelect  = document.getElementById('fill-sensor');
+        const drainSensorSelect = document.getElementById('drain-sensor');
 
-            fillSensorSelect.innerHTML  = '<option value="">Select Fill Sensor</option>';
-            drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
+        fillSensorSelect.innerHTML  = '<option value="">Select Fill Sensor</option>';
+        drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
 
-            Object.keys(sensors).forEach(sensorKey => {
-            const sensorLabel = sensors[sensorKey].label || sensorKey;
+        Object.keys(sensors).forEach(sensorKey => {
+          const sensorLabel = sensors[sensorKey].label || sensorKey;
 
-            const fillOption = new Option(sensorLabel, sensorKey);
-            fillSensorSelect.add(fillOption);
+          const fillOption = new Option(sensorLabel, sensorKey);
+          fillSensorSelect.add(fillOption);
 
-            const drainOption = new Option(sensorLabel, sensorKey);
-            drainSensorSelect.add(drainOption);
-            });
+          const drainOption = new Option(sensorLabel, sensorKey);
+          drainSensorSelect.add(drainOption);
+        });
 
-            fillSensorSelect.value  = settings.water_fill_sensor  || '';
-            drainSensorSelect.value = settings.water_drain_sensor || '';
+        fillSensorSelect.value  = settings.water_fill_sensor  || '';
+        drainSensorSelect.value = settings.water_drain_sensor || '';
 
-            // Water Valve
-            document.getElementById('water-valve-ip').value = settings.water_valve_ip || '';
-            if (settings.water_valve_ip) {
-            retrieveValvesFromIP(settings.water_valve_ip)
-                .then(() => {
-                document.getElementById('fill-valve').value  = settings.water_fill_valve  || '';
-                document.getElementById('drain-valve').value = settings.water_drain_valve || '';
-                })
-                .catch(err => console.error('Auto-retrieve error:', err));
-            } else {
-            document.getElementById('fill-valve').innerHTML  = '<option value="">Select Fill Valve</option>';
-            document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
-            }
+        // Water Valve IPs
+        document.getElementById('fill-valve-ip').value  = settings.fill_valve_ip   || '';
+        document.getElementById('drain-valve-ip').value = settings.drain_valve_ip  || '';
 
-            // Additional plants
-            renderAdditionalPlants(settings.additional_plants || []);
+        // If fill_valve_ip is present, fetch the valves right away
+        if (settings.fill_valve_ip) {
+          retrieveValvesFromIP(settings.fill_valve_ip, 'fill-valve')
+            .then(() => {
+              // Once retrieved, set the selected fill valve
+              document.getElementById('fill-valve').value = settings.fill_valve || '';
+            })
+            .catch(err => console.error('Auto-retrieve fill valves error:', err));
+        }
 
-            // Program version
-            document.getElementById('program-version').textContent = settings.program_version || 'N/A';
-        })
-        .catch(err => console.error('Error scanning devices or fetching settings:', err));
+        // If drain_valve_ip is present, fetch the valves right away
+        if (settings.drain_valve_ip) {
+          retrieveValvesFromIP(settings.drain_valve_ip, 'drain-valve')
+            .then(() => {
+              // Once retrieved, set the selected drain valve
+              document.getElementById('drain-valve').value = settings.drain_valve || '';
+            })
+            .catch(err => console.error('Auto-retrieve drain valves error:', err));
+        }
+
+        // Also set the fill/drain sensor dropdowns after you read water_level_sensors
+        document.getElementById('fill-sensor').value  = settings.fill_sensor  || '';
+        document.getElementById('drain-sensor').value = settings.drain_sensor || '';
+
+        // Additional plants
+        renderAdditionalPlants(settings.additional_plants || []);
+
+        // Program version
+        document.getElementById('program-version').textContent = settings.program_version || 'N/A';
+      })
+      .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
 
-
-    function retrieveValvesFromIP(ipInput) {
+    /**
+     * Retrieve valves from the given IP and populate the given <select> by ID.
+     */
+    function retrieveValvesFromIP(ipInput, selectElementId) {
       return new Promise((resolve, reject) => {
         if (!ipInput) {
           return reject(new Error('No IP address provided'));
         }
+
         let [host, port] = ipInput.split(':');
         port = port || '8000';
         const url = `http://${host}:${port}/api/valve_relay/list_names`;
@@ -555,19 +580,35 @@
             if (!valves.length) {
               throw new Error('No valves found in response');
             }
-            const fillSelect  = document.getElementById('fill-valve');
-            const drainSelect = document.getElementById('drain-valve');
-            fillSelect.innerHTML  = '<option value="">Select Fill Valve</option>';
-            drainSelect.innerHTML = '<option value="">Select Drain Valve</option>';
+            const sel = document.getElementById(selectElementId);
+            sel.innerHTML = '<option value="">Select Valve</option>';
             valves.forEach(valve => {
-              fillSelect.add(new Option(valve, valve));
-              drainSelect.add(new Option(valve, valve));
+              sel.add(new Option(valve, valve));
             });
             resolve(valves);
           })
           .catch(err => reject(err));
       });
     }
+
+    // Handle clicks on the two "Retrieve" buttons
+    document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
+      const fillIP = document.getElementById('fill-valve-ip').value.trim();
+      retrieveValvesFromIP(fillIP, 'fill-valve')
+        .then(valves => {
+          console.log("Fill valves retrieved:", valves);
+        })
+        .catch(err => console.error('Error retrieving fill valves:', err));
+    });
+
+    document.getElementById('retrieve-drain-valves').addEventListener('click', () => {
+      const drainIP = document.getElementById('drain-valve-ip').value.trim();
+      retrieveValvesFromIP(drainIP, 'drain-valve')
+        .then(valves => {
+          console.log("Drain valves retrieved:", valves);
+        })
+        .catch(err => console.error('Error retrieving drain valves:', err));
+    });
 
     // USB assignment
     function saveUsbAssignment(role, device) {
@@ -636,12 +677,17 @@
     document.getElementById('water-valve-form').addEventListener('submit', e => {
       e.preventDefault();
       const payload = {
-        water_valve_ip:    document.getElementById('water-valve-ip').value,
-        water_fill_valve:  document.getElementById('fill-valve').value,
-        water_drain_valve: document.getElementById('drain-valve').value,
-        water_fill_sensor:  document.getElementById('fill-sensor').value,
-        water_drain_sensor: document.getElementById('drain-sensor').value
+        // Fill
+        fill_valve_ip:   document.getElementById('fill-valve-ip').value,
+        fill_valve:      document.getElementById('fill-valve').value,
+        fill_sensor:     document.getElementById('fill-sensor').value,
+
+        // Drain
+        drain_valve_ip:  document.getElementById('drain-valve-ip').value,
+        drain_valve:     document.getElementById('drain-valve').value,
+        drain_sensor:    document.getElementById('drain-sensor').value,
       };
+      // Re-use your existing saveSettings function
       saveSettings("/api/settings/", payload);
     });
 
