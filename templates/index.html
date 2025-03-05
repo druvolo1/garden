@@ -111,7 +111,7 @@
         console.error("[LOCAL] connect_error:", err);
       });
 
-      // On each "status_update", we get data with: settings, current_ph, water_level, valve_info, etc.
+      // On each "status_update", we get data with: settings, current_ph, water_level, etc.
       localSocket.on("status_update", (data) => {
         console.log("[LOCAL] status_update:", data);
 
@@ -129,12 +129,9 @@
         }
 
         // C) EC
-        // You might be storing the EC reading in a field like data.current_ec, or data.ec_update, etc.
-        // If you have an actual field from your server called "current_ec", do something like:
         if (data.current_ec !== undefined) {
           document.getElementById("local-ec-display").textContent = parseFloat(data.current_ec).toFixed(2);
         } else {
-          // If no reading or no device
           document.getElementById("local-ec-display").textContent = "N/A";
         }
 
@@ -143,34 +140,37 @@
           renderSensors("local", data.settings.water_level_sensors, data.water_level);
         }
 
-        // E) Valves
-        if (data.settings && (data.settings.water_valve_ip || data.usb_roles?.valve_relay)) {
-          document.getElementById("local-fill-container").style.display = "block";
-          document.getElementById("local-drain-container").style.display = "block";
-
-          const fillOnBtn  = document.getElementById("local-fill-on");
-          const fillOffBtn = document.getElementById("local-fill-off");
-          const drainOnBtn = document.getElementById("local-drain-on");
-          const drainOffBtn= document.getElementById("local-drain-off");
-
-          fillOnBtn.disabled  = false;
-          fillOffBtn.disabled = false;
-          drainOnBtn.disabled  = false;
-          drainOffBtn.disabled = false;
-
-          // The remote host controlling the valves
-          const controllingHost = data.settings.water_valve_ip || window.location.hostname;
-
-          // Valve names
+        // E) Valves: now we look for fill_valve_ip / drain_valve_ip
+        if (data.settings) {
           const fillValveName  = data.settings.water_fill_valve;
           const drainValveName = data.settings.water_drain_valve;
 
-          // Attach event handlers if not already attached
-          if (!fillOnBtn.onclick) {
-            fillOnBtn.onclick  = () => setValveLocal(controllingHost, fillValveName,  "local-fill-status",  "on");
-            fillOffBtn.onclick = () => setValveLocal(controllingHost, fillValveName,  "local-fill-status",  "off");
-            drainOnBtn.onclick  = () => setValveLocal(controllingHost, drainValveName, "local-drain-status", "on");
-            drainOffBtn.onclick = () => setValveLocal(controllingHost, drainValveName, "local-drain-status", "off");
+          // If either fill_valve or drain_valve are set, show the containers
+          if (fillValveName || drainValveName) {
+            document.getElementById("local-fill-container").style.display = fillValveName ? "block" : "none";
+            document.getElementById("local-drain-container").style.display = drainValveName ? "block" : "none";
+
+            const fillOnBtn  = document.getElementById("local-fill-on");
+            const fillOffBtn = document.getElementById("local-fill-off");
+            const drainOnBtn = document.getElementById("local-drain-on");
+            const drainOffBtn= document.getElementById("local-drain-off");
+
+            // IP addresses from settings (new fields)
+            const fillHost  = data.settings.fill_valve_ip  || window.location.hostname;
+            const drainHost = data.settings.drain_valve_ip || window.location.hostname;
+
+            fillOnBtn.disabled   = !fillValveName;
+            fillOffBtn.disabled  = !fillValveName;
+            drainOnBtn.disabled  = !drainValveName;
+            drainOffBtn.disabled = !drainValveName;
+
+            // Attach event handlers if not already attached
+            if (!fillOnBtn.onclick) {
+              fillOnBtn.onclick  = () => setValveLocal(fillHost,  fillValveName,  "local-fill-status",  "on");
+              fillOffBtn.onclick = () => setValveLocal(fillHost,  fillValveName,  "local-fill-status",  "off");
+              drainOnBtn.onclick  = () => setValveLocal(drainHost, drainValveName, "local-drain-status", "on");
+              drainOffBtn.onclick = () => setValveLocal(drainHost, drainValveName, "local-drain-status", "off");
+            }
           }
         }
       });
@@ -197,7 +197,7 @@
 
       for (let i=1; i<=3; i++) {
         const sensorKey = `sensor${i}`;
-        const labelKey = sensorDefs[sensorKey] ? sensorDefs[sensorKey].label : `Sensor ${i}`;
+        const labelKey  = sensorDefs[sensorKey] ? sensorDefs[sensorKey].label : `Sensor ${i}`;
         const triggered = waterLevel[sensorKey] ? waterLevel[sensorKey].triggered : null;
 
         const displayEl = document.getElementById(`${prefix}-sensor${i}-display`);
@@ -213,6 +213,8 @@
 
     // =========== VALVE CONTROL (LOCAL) ===========
     function setValveLocal(host, valveName, statusSpanId, action) {
+      if (!valveName) return; // guard if empty
+
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
       fetch(url, { method:'POST' })
         .then(r => r.json())
@@ -353,8 +355,12 @@
           const fillValveName  = data.valve_info.water_fill_valve;
           const drainValveName = data.valve_info.water_drain_valve;
 
+          // If your remote zones also store separate IPs (fill_valve_ip/drain_valve_ip),
+          // you'd retrieve them from data.valve_info or data.settings and call remoteSetValve with each IP.
+          // For now, we'll just call them on the same host we connected to.
+
           if (!fillOnBtn.onclick) {
-            fillOnBtn.onclick = () => remoteSetValve(host, fillValveName, `${zoneId}-fill-status`, "on");
+            fillOnBtn.onclick  = () => remoteSetValve(host, fillValveName, `${zoneId}-fill-status`, "on");
             fillOffBtn.onclick = () => remoteSetValve(host, fillValveName, `${zoneId}-fill-status`, "off");
             drainOnBtn.onclick = () => remoteSetValve(host, drainValveName, `${zoneId}-drain-status`, "on");
             drainOffBtn.onclick = () => remoteSetValve(host, drainValveName, `${zoneId}-drain-status`, "off");
