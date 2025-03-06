@@ -890,33 +890,30 @@
     // Restart Service
     //-----------------------------------------------------
     document.getElementById('restart-service-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to restart the garden.service now?"))
+      if (!confirm("Are you sure you want to restart the garden.service now?")) {
         return;
+      }
 
-      // Example endpoint: /api/system/restart
-      // Adjust to match whatever endpoint calls "sudo systemctl restart garden.service"
+      // Fire off the restart call, but ignore whatever the server might return
       fetch("/api/system/restart", {
         method: "POST",
       })
-        .then(res => res.json())
-        .then(data => {
-          console.log("Restart service response:", data);
-          const restartStatus = document.getElementById('restart-status');
-
-          if (data.status === "success") {
-            restartStatus.textContent =
-              "Restart successful.\n\nThe page may be temporarily unavailable.";
-            // Optionally auto-reload after some delay
-            setTimeout(() => window.location.reload(), 5000);
-          } else {
-            restartStatus.textContent =
-              "Failed to restart:\n" + (data.error || "Unknown error") + "\n\n" + (data.output || "");
-          }
+        .then(() => {
+          // Immediately show a simple message:
+          document.getElementById('restart-status').textContent =
+            "The program is restarting. Please wait...";
+          // Wait 5 seconds, then reload
+          setTimeout(() => window.location.reload(), 5000);
         })
-        .catch(err => {
-          document.getElementById('restart-status').textContent = "Fetch error: " + err;
+        .catch(() => {
+          // Even if there's an error (SIGTERM, etc.), 
+          // we assume the program is restarting anyway:
+          document.getElementById('restart-status').textContent =
+            "Could not contact server. The program may be restarting...";
+          setTimeout(() => window.location.reload(), 5000);
         });
     });
+
   </script>
 </body>
 </html>
