@@ -47,13 +47,17 @@ def send_command_to_probe(ser, command):
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
 def parse_buffer(ser):
-    """
-    Reads complete lines from 'buffer', logs them, and:
-      - updates latest_ph_value if we parse a float,
-      - processes *OK/*ER responses to advance the command queue,
-      - discards anything unexpected.
-    """
     global buffer, latest_ph_value, last_sent_command
+
+    ################### NEW LOGIC ###################
+    # If we don't currently have a command in progress
+    # but the queue is NOT empty, immediately send the first command.
+    if last_sent_command is None and not command_queue.empty():
+        next_cmd = command_queue.get()
+        last_sent_command = next_cmd["command"]
+        log_with_timestamp(f"[DEBUG] No active command. Sending first queued command: {last_sent_command}")
+        send_command_to_probe(ser, next_cmd["command"])
+    ################### END NEW LOGIC ###################
 
     while '\r' in buffer:
         line, buffer = buffer.split('\r', 1)
@@ -63,18 +67,15 @@ def parse_buffer(ser):
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
-        # Log each line we parse
         log_with_timestamp(f"[DEBUG] parse_buffer line: {line!r}")
 
-        # Check if it's *OK or *ER
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
                 last_sent_command = None
             else:
-                log_with_timestamp(f"Unexpected response: {line} (no command was in progress)")
+                log_with_timestamp(f"Unexpected response: {line} (no command in progress)")
 
-            # If we have more commands in the queue, send the next one
             if not command_queue.empty():
                 next_cmd = command_queue.get()
                 last_sent_command = next_cmd["command"]
@@ -82,7 +83,7 @@ def parse_buffer(ser):
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
-        # Attempt to parse a pH reading from the line
+        # Attempt to parse a numeric pH reading
         try:
             ph_value = round(float(line), 2)
             if not (0.0 <= ph_value <= 14.0):
@@ -91,7 +92,6 @@ def parse_buffer(ser):
                 latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
         except ValueError as e:
-            # It's not numeric or valid pH, so ignore but log
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
     if buffer:
