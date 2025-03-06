@@ -302,6 +302,8 @@
       <div class="data-container">
         <h2>Code Update</h2>
 
+        <p>Current Version: <span id="program-version"></span></p>
+
         <p>Update code (git pull + pip install) without restarting:</p>
         <button id="update-only-btn">Update Code (No Restart)</button>
         <div id="update-only-status"></div>
@@ -858,7 +860,7 @@
     // Code Update (No Restart)
     //-----------------------------------------------------
     document.getElementById('update-only-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to run 'git pull' + 'pip install' with NO restart?"))
+      if (!confirm("Are you sure you want to run the software update?"))
         return;
 
       // Example endpoint: /api/system/update_only
