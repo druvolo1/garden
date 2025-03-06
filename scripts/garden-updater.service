@@ -1,0 +1,13 @@
+# /home/dave/garden/scripts/garden-updater.service
+
+[Unit]
+Description=Garden Code Updater Service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/dave/garden/scripts/garden_update.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

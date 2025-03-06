@@ -35,31 +35,61 @@ def run_cmd(cmd_list, cwd=None):
 
 @update_code_blueprint.route("/pull", methods=["POST"])
 def pull_and_restart():
-    """
-    Calls the garden_update.sh script located in /home/dave/garden/scripts/.
-    That script is responsible for:
-      1) Stopping garden.service
-      2) Git pulling the latest code
-      3) Installing requirements
-      4) Starting garden.service
-
-    Returns JSON logs from the script.
-    """
     steps_output = []
 
-    # Just call the script in one go:
-    out, err = run_cmd(["/bin/bash", SCRIPT_PATH])
+    # 1) do the usual code pull or clone ...
+    # 2) pip install ...
+    # 3) systemctl restart garden.service ...
+    # those steps remain the same.
 
-    steps_output.append(out)
-    if err:
+    # Then run `setup_updater.sh` at the end:
+    try:
+        out, err = run_cmd(["/bin/bash", "/home/dave/garden/scripts/setup_updater.sh"])
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+    except Exception as ex:
+        steps_output.append(str(ex))
         return jsonify({
             "status": "failure",
-            "error": err,
+            "error": str(ex),
             "output": "\n".join(steps_output)
         }), 500
 
-    # success
+    # If all good:
     return jsonify({
         "status": "success",
         "output": "\n".join(steps_output)
     })
+
+@update_code_blueprint.route("/pull_v2", methods=["POST"])
+def launch_updater_service():
+    """
+    Runs garden-updater.service, which in turn calls garden_update.sh.
+    """
+    try:
+        # Just systemctl start the new service
+        output = subprocess.check_output(
+            ["sudo", "systemctl", "start", "garden-updater.service"],
+            stderr=subprocess.STDOUT
+        )
+        return jsonify({
+            "status": "success",
+            "output": output.decode("utf-8", errors="replace")
+        })
+    except subprocess.CalledProcessError as e:
+        return jsonify({
+            "status": "failure",
+            "error": f"Command failed with exit code {e.returncode}",
+            "output": e.output.decode("utf-8", errors="replace")
+        }), 500
+    except Exception as ex:
+        return jsonify({
+            "status": "failure",
+            "error": str(ex)
+        }), 500
+

@@ -1,13 +1,16 @@
 #!/bin/bash
 # garden_update.sh
+# This script pulls the latest code & dependencies, then restarts garden.service.
+# Using "restart" means the app only goes offline briefly at the very end.
 
-# Pull latest code
 cd /home/dave/garden
+source venv/bin/activate
+
+echo "Pulling latest code..."
 git pull
 
-# Source venv and update dependencies
-source venv/bin/activate
+echo "Installing dependencies..."
 pip install -r requirements.txt
 
-# Finally, restart the service in one step
+echo "Restarting garden.service..."
 sudo systemctl restart garden.service
