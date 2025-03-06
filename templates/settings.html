@@ -298,12 +298,17 @@
         <button type="button" id="add-plant-btn">+ Add</button>
       </div>
 
-      <!-- Application Update Section -->
+      <!-- Code Update / Restart Section -->
       <div class="data-container">
-        <h2>Application Updates</h2>
-        <p>Current Version: <span id="program-version"></span></p>
-        <button id="update-code-btn">Update Code &amp; Restart</button>
-        <div id="update-status"></div>
+        <h2>Code Update</h2>
+
+        <p>Update code (git pull + pip install) without restarting:</p>
+        <button id="update-only-btn">Update Code (No Restart)</button>
+        <div id="update-only-status"></div>
+
+        <p>Restart service (pick up new code if any):</p>
+        <button id="restart-service-btn">Restart Service</button>
+        <div id="restart-status"></div>
       </div>
 
     </div>
@@ -849,32 +854,67 @@
         .catch(err => console.error("Error deleting plant:", err));
     }
 
-    // Update Code & Restart
-    document.getElementById('update-code-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to update and restart?")) return;
-      fetch("/api/system/pull", { method: "POST" })
+    //-----------------------------------------------------
+    // Code Update (No Restart)
+    //-----------------------------------------------------
+    document.getElementById('update-only-btn').addEventListener('click', () => {
+      if (!confirm("Are you sure you want to run 'git pull' + 'pip install' with NO restart?"))
+        return;
+
+      // Example endpoint: /api/system/update_only
+      // Adjust to match whatever endpoint runs the "pull" script WITHOUT the systemctl restart
+      fetch("/api/system/update_only", {
+        method: "POST",
+      })
         .then(res => res.json())
         .then(data => {
-          console.log("Update response:", data);
-          const updateStatus = document.getElementById('update-status');
+          console.log("Update-only response:", data);
+          const updateOnlyStatus = document.getElementById('update-only-status');
+
           if (data.status === "success") {
-            updateStatus.textContent =
-              "Update successful:\n\n" + data.output +
-              "\n\nRestarting... The page may be unavailable briefly.";
-
-            // Wait 5 seconds, then reload the page:
-            setTimeout(() => window.location.reload(), 5000);
-
+            updateOnlyStatus.textContent = "Update-only successful.\n\n" + data.output;
           } else {
-            updateStatus.textContent =
-              "Failed to update:\n" + (data.error || "Unknown error") +
-              "\n\n" + (data.output || "");
+            updateOnlyStatus.textContent =
+              "Update-only failed:\n" + (data.error || "Unknown error") + "\n\n" + (data.output || "");
           }
         })
         .catch(err => {
-          document.getElementById('update-status').textContent = "Fetch error: " + err;
+          document.getElementById('update-only-status').textContent = "Fetch error: " + err;
         });
     });
+
+    //-----------------------------------------------------
+    // Restart Service
+    //-----------------------------------------------------
+    document.getElementById('restart-service-btn').addEventListener('click', () => {
+      if (!confirm("Are you sure you want to restart the garden.service now?"))
+        return;
+
+      // Example endpoint: /api/system/restart
+      // Adjust to match whatever endpoint calls "sudo systemctl restart garden.service"
+      fetch("/api/system/restart", {
+        method: "POST",
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log("Restart service response:", data);
+          const restartStatus = document.getElementById('restart-status');
+
+          if (data.status === "success") {
+            restartStatus.textContent =
+              "Restart successful.\n\nThe page may be temporarily unavailable.";
+            // Optionally auto-reload after some delay
+            setTimeout(() => window.location.reload(), 5000);
+          } else {
+            restartStatus.textContent =
+              "Failed to restart:\n" + (data.error || "Unknown error") + "\n\n" + (data.output || "");
+          }
+        })
+        .catch(err => {
+          document.getElementById('restart-status').textContent = "Fetch error: " + err;
+        });
+    });
+
 
 
   </script>

@@ -33,30 +33,71 @@ def run_cmd(cmd_list, cwd=None):
         return ("\n".join(logs), err_str)
 
 
-@update_code_blueprint.route("/pull", methods=["POST"])
-def launch_updater_service():
+@update_code_blueprint.route("/pull_no_restart", methods=["POST"])
+def pull_no_restart():
     """
-    Runs garden-updater.service, which in turn calls garden_update.sh.
+    1) git pull
+    2) pip install -r requirements.txt
+    (No service restart)
     """
+    steps_output = []
     try:
-        # Just systemctl start the new service
-        output = subprocess.check_output(
-            ["sudo", "systemctl", "start", "garden-updater.service"],
-            stderr=subprocess.STDOUT
-        )
+        # run_cmd is your existing helper that does subprocess.check_output
+        out, err = run_cmd(["git", "pull"], cwd="/home/dave/garden")
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+
+        out, err = run_cmd(["/home/dave/garden/venv/bin/pip", "install", "-r", "requirements.txt"],
+                           cwd="/home/dave/garden")
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+
         return jsonify({
             "status": "success",
-            "output": output.decode("utf-8", errors="replace")
+            "output": "\n".join(steps_output)
         })
-    except subprocess.CalledProcessError as e:
-        return jsonify({
-            "status": "failure",
-            "error": f"Command failed with exit code {e.returncode}",
-            "output": e.output.decode("utf-8", errors="replace")
-        }), 500
     except Exception as ex:
+        steps_output.append(str(ex))
         return jsonify({
             "status": "failure",
-            "error": str(ex)
+            "error": str(ex),
+            "output": "\n".join(steps_output)
         }), 500
 
+@update_code_blueprint.route("/restart", methods=["POST"])
+def restart_service():
+    """
+    Just restarts garden.service
+    """
+    steps_output = []
+    try:
+        out, err = run_cmd(["sudo", "systemctl", "restart", "garden.service"])
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+
+        return jsonify({
+            "status": "success",
+            "output": "\n".join(steps_output)
+        })
+    except Exception as ex:
+        steps_output.append(str(ex))
+        return jsonify({
+            "status": "failure",
+            "error": str(ex),
+            "output": "\n".join(steps_output)
+        }), 500
