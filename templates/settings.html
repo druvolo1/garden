@@ -861,7 +861,10 @@
             updateStatus.textContent =
               "Update successful:\n\n" + data.output +
               "\n\nRestarting... The page may be unavailable briefly.";
+
+            // Wait 5 seconds, then reload the page:
             setTimeout(() => window.location.reload(), 5000);
+
           } else {
             updateStatus.textContent =
               "Failed to update:\n" + (data.error || "Unknown error") +
@@ -872,6 +875,7 @@
           document.getElementById('update-status').textContent = "Fetch error: " + err;
         });
     });
+
 
   </script>
 </body>
