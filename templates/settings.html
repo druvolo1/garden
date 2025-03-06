@@ -851,7 +851,7 @@
 
     // Update Code & Restart
     document.getElementById('update-code-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to clone the latest code and restart?")) return;
+      if (!confirm("Are you sure you want to update and restart?")) return;
       fetch("/api/system/pull", { method: "POST" })
         .then(res => res.json())
         .then(data => {
@@ -872,6 +872,7 @@
           document.getElementById('update-status').textContent = "Fetch error: " + err;
         });
     });
+
   </script>
 </body>
 </html>
