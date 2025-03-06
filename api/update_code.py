@@ -34,39 +34,6 @@ def run_cmd(cmd_list, cwd=None):
 
 
 @update_code_blueprint.route("/pull", methods=["POST"])
-def pull_and_restart():
-    steps_output = []
-
-    # 1) do the usual code pull or clone ...
-    # 2) pip install ...
-    # 3) systemctl restart garden.service ...
-    # those steps remain the same.
-
-    # Then run `setup_updater.sh` at the end:
-    try:
-        out, err = run_cmd(["/bin/bash", "/home/dave/garden/scripts/setup_updater.sh"])
-        steps_output.append(out)
-        if err:
-            return jsonify({
-                "status": "failure",
-                "error": err,
-                "output": "\n".join(steps_output)
-            }), 500
-    except Exception as ex:
-        steps_output.append(str(ex))
-        return jsonify({
-            "status": "failure",
-            "error": str(ex),
-            "output": "\n".join(steps_output)
-        }), 500
-
-    # If all good:
-    return jsonify({
-        "status": "success",
-        "output": "\n".join(steps_output)
-    })
-
-@update_code_blueprint.route("/pull_v2", methods=["POST"])
 def launch_updater_service():
     """
     Runs garden-updater.service, which in turn calls garden_update.sh.
