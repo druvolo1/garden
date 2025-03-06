@@ -46,7 +46,6 @@ def send_command_to_probe(ser, command):
     except Exception as e:
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
-
 def parse_buffer(ser):
     """
     Reads complete lines from 'buffer', logs them, and:
