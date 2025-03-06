@@ -21,12 +21,30 @@ def run_cmd(cmd_list, cwd=None):
     logs = [f"Running: {cmd_str}"]
     try:
         out = subprocess.check_output(cmd_list, stderr=subprocess.STDOUT, cwd=cwd)
-        logs.append(out.decode("utf-8", errors="replace"))
+        decoded = out.decode("utf-8", errors="replace")
+
+        # Filter out lines you consider "noise"
+        lines = decoded.splitlines()
+        filtered_lines = []
+        for line in lines:
+            # Example: skip "already satisfied" or "Already up to date"
+            if "Requirement already satisfied" in line:
+                continue
+            if "Already up to date" in line:
+                continue
+            filtered_lines.append(line)
+
+        # Rebuild the string from filtered lines
+        filtered_out = "\n".join(filtered_lines)
+        logs.append(filtered_out)
+
         return ("\n".join(logs), None)  # success, no error
+
     except subprocess.CalledProcessError as e:
         logs.append(e.output.decode("utf-8", errors="replace"))
         err_str = f"Command failed with exit code {e.returncode}"
         return ("\n".join(logs), err_str)
+
     except Exception as ex:
         err_str = f"Unexpected exception: {str(ex)}"
         logs.append(err_str)
