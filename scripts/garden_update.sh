@@ -21,7 +21,7 @@ git pull
 echo "[$(date)] Installing dependencies..."
 pip install -r requirements.txt
 
-#echo "[$(date)] Restarting garden.service..."
-#sudo systemctl restart garden.service
+echo "[$(date)] Restarting garden.service..."
+sudo systemctl restart garden.service
 
 echo "[$(date)] Update script finished successfully."
