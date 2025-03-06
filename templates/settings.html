@@ -863,7 +863,7 @@
 
       // Example endpoint: /api/system/update_only
       // Adjust to match whatever endpoint runs the "pull" script WITHOUT the systemctl restart
-      fetch("/api/system/update_only", {
+      fetch("/api/system/pull_no_restart", {
         method: "POST",
       })
         .then(res => res.json())
@@ -881,7 +881,7 @@
         .catch(err => {
           document.getElementById('update-only-status').textContent = "Fetch error: " + err;
         });
-    });
+
 
     //-----------------------------------------------------
     // Restart Service
