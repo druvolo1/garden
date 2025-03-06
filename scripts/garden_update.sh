@@ -1,11 +1,13 @@
 #!/bin/bash
-
 # garden_update.sh
-# This script will stop garden, pull latest code, install deps, then restart.
 
-sudo systemctl stop garden.service
+# Pull latest code
 cd /home/dave/garden
-source venv/bin/activate
 git pull
+
+# Source venv and update dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-sudo systemctl start garden.service
+
+# Finally, restart the service in one step
+sudo systemctl restart garden.service
