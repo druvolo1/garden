@@ -1,11 +1,13 @@
 #!/bin/bash
 # setup_updater.sh
 
-set -e  # If any command fails, the script exits immediately.
+set -e
 
-LOGFILE="/var/log/garden_setup_updater.log"
+# Figure out which directory this script resides in:
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LOGFILE="${SCRIPTDIR}/setup_updater.log"
 
-# As above, redirect all output to console & log file.
+# Redirect all script output to both console and log file in the same dir
 exec > >(tee -a "$LOGFILE") 2>&1
 
 echo "[$(date)] Starting setup_updater.sh..."
