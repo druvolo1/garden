@@ -35,18 +35,24 @@ def enqueue_command(command, command_type="general"):
     command_queue.put({"command": command, "type": command_type})
 
 def send_command_to_probe(ser, command):
+    """
+    Sends a command string to the pH probe, appending '\r'.
+    """
     global last_sent_command
     try:
-        log_with_timestamp(f"Sending command to probe: {command}")
+        log_with_timestamp(f"[DEBUG] Sending to probe: {command!r}")
         ser.write((command + '\r').encode())
         last_sent_command = command
     except Exception as e:
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
+
 def parse_buffer(ser):
     """
-    Parses any complete line(s) in 'buffer', updates latest_ph_value if a valid pH reading is found.
-    If the response is *OK or *ER, handle the command queue logic.
+    Reads complete lines from 'buffer', logs them, and:
+      - updates latest_ph_value if we parse a float,
+      - processes *OK/*ER responses to advance the command queue,
+      - discards anything unexpected.
     """
     global buffer, latest_ph_value, last_sent_command
 
@@ -55,20 +61,25 @@ def parse_buffer(ser):
         line = line.strip()
 
         if not line:
-            log_with_timestamp("Skipping empty line from parse_buffer.")
+            log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
+        # Log each line we parse
+        log_with_timestamp(f"[DEBUG] parse_buffer line: {line!r}")
+
+        # Check if it's *OK or *ER
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
                 last_sent_command = None
             else:
-                log_with_timestamp(f"Unexpected response: {line} (no command was sent)")
+                log_with_timestamp(f"Unexpected response: {line} (no command was in progress)")
 
+            # If we have more commands in the queue, send the next one
             if not command_queue.empty():
                 next_cmd = command_queue.get()
                 last_sent_command = next_cmd["command"]
-                log_with_timestamp(f"Sending next command: {last_sent_command}")
+                log_with_timestamp(f"Sending next queued command: {last_sent_command}")
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
@@ -76,18 +87,23 @@ def parse_buffer(ser):
         try:
             ph_value = round(float(line), 2)
             if not (0.0 <= ph_value <= 14.0):
-                raise ValueError(f"pH value out of range: {ph_value}")
-
+                raise ValueError(f"pH out of range: {ph_value}")
             with ph_lock:
                 latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
         except ValueError as e:
+            # It's not numeric or valid pH, so ignore but log
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
     if buffer:
-        log_with_timestamp(f"Partial data retained in buffer: '{buffer}'")
+        log_with_timestamp(f"[DEBUG] parse_buffer leftover buffer: {buffer!r}")
+
 
 def serial_reader():
+    """
+    Main loop that reads from the assigned ph_probe_path, stores data in `buffer`,
+    and calls parse_buffer() to handle lines and commands.
+    """
     global ser  # Use the global serial connection
     print("DEBUG: Entered serial_reader() at all...")
 
@@ -95,47 +111,48 @@ def serial_reader():
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
-        # If no pH device is assigned, quietly wait 5s and skip connecting.
+        # If no pH device is assigned, quietly wait 5s and skip
         if not ph_probe_path:
-            # Clear any "offline" error if you consider "no device assigned" normal
             clear_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
             continue
 
-        # Only if we have a device assigned, let's list devices for debugging
         try:
+            # Optional: just for debugging, list /dev/serial/by-id devices
             dev_list = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
             dev_list_str = ", ".join(dev_list) if dev_list else "No devices found"
             log_with_timestamp(f"Devices in /dev/serial/by-id: {dev_list_str}")
         except subprocess.CalledProcessError:
             log_with_timestamp("No devices found in /dev/serial/by-id (subprocess error).")
 
-        log_with_timestamp(f"Currently assigned pH probe device in settings: {ph_probe_path}")
+        log_with_timestamp(f"Currently assigned pH probe device: {ph_probe_path}")
 
-        # Now attempt to open the assigned device
         try:
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
             clear_error("PH_USB_OFFLINE")
             log_with_timestamp(f"Opened serial port {ph_probe_path} for pH reading.")
 
-            # Clear the buffer on new device connection
+            # Clear buffer on new device connection
             with ph_lock:
                 global buffer
                 buffer = ""
                 log_with_timestamp("Buffer cleared on new device connection.")
 
-            # Main read loop
             while not stop_event.ready():
+                # Read up to 100 bytes
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
+                    # Debug: show raw bytes
+                    log_with_timestamp(f"[DEBUG] Received raw bytes: {raw_data}")
                     decoded_data = raw_data.decode("utf-8", errors="replace")
                     with ph_lock:
                         buffer += decoded_data
                         if len(buffer) > MAX_BUFFER_LENGTH:
-                            log_with_timestamp("Buffer exceeded maximum length. Dumping buffer.")
+                            log_with_timestamp("Buffer exceeded max length. Dumping buffer.")
                             buffer = ""
                     parse_buffer(ser)
                 else:
+                    # minimal sleep
                     eventlet.sleep(0.05)
 
         except (serial.SerialException, OSError) as e:
@@ -147,7 +164,6 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("Serial connection closed.")
-
 
 def send_configuration_commands(ser):
     try:
