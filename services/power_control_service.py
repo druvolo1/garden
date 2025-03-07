@@ -74,7 +74,7 @@ def open_host_connection(host_ip):
 
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} => {data}")
-        valve_relays = data.get("valve_relays", {})
+        valve_relays = data.get("valve_info", {}).get("valve_relays", {})
 
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
