@@ -18,13 +18,10 @@ def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
 
-def init_power_control():
+def start_power_control_loop():
     """
-    Call this once from app.py (or wsgi.py) to start the power control logic in a background thread.
-    Example:
-        # in app.py
-        from services.power_control_service import init_power_control
-        init_power_control()
+    Call this once (e.g. from app.py or wsgi.py) to spawn the background thread
+    for connecting to remote valves & controlling Shelly outlets.
     """
     eventlet.spawn(power_control_main_loop)
     log("Power Control loop started.")
