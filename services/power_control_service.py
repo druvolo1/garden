@@ -1,3 +1,5 @@
+# File: services/power_control_service.py
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -6,14 +8,34 @@ from utils.settings_utils import load_settings
 from datetime import datetime
 import requests
 
+# These globals track state across the power control logic
 remote_valve_states = {}  # (host_ip, valve_id) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
 sio_clients = {}          # host_ip -> socketio.Client instance
 
+
 def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
+
+def init_power_control():
+    """
+    Call this once from app.py (or wsgi.py) to start the power control logic in a background thread.
+    Example:
+        # in app.py
+        from services.power_control_service import init_power_control
+        init_power_control()
+    """
+    eventlet.spawn(power_control_main_loop)
+    log("Power Control loop started.")
+
+
 def power_control_main_loop():
+    """
+    Repeatedly checks the local settings for 'power_controls' -> 'tracked_valves'
+    to figure out which remote IPs to connect to, opens/closes those socket.io
+    connections as needed, and reevaluates all Shelly power outlets.
+    """
     while True:
         try:
             settings = load_settings()
@@ -47,7 +69,13 @@ def power_control_main_loop():
 
         eventlet.sleep(5)  # re-check every 5 seconds
 
+
 def open_host_connection(host_ip):
+    """
+    Create a Socket.IO client connection to the remote system (host_ip:8000).
+    When 'status_update' events arrive, we parse 'valve_info -> valve_relays'
+    to see which valves are on or off.
+    """
     url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
@@ -76,7 +104,25 @@ def open_host_connection(host_ip):
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
 
+
+def close_host_connection(host_ip):
+    """
+    Disconnect and remove the Socket.IO client for 'host_ip'
+    """
+    if host_ip in sio_clients:
+        try:
+            sio_clients[host_ip].disconnect()
+        except:
+            pass
+        del sio_clients[host_ip]
+        log(f"Closed socketio connection for {host_ip}")
+
+
 def reevaluate_all_outlets():
+    """
+    For each outlet in 'power_controls', check whether any tracked valves are 'on'.
+    If so, turn the Shelly on. Otherwise, turn it off. Includes debug logging.
+    """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
@@ -112,14 +158,6 @@ def reevaluate_all_outlets():
         else:
             log(f"    -> Outlet {outlet_ip} is already {current_outlet_state}, no change.")
 
-def close_host_connection(host_ip):
-    if host_ip in sio_clients:
-        try:
-            sio_clients[host_ip].disconnect()
-        except:
-            pass
-        del sio_clients[host_ip]
-        log(f"Closed socketio connection for {host_ip}")
 
 def set_shelly_state(outlet_ip, state):
     """
