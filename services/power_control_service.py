@@ -77,6 +77,7 @@ def open_host_connection(host_ip):
 
     @client.on("status_update")
     def on_status_update(data):
+        log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
         # 1) Print out the entire JSON payload nicely
         pretty = json.dumps(data, indent=2)
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{pretty}")
