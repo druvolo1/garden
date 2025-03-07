@@ -43,9 +43,6 @@ if not os.path.exists(SETTINGS_FILE):
             },
             "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
-            "water_valve_ip": "",
-            "water_fill_valve": "",
-            "water_drain_valve": "",
             "valve_labels": {
                 "1": "Valve #1",
                 "2": "Valve #2",
@@ -167,9 +164,6 @@ def reset_settings():
         "fill_valve_ip": "",
         "fill_valve": "",
         "fill_sensor": "",
-        "drain_valve_ip": "",
-        "drain_valve": "",
-        "drain_sensor": "",
         "valve_labels": {
             "1": "Valve #1",
             "2": "Valve #2",

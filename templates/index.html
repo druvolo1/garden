@@ -142,8 +142,10 @@
 
         // E) Valves: now we look for fill_valve_ip / drain_valve_ip
         if (data.settings) {
-          const fillValveName  = data.settings.water_fill_valve;
-          const drainValveName = data.settings.water_drain_valve;
+          const fillValveName  = data.settings.fill_valve;
+          const drainValveName = data.settings.drain_valve;
+          const fillHost       = data.settings.fill_valve_ip  || window.location.hostname;
+          const drainHost      = data.settings.drain_valve_ip || window.location.hostname;
 
           // If either fill_valve or drain_valve are set, show the containers
           if (fillValveName || drainValveName) {
@@ -351,8 +353,8 @@
           drainOnBtn.disabled  = false;
           drainOffBtn.disabled = false;
 
-          const fillValveName  = data.settings.fill_valve;
-          const drainValveName = data.settings.drain_valve;
+          const fillValveName  = data.valve_info.fill_valve;
+          const drainValveName = data.valve_info.drain_valve;
 
           // If your remote zones also store separate IPs (fill_valve_ip/drain_valve_ip),
           // you'd retrieve them from data.valve_info or data.settings and call remoteSetValve with each IP.

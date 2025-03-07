@@ -44,11 +44,13 @@ def emit_status_update():
 
         # 5. Valve info logic
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
-        water_valve_ip     = settings.get("water_valve_ip")
-        water_fill_valve   = settings.get("water_fill_valve")
-        water_drain_valve  = settings.get("water_drain_valve")
+        fill_valve_ip  = settings.get("fill_valve_ip")
+        fill_valve     = settings.get("fill_valve")
+        drain_valve_ip = settings.get("drain_valve_ip")
+        drain_valve    = settings.get("drain_valve")
 
-        need_valve_info = bool(valve_relay_device) or (water_valve_ip and water_fill_valve and water_drain_valve)
+        need_valve_info = bool(valve_relay_device) or (fill_valve_ip and fill_valve and drain_valve_ip and drain_valve)
+
         valve_info = None
 
         if need_valve_info:
@@ -64,12 +66,14 @@ def emit_status_update():
                 }
 
             valve_info = {
-                "water_valve_ip":    water_valve_ip,
-                "water_fill_valve":  water_fill_valve,
-                "water_drain_valve": water_drain_valve,
-                "valve_labels":      valve_labels,
-                "valve_relays":      valve_relays
-            }
+                "fill_valve_ip":   fill_valve_ip,
+                "fill_valve":      fill_valve,
+                "drain_valve_ip":  drain_valve_ip,
+                "drain_valve":     drain_valve,
+                "valve_labels":    valve_labels,
+                "valve_relays":    valve_relays
+}
+
 
         # 6. Construct the final status payload
         status = {
