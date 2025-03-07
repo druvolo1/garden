@@ -75,17 +75,16 @@ def open_host_connection(host_ip):
     @client.on("status_update")
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} => {data}")
-        valve_relays = data.get("valve_info", {}).get("valve_relays", {})
+        # Instead of data.get("valve_info", {}).get("valve_relays", {})
+        # we do:
+        valve_relays = data.get("valve_relays", {})
 
-        # For each valve_id, store as string-based keys
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             remote_valve_states[(host_ip, valve_id_str)] = status_str
             log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = {status_str}")
 
-        # After we update, reevaluate Shelly states
         reevaluate_all_outlets()
-
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
         client.connect(url, namespaces=["/status"])
