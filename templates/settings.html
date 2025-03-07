@@ -996,6 +996,7 @@
     // If they exist, attach event listeners
     if (retrieveBtn) {
       retrieveBtn.addEventListener('click', () => {
+        console.log("Retrieve button clicked!");
         const ipVal = (ipField?.value || "").trim();
         if (!ipVal) return;
         retrieveValvesFromIP(ipVal, `tv-select-${index}`)
