@@ -9,14 +9,12 @@ from datetime import datetime
 import requests
 
 # These globals track state across the power control logic
-remote_valve_states = {}  # (host_ip, valve_id) -> "on"/"off"
+remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
 sio_clients = {}          # host_ip -> socketio.Client instance
 
-
 def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
-
 
 def start_power_control_loop():
     """
@@ -25,7 +23,6 @@ def start_power_control_loop():
     """
     eventlet.spawn(power_control_main_loop)
     log("Power Control loop started.")
-
 
 def power_control_main_loop():
     """
@@ -66,7 +63,6 @@ def power_control_main_loop():
 
         eventlet.sleep(5)  # re-check every 5 seconds
 
-
 def open_host_connection(host_ip):
     """
     Create a Socket.IO client connection to the remote system (host_ip:8000).
@@ -88,9 +84,12 @@ def open_host_connection(host_ip):
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} => {data}")
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
+
+        # --- store as string-based keys ---
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off")
-            remote_valve_states[(host_ip, int(valve_id_str))] = status_str.lower()
+            remote_valve_states[(host_ip, valve_id_str)] = status_str.lower()
+
         reevaluate_all_outlets()
 
     try:
@@ -100,7 +99,6 @@ def open_host_connection(host_ip):
         sio_clients[host_ip] = client
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
-
 
 def close_host_connection(host_ip):
     """
@@ -113,7 +111,6 @@ def close_host_connection(host_ip):
             pass
         del sio_clients[host_ip]
         log(f"Closed socketio connection for {host_ip}")
-
 
 def reevaluate_all_outlets():
     """
@@ -136,10 +133,11 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked:
             host_ip = tv["host_ip"]
-            valve_id = int(tv["valve_id"])
+            valve_id_str = tv["valve_id"]  # stay as a string
 
-            current_valve_state = remote_valve_states.get((host_ip, valve_id), "off")
-            log(f"    -> Checking valve (host={host_ip}, id={valve_id}) => {current_valve_state}")
+            # look up the key as (host_ip, valve_id_str)
+            current_valve_state = remote_valve_states.get((host_ip, valve_id_str), "off")
+            log(f"    -> Checking valve (host={host_ip}, id={valve_id_str}) => {current_valve_state}")
 
             if current_valve_state == "on":
                 any_on = True
@@ -154,7 +152,6 @@ def reevaluate_all_outlets():
             last_outlet_states[outlet_ip] = desired
         else:
             log(f"    -> Outlet {outlet_ip} is already {current_outlet_state}, no change.")
-
 
 def set_shelly_state(outlet_ip, state):
     """
