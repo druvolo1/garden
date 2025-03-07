@@ -142,7 +142,7 @@ def serial_reader():
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
                     # Debug: show raw bytes
-                    log_with_timestamp(f"[DEBUG] Received raw bytes: {raw_data}")
+                    #log_with_timestamp(f"[DEBUG] Received raw bytes: {raw_data}")
                     decoded_data = raw_data.decode("utf-8", errors="replace")
                     with ph_lock:
                         buffer += decoded_data
