@@ -34,7 +34,9 @@ def power_control_main_loop():
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
                     needed_hosts.add(tv["host_ip"])
-            
+
+            log(f"[power_control_main_loop] Needed hosts for power control: {needed_hosts}")
+
             # 2) Close any old connections we no longer need
             for old_host in list(sio_clients.keys()):
                 if old_host not in needed_hosts:
@@ -43,20 +45,17 @@ def power_control_main_loop():
             # 3) Ensure we have a socketio connection for each needed host
             for host_ip in needed_hosts:
                 if host_ip not in sio_clients:
+                    log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
                     open_host_connection(host_ip)
             
-            # We don't strictly need to do anything else in this loop
-            # because updates are handled by real-time socket events.
-            # But we might occasionally reevaluate all outlets
-            # in case settings changed (like removing a tracked valve).
+            # Reevaluate all outlets
             reevaluate_all_outlets()
             
         except Exception as e:
             log(f"power_control_main_loop error: {e}")
         
-        eventlet.sleep(5)  # re-check for changed settings every 5s
+        eventlet.sleep(5)  # re-check every 5s
 
-# File: services/power_control_service.py
 
 def open_host_connection(host_ip):
     url = f"http://{host_ip}:8000"
