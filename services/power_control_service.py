@@ -60,9 +60,10 @@ def power_control_main_loop():
 
 def open_host_connection(host_ip):
     """
-    Connect to host_ip:8000/status via Socket.IO. Listen for 'status_update'.
+    Connect to host_ip:8000 via Socket.IO, listening on the '/status' namespace
+    for 'status_update' events.
     """
-    url = f"http://{host_ip}:8000/status"
+    url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
     @client.event
@@ -73,24 +74,20 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
-    
-
     @client.on("status_update")
     def on_status_update(data):
+        import json
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
-        # 1) Print out the entire JSON payload nicely
-        pretty = json.dumps(data, indent=2)
-        log(f"[DEBUG] on_status_update from {host_ip} =>\n{pretty}")
 
-        # 2) Show top-level keys
+        # 1) Show top-level keys
         top_keys = list(data.keys())
         log(f"[DEBUG] Top-level keys in 'data': {top_keys}")
 
-        # 3) Show what's under "valve_info" (if any)
+        # 2) Show what's under "valve_info" (if any)
         valve_info = data.get("valve_info")
         log(f"[DEBUG] data.get('valve_info') => {valve_info}")
 
-        # 4) Actually retrieve valve_relays from within valve_info
+        # 3) Actually retrieve valve_relays from within valve_info
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
 
@@ -101,13 +98,13 @@ def open_host_connection(host_ip):
                 "status": status_str,
                 "label":  label_str
             }
-            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = "
-                f"{{status={status_str}, label={label_str}}}")
+            log(
+                f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = "
+                f"{{status={status_str}, label={label_str}}}"
+            )
 
         # After storing new valve states, reevaluate
         reevaluate_all_outlets()
-
-
 
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
@@ -116,7 +113,6 @@ def open_host_connection(host_ip):
         sio_clients[host_ip] = client
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
-
 
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
