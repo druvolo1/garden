@@ -595,53 +595,72 @@
      * Retrieve valves from the given IP and populate the given <select> by ID.
      */
      function retrieveValvesFromIP(ipInput, selectElementId) {
+      console.log("[retrieveValvesFromIP] Called with ipInput =", ipInput, "and selectElementId =", selectElementId);
+
       return new Promise((resolve, reject) => {
         if (!ipInput) {
+          console.warn("[retrieveValvesFromIP] No IP provided, rejecting.");
           return reject(new Error('No IP address provided'));
         }
 
         let [host, port] = ipInput.split(':');
         port = port || '8000';
+
+        // Build the final URL
         const url = `http://${host}:${port}/api/valve_relay/all_status`;
+        console.log("[retrieveValvesFromIP] Fetching URL:", url);
 
         fetch(url)
           .then(res => {
+            console.log("[retrieveValvesFromIP] fetch() first then(), response ok?", res.ok, "status:", res.status);
             if (!res.ok) {
               throw new Error(`HTTP error! status: ${res.status}`);
             }
             return res.json();
           })
           .then(data => {
+            console.log("[retrieveValvesFromIP] fetch() second then(), parsed JSON:", data);
+
+            // Check the data structure
             if (data.status !== "success") {
               throw new Error(data.error || "API returned failure");
             }
 
             // data.valves is like: { "1": { label: "Fill", status: "on" }, "2": { ... } }
             const valveMap = data.valves || {};
+            console.log("[retrieveValvesFromIP] valveMap object:", valveMap);
 
-            // Clear and repopulate the <select> with each valve
+            // Clear and repopulate the <select>
             const sel = document.getElementById(selectElementId);
-            sel.innerHTML = '<option value="">Select Valve</option>';
+            if (!sel) {
+              console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
+            } else {
+              sel.innerHTML = '<option value="">Select Valve</option>';
 
-            // For each key (valveId), get label
-            Object.keys(valveMap).forEach(valveId => {
-              const info = valveMap[valveId];
-              const label = info.label || `Valve ${valveId}`;
-              // We'll store the numeric ID in the <option> value,
-              // and display the label as user-friendly text
-              const option = new Option(label, valveId);
-              sel.add(option);
-            });
+              // For each valveId, build an <option>
+              Object.keys(valveMap).forEach(valveId => {
+                const info = valveMap[valveId];
+                const label = info.label || `Valve ${valveId}`;
+                console.log(`[retrieveValvesFromIP] Creating <option> for valveId=${valveId} label="${label}"`);
+                const option = new Option(label, valveId);
+                sel.add(option);
+              });
+            }
 
+            // Log the final list of IDs we found
             const valveIds = Object.keys(valveMap);
-            console.log(`retrieveValvesFromIP -> valve IDs:`, valveIds);
+            console.log("[retrieveValvesFromIP] Done. Valve IDs found:", valveIds);
 
-            // Now resolve so the caller can do .then(...)
+            // Resolve the Promise so the caller can do .then(...)
             resolve(valveIds);
           })
-          .catch(err => reject(err));
+          .catch(err => {
+            console.error("[retrieveValvesFromIP] Caught error:", err);
+            reject(err);
+          });
       });
     }
+
 
     // Handle clicks on the two "Retrieve" buttons
     document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
