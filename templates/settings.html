@@ -940,78 +940,95 @@
 
     // =============== POWER OUTLETS SECTION ===============
     function renderPowerOutlets(powerControls) {
-      const container = document.getElementById('power-outlets-list');
-      container.innerHTML = ""; // Clear old contents
+  const container = document.getElementById('power-outlets-list');
+  container.innerHTML = ""; // Clear old contents
 
-      powerControls.forEach((outlet, index) => {
-        const card = document.createElement('div');
-        card.classList.add('power-outlet-card');
+  powerControls.forEach((outlet, index) => {
+    const card = document.createElement('div');
+    card.classList.add('power-outlet-card');
 
-        const title = document.createElement('h4');
-        title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
-        card.appendChild(title);
+    const title = document.createElement('h4');
+    title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
+    card.appendChild(title);
 
-        // Show existing tracked valves
-        const tvList = document.createElement('div');
-        tvList.id = `tv-list-${index}`;
-        (outlet.tracked_valves || []).forEach(tv => {
-          const row = document.createElement('div');
-          row.classList.add('tracked-valve-row');
-          row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${tv.valve_id}</span>`;
-          const removeBtn = document.createElement('button');
-          removeBtn.textContent = "Remove";
-          removeBtn.addEventListener('click', () => {
-            removeTrackedValve(index, tv.host_ip, tv.valve_id);
-          });
-          row.appendChild(removeBtn);
-          tvList.appendChild(row);
-        });
-        card.appendChild(tvList);
+    // Show existing tracked valves
+    const tvList = document.createElement('div');
+    tvList.id = `tv-list-${index}`;
+    (outlet.tracked_valves || []).forEach(tv => {
+      const row = document.createElement('div');
+      row.classList.add('tracked-valve-row');
+      row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${tv.valve_id}</span>`;
 
-        // Add new tracked valve form
-        const addDiv = document.createElement('div');
-        addDiv.style.marginTop = "8px";
-        addDiv.innerHTML = `
-          <label>Remote IP: </label>
-          <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
-          <button id="tv-retrieve-btn-${index}">Retrieve</button>
-          <label> Valve:</label>
-          <select id="tv-select-${index}" style="margin-right:6px;">
-            <option value="">Select Valve</option>
-          </select>
-          <button id="tv-add-btn-${index}">Add Valve</button>
-        `;
-        card.appendChild(addDiv);
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener('click', () => {
+        removeTrackedValve(index, tv.host_ip, tv.valve_id);
+      });
+      row.appendChild(removeBtn);
 
-        // Wire up the retrieve logic
-        document.getElementById(`tv-retrieve-btn-${index}`).addEventListener('click', () => {
-          const ipVal = (document.getElementById(`tv-ip-${index}`).value || "").trim();
-          if (!ipVal) return;
-          retrieveValvesFromIP(ipVal, `tv-select-${index}`)
-            .then(vals => console.log("Valves retrieved for outlet:", vals))
-            .catch(err => console.error("Error retrieving valves:", err));
-        });
+      tvList.appendChild(row);
+    });
+    card.appendChild(tvList);
 
-        // Wire up the add logic
-        document.getElementById(`tv-add-btn-${index}`).addEventListener('click', () => {
-          const ipVal = (document.getElementById(`tv-ip-${index}`).value || "").trim();
-          const valveVal = document.getElementById(`tv-select-${index}`).value;
-          if (!ipVal || !valveVal) return;
-          addTrackedValve(index, ipVal, valveVal);
-        });
+    // -------------------------------
+    // Add new tracked valve form
+    const addDiv = document.createElement('div');
+    addDiv.style.marginTop = "8px";
+    addDiv.innerHTML = `
+      <label>Remote IP: </label>
+      <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
+      <button id="tv-retrieve-btn-${index}">Retrieve</button>
+      <label> Valve:</label>
+      <select id="tv-select-${index}" style="margin-right:6px;">
+        <option value="">Select Valve</option>
+      </select>
+      <button id="tv-add-btn-${index}">Add Valve</button>
+    `;
+    // Append to card BEFORE looking up elements
+    card.appendChild(addDiv);
 
-        // Add a remove outlet button
-        const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete This Outlet";
-        delBtn.style.marginTop = "10px";
-        delBtn.addEventListener('click', () => {
-          removeOutlet(index);
-        });
-        card.appendChild(delBtn);
+    // Now safely get the newly created elements by ID:
+    const retrieveBtn  = document.getElementById(`tv-retrieve-btn-${index}`);
+    const addValveBtn  = document.getElementById(`tv-add-btn-${index}`);
+    const ipField      = document.getElementById(`tv-ip-${index}`);
+    const valveSelect  = document.getElementById(`tv-select-${index}`);
 
-        container.appendChild(card);
+    // If they exist, attach event listeners
+    if (retrieveBtn) {
+      retrieveBtn.addEventListener('click', () => {
+        const ipVal = (ipField?.value || "").trim();
+        if (!ipVal) return;
+        retrieveValvesFromIP(ipVal, `tv-select-${index}`)
+          .then(vals => console.log("Valves retrieved for outlet:", vals))
+          .catch(err => console.error("Error retrieving valves:", err));
       });
     }
+
+    if (addValveBtn) {
+      addValveBtn.addEventListener('click', () => {
+        const ipVal = (ipField?.value || "").trim();
+        const valveVal = valveSelect?.value || "";
+        if (!ipVal || !valveVal) return;
+        addTrackedValve(index, ipVal, valveVal);
+      });
+    }
+
+    // Example: If you also want a "Delete This Outlet" button:
+    /*
+    const delBtn = document.createElement('button');
+    delBtn.textContent = "Delete This Outlet";
+    delBtn.style.marginTop = "10px";
+    delBtn.addEventListener('click', () => {
+      removeOutlet(index);
+    });
+    card.appendChild(delBtn);
+    */
+
+    // Finally, append the entire card to the container
+    container.appendChild(card);
+  });
+}
+
 
     function removeOutlet(outletIndex) {
       fetch('/api/settings')
