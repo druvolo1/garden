@@ -72,21 +72,6 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
-    def open_host_connection(host_ip):
-    """
-    Connect to host_ip:8000/status via Socket.IO. Listen for 'status_update'.
-    """
-    url = f"http://{host_ip}:8000"
-    client = socketio.Client(reconnection=True, reconnection_attempts=999)
-
-    @client.event
-    def connect():
-        log(f"*** CONNECT EVENT *** to {host_ip}, client.sid={client.sid}")
-
-    @client.event
-    def disconnect():
-        log(f"*** DISCONNECT EVENT *** from {host_ip}")
-
     @client.on("status_update")
     def on_status_update(data):
         import json
