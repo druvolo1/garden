@@ -3,12 +3,11 @@
 import eventlet
 eventlet.monkey_patch()
 
-import socketio  # pip install "python-socketio[client]"
+import socketio
 from utils.settings_utils import load_settings
 from datetime import datetime
 import requests
 
-# These globals track state across the power control logic
 remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
 sio_clients = {}          # host_ip -> socketio.Client instance
@@ -18,24 +17,21 @@ def log(msg):
 
 def start_power_control_loop():
     """
-    Call this once (e.g. from app.py or wsgi.py) to spawn the background thread
-    for connecting to remote valves & controlling Shelly outlets.
+    Spawns the background thread to connect to remote valves & control Shelly outlets.
     """
     eventlet.spawn(power_control_main_loop)
     log("Power Control loop started.")
 
 def power_control_main_loop():
     """
-    Repeatedly checks the local settings for 'power_controls' -> 'tracked_valves'
-    to figure out which remote IPs to connect to, opens/closes those socket.io
-    connections as needed, and reevaluates all Shelly power outlets.
+    Main loop: checks 'power_controls' in settings, ensures socket.io connections
+    for each tracked valve host, then reevaluates Shelly outlets.
     """
     while True:
         try:
             settings = load_settings()
             power_controls = settings.get("power_controls", [])
 
-            # 1) Gather all host_ips we need from the tracked valves
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
@@ -43,31 +39,29 @@ def power_control_main_loop():
 
             log(f"[power_control_main_loop] Needed hosts for power control: {needed_hosts}")
 
-            # 2) Close any old connections we no longer need
+            # Close old, unused connections
             for old_host in list(sio_clients.keys()):
                 if old_host not in needed_hosts:
                     close_host_connection(old_host)
 
-            # 3) Ensure we have a socket.io connection for each needed host
+            # Open connections for new needed hosts
             for host_ip in needed_hosts:
                 log(f"[power_control_main_loop] Checking if {host_ip} is in sio_clients => {host_ip in sio_clients}")
                 if host_ip not in sio_clients:
                     log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
                     open_host_connection(host_ip)
 
-            # 4) Re-check all power outlet states
+            # Evaluate Shelly on/off logic
             reevaluate_all_outlets()
 
         except Exception as e:
             log(f"power_control_main_loop error: {e}")
 
-        eventlet.sleep(5)  # re-check every 5 seconds
+        eventlet.sleep(5)  # re-check every 5s
 
 def open_host_connection(host_ip):
     """
-    Create a Socket.IO client connection to the remote system (host_ip:8000).
-    When 'status_update' events arrive, we parse 'valve_info -> valve_relays'
-    to see which valves are on or off.
+    Connect to host_ip:8000/status via Socket.IO. Listen for 'status_update'.
     """
     url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
@@ -85,11 +79,13 @@ def open_host_connection(host_ip):
         log(f"[DEBUG] on_status_update from {host_ip} => {data}")
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
 
-        # --- store as string-based keys ---
+        # For each valve_id, store as string-based keys
         for valve_id_str, vinfo in valve_relays.items():
-            status_str = vinfo.get("status", "off")
-            remote_valve_states[(host_ip, valve_id_str)] = status_str.lower()
+            status_str = vinfo.get("status", "off").lower()
+            remote_valve_states[(host_ip, valve_id_str)] = status_str
+            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = {status_str}")
 
+        # After we update, reevaluate Shelly states
         reevaluate_all_outlets()
 
     try:
@@ -102,7 +98,7 @@ def open_host_connection(host_ip):
 
 def close_host_connection(host_ip):
     """
-    Disconnect and remove the Socket.IO client for 'host_ip'
+    Disconnect from the given host_ip and remove from sio_clients.
     """
     if host_ip in sio_clients:
         try:
@@ -114,17 +110,20 @@ def close_host_connection(host_ip):
 
 def reevaluate_all_outlets():
     """
-    For each outlet in 'power_controls', check whether any tracked valves are 'on'.
-    If so, turn the Shelly on. Otherwise, turn it off. Includes debug logging.
+    For each outlet in 'power_controls', if any tracked valve is 'on', turn it on; otherwise off.
     """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
 
+    # Debug: show which keys we have in remote_valve_states
+    all_keys = list(remote_valve_states.keys())
+    log(f"Current keys in remote_valve_states: {all_keys}")
+
     for pc in power_controls:
         outlet_ip = pc.get("outlet_ip")
         if not outlet_ip:
-            log("  No outlet_ip set in this power control config, skipping.")
+            log("  No outlet_ip set for this power control config, skipping.")
             continue
 
         tracked = pc.get("tracked_valves", [])
@@ -133,14 +132,17 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked:
             host_ip = tv["host_ip"]
-            valve_id_str = tv["valve_id"]  # stay as a string
+            valve_id_str = tv["valve_id"]  # we assume settings stores it as string
 
-            # look up the key as (host_ip, valve_id_str)
-            current_valve_state = remote_valve_states.get((host_ip, valve_id_str), "off")
-            log(f"    -> Checking valve (host={host_ip}, id={valve_id_str}) => {current_valve_state}")
+            key = (host_ip, valve_id_str)
+            current_valve_state = remote_valve_states.get(key, "off")
+
+            log(f"    -> Looking up remote_valve_states[{key}] => '{current_valve_state}'")
+            log(f"    -> Comparing '{current_valve_state}' == 'on'?")
 
             if current_valve_state == "on":
                 any_on = True
+                log("    -> We found a valve that is on, so we'll turn the outlet on.")
                 break
 
         desired = "on" if any_on else "off"
@@ -155,8 +157,7 @@ def reevaluate_all_outlets():
 
 def set_shelly_state(outlet_ip, state):
     """
-    Send a GET request to the Shelly for on/off
-      e.g. http://192.168.1.50/relay/0?turn=on
+    Send GET to Shelly: http://outlet_ip/relay/0?turn=on (or off).
     """
     url = f"http://{outlet_ip}/relay/0?turn={state}"
     try:
