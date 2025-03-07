@@ -72,17 +72,19 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
-    @client.on("status_update")
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} => {data}")
-        # Instead of data.get("valve_info", {}).get("valve_relays", {})
-        # we do:
         valve_relays = data.get("valve_relays", {})
 
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
-            remote_valve_states[(host_ip, valve_id_str)] = status_str
-            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = {status_str}")
+            label_str  = vinfo.get("label", f"Valve {valve_id_str}")
+            # Instead of storing a plain string, store a dictionary with both status & label:
+            remote_valve_states[(host_ip, valve_id_str)] = {
+                "status": status_str,
+                "label": label_str
+            }
+            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = {{status={status_str}, label={label_str}}}")
 
         reevaluate_all_outlets()
     try:
@@ -130,7 +132,7 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked_valves:
             host_ip = tv["host_ip"]
-            valve_id_str = tv["valve_id"]  # treat as string
+            valve_id_str = tv["valve_id"]  # treat as a string
 
             # Create the dictionary key
             key = (host_ip, valve_id_str)
@@ -156,6 +158,7 @@ def reevaluate_all_outlets():
             last_outlet_states[outlet_ip] = desired
         else:
             log(f"    -> Outlet {outlet_ip} is already '{current_outlet_state}', no change.")
+
 
 def set_shelly_state(outlet_ip, state):
     """
