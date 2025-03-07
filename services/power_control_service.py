@@ -66,9 +66,10 @@ def open_host_connection(host_ip):
     url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
-    @client.event
-    def connect():
-        log(f"*** CONNECT EVENT *** to {host_ip}, client.sid={client.sid}")
+    @client.on("connect", namespace="/status")
+    def on_status_connect():
+        log(f"*** CONNECT EVENT (namespace=/status) *** to {host_ip}, client.sid={client.sid}")
+
 
     @client.event
     def disconnect():
