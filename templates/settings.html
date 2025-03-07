@@ -980,11 +980,12 @@
         const card = document.createElement('div');
         card.classList.add('power-outlet-card');
 
+        // Title
         const title = document.createElement('h4');
         title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
         card.appendChild(title);
 
-        // Show existing tracked valves
+        // Existing tracked valves
         const tvList = document.createElement('div');
         tvList.id = `tv-list-${index}`;
         (outlet.tracked_valves || []).forEach(tv => {
@@ -1003,7 +1004,6 @@
         });
         card.appendChild(tvList);
 
-        // -------------------------------
         // Add new tracked valve form
         const addDiv = document.createElement('div');
         addDiv.style.marginTop = "8px";
@@ -1017,16 +1017,30 @@
           </select>
           <button id="tv-add-btn-${index}">Add Valve</button>
         `;
-        // Append to card BEFORE looking up elements
         card.appendChild(addDiv);
 
-        // Now safely get the newly created elements by ID:
-        const retrieveBtn  = document.getElementById(`tv-retrieve-btn-${index}`);
-        const addValveBtn  = document.getElementById(`tv-add-btn-${index}`);
-        const ipField      = document.getElementById(`tv-ip-${index}`);
-        const valveSelect  = document.getElementById(`tv-select-${index}`);
+        // Delete-outlet button
+        const delBtn = document.createElement('button');
+        delBtn.textContent = "Delete This Outlet";
+        delBtn.style.marginTop = "10px";
+        delBtn.addEventListener('click', () => {
+          removeOutlet(index);
+        });
+        card.appendChild(delBtn);
 
-        // If they exist, attach event listeners
+        // --------------------------------------------------------
+        // 1) Append the card to the DOM FIRST
+        // --------------------------------------------------------
+        container.appendChild(card);
+
+        // --------------------------------------------------------
+        // 2) Now we can safely query the actual DOM for these IDs
+        // --------------------------------------------------------
+        const retrieveBtn = document.getElementById(`tv-retrieve-btn-${index}`);
+        const addValveBtn = document.getElementById(`tv-add-btn-${index}`);
+        const ipField     = document.getElementById(`tv-ip-${index}`);
+        const valveSelect = document.getElementById(`tv-select-${index}`);
+
         if (retrieveBtn) {
           retrieveBtn.addEventListener('click', () => {
             console.log("Retrieve button clicked!");
@@ -1046,20 +1060,9 @@
             addTrackedValve(index, ipVal, valveVal);
           });
         }
-
-        // ========== ADD THIS DELETE BUTTON ==========
-        const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete This Outlet";
-        delBtn.style.marginTop = "10px";
-        delBtn.addEventListener('click', () => {
-          removeOutlet(index);
-        });
-        card.appendChild(delBtn);
-        // ===========================================
-
-        container.appendChild(card);
       });
     }
+
 
 
     function removeOutlet(outletIndex) {
