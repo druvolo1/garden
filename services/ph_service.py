@@ -67,7 +67,7 @@ def parse_buffer(ser):
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
-        log_with_timestamp(f"[DEBUG] parse_buffer line: {line!r}")
+        #log_with_timestamp(f"[DEBUG] parse_buffer line: {line!r}")
 
         if line in ("*OK", "*ER"):
             if last_sent_command:
