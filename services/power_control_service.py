@@ -57,48 +57,44 @@ def power_control_main_loop():
         eventlet.sleep(5)  # re-check for changed settings every 5s
 
 def open_host_connection(host_ip):
-    """
-    Create a socketio.Client, define event handlers, and connect to /status on the remote system.
-    """
     url = f"http://{host_ip}:8000"
-    log(f"Attempting to open socket.io connection to {url} (namespace=/status)")
+    log(f"[PowerControlService] Attempting to open socket.io connection to {url} (namespace=/status)")
 
-    client = socketio.Client(reconnection=True, reconnection_attempts=999)
+    # Pass logger=True, engineio_logger=True to get even more debug output
+    client = socketio.Client(
+        reconnection=True,
+        reconnection_attempts=999,
+        logger=True,
+        engineio_logger=True,
+    )
 
     @client.event
     def connect():
-        log(f"[{host_ip}] SocketIO CONNECTED to {url} /status")
+        log(f"[PowerControlService] SUCCESS: Connected to remote system {host_ip} on /status namespace")
 
     @client.event
     def disconnect():
-        log(f"[{host_ip}] SocketIO DISCONNECTED")
+        log(f"[PowerControlService] DISCONNECTED from remote system {host_ip} on /status namespace")
 
     @client.on("status_update")
     def on_status_update(data):
-        log(f"[{host_ip}] Received status_update event with keys: {list(data.keys())}")
+        log(f"[PowerControlService] Received status_update from {host_ip}: {data}")
 
-        # Example debug: show what we found in data["valve_info"]
-        valve_info = data.get("valve_info", {})
-        log(f"[{host_ip}] valve_info => {valve_info}")
-
-        # Now parse out the valve_relays
-        valve_relays = valve_info.get("valve_relays", {})
+        # Now update remote_valve_states, reevaluate the outlets, etc.
+        valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off")
             key = (host_ip, int(valve_id_str))
             remote_valve_states[key] = status_str.lower()
-            log(f"[{host_ip}]   - valve_id={valve_id_str} => status={status_str}")
-
-        # Finally, after updating remote_valve_states, re-check outlets:
         reevaluate_all_outlets()
 
     try:
-        # Actually try to connect:
         client.connect(url, namespaces=["/status"])
-        log(f"[{host_ip}] connect() call finished. We'll see connect/disconnect logs next if it worked.")
+        log(f"[PowerControlService] connect() call returned for {host_ip}, wait for connect() event.")
         sio_clients[host_ip] = client
     except Exception as e:
-        log(f"Error connecting to {host_ip}: {e}")
+        log(f"[PowerControlService] Error connecting to {host_ip}: {e}")
+
 
 
 def close_host_connection(host_ip):
