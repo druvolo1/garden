@@ -602,9 +602,6 @@
 
         let [host, port] = ipInput.split(':');
         port = port || '8000';
-        // OLD:
-        // const url = `http://${host}:${port}/api/valve_relay/list_names`;
-        // NEW:
         const url = `http://${host}:${port}/api/valve_relay/all_status`;
 
         fetch(url)
@@ -619,7 +616,7 @@
               throw new Error(data.error || "API returned failure");
             }
 
-            // data.valves is like: { "1": {label: "Fill", status: "on"}, "2":{...}, ... }
+            // data.valves is like: { "1": { label: "Fill", status: "on" }, "2": { ... } }
             const valveMap = data.valves || {};
 
             // Clear and repopulate the <select> with each valve
@@ -630,18 +627,21 @@
             Object.keys(valveMap).forEach(valveId => {
               const info = valveMap[valveId];
               const label = info.label || `Valve ${valveId}`;
-              // We'll store the numeric ID in the <option> value, 
-              // and show the label as user-friendly text
+              // We'll store the numeric ID in the <option> value,
+              // and display the label as user-friendly text
               const option = new Option(label, valveId);
               sel.add(option);
             });
 
-            resolve(Object.keys(valveMap)); // or resolve an array of IDs
+            const valveIds = Object.keys(valveMap);
+            console.log(`retrieveValvesFromIP -> valve IDs:`, valveIds);
+
+            // Now resolve so the caller can do .then(...)
+            resolve(valveIds);
           })
           .catch(err => reject(err));
       });
     }
-
 
     // Handle clicks on the two "Retrieve" buttons
     document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
