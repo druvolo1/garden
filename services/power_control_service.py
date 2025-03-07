@@ -3,7 +3,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-import socketio
+import socketio  # pip install "python-socketio[client]"
 from utils.settings_utils import load_settings
 from datetime import datetime
 import requests
@@ -23,15 +23,12 @@ def start_power_control_loop():
     log("Power Control loop started.")
 
 def power_control_main_loop():
-    """
-    Main loop: checks 'power_controls' in settings, ensures socket.io connections
-    for each tracked valve host, then reevaluates Shelly outlets.
-    """
     while True:
         try:
             settings = load_settings()
             power_controls = settings.get("power_controls", [])
 
+            # 1) Gather host IPs from the 'tracked_valves' entries
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
@@ -39,25 +36,26 @@ def power_control_main_loop():
 
             log(f"[power_control_main_loop] Needed hosts for power control: {needed_hosts}")
 
-            # Close old, unused connections
+            # 2) Close any old connections that are no longer needed
             for old_host in list(sio_clients.keys()):
                 if old_host not in needed_hosts:
                     close_host_connection(old_host)
 
-            # Open connections for new needed hosts
+            # 3) Ensure we have a socket.io connection to each needed host
             for host_ip in needed_hosts:
-                log(f"[power_control_main_loop] Checking if {host_ip} is in sio_clients => {host_ip in sio_clients}")
-                if host_ip not in sio_clients:
+                already_connected = (host_ip in sio_clients)
+                log(f"[power_control_main_loop] Checking if {host_ip} is in sio_clients => {already_connected}")
+                if not already_connected:
                     log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
                     open_host_connection(host_ip)
 
-            # Evaluate Shelly on/off logic
+            # 4) Evaluate all outlets
             reevaluate_all_outlets()
 
         except Exception as e:
             log(f"power_control_main_loop error: {e}")
 
-        eventlet.sleep(5)  # re-check every 5s
+        eventlet.sleep(5)  # loop every 5s
 
 def open_host_connection(host_ip):
     """
@@ -97,9 +95,6 @@ def open_host_connection(host_ip):
         log(f"Error connecting to {host_ip}: {e}")
 
 def close_host_connection(host_ip):
-    """
-    Disconnect from the given host_ip and remove from sio_clients.
-    """
     if host_ip in sio_clients:
         try:
             sio_clients[host_ip].disconnect()
@@ -110,54 +105,63 @@ def close_host_connection(host_ip):
 
 def reevaluate_all_outlets():
     """
-    For each outlet in 'power_controls', if any tracked valve is 'on', turn it on; otherwise off.
+    For each outlet in 'power_controls', if any tracked valve is 'on', turn Shelly on; else off.
     """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
 
-    # Debug: show which keys we have in remote_valve_states
-    all_keys = list(remote_valve_states.keys())
-    log(f"Current keys in remote_valve_states: {all_keys}")
+    # Show the entire remote_valve_states keys/values for debugging
+    if remote_valve_states:
+        log("Current remote_valve_states:")
+        for k, v in remote_valve_states.items():
+            log(f"  Key: {k} => '{v}'")
+    else:
+        log("No entries in remote_valve_states yet.")
 
     for pc in power_controls:
         outlet_ip = pc.get("outlet_ip")
         if not outlet_ip:
-            log("  No outlet_ip set for this power control config, skipping.")
+            log("  This power control config has no outlet_ip, skipping.")
             continue
 
-        tracked = pc.get("tracked_valves", [])
-        log(f"  Outlet {outlet_ip} monitors these valves: {tracked}")
+        tracked_valves = pc.get("tracked_valves", [])
+        log(f"  Outlet {outlet_ip} monitors these valves: {tracked_valves}")
 
         any_on = False
-        for tv in tracked:
+        for tv in tracked_valves:
             host_ip = tv["host_ip"]
-            valve_id_str = tv["valve_id"]  # we assume settings stores it as string
+            valve_id_str = tv["valve_id"]  # treat as string
 
+            # Create the dictionary key
             key = (host_ip, valve_id_str)
             current_valve_state = remote_valve_states.get(key, "off")
 
-            log(f"    -> Looking up remote_valve_states[{key}] => '{current_valve_state}'")
-            log(f"    -> Comparing '{current_valve_state}' == 'on'?")
+            log(f"    -> Checking valve {key}")
+            log(f"       Found remote_valve_states[{key}] => '{current_valve_state}'")
+            log(f"       Is '{current_valve_state}' == 'on'?")
 
             if current_valve_state == "on":
+                log("       Yes, so this valve is on -> any_on = True")
                 any_on = True
-                log("    -> We found a valve that is on, so we'll turn the outlet on.")
                 break
+            else:
+                log("       No, so keep checking any others...")
 
         desired = "on" if any_on else "off"
         current_outlet_state = last_outlet_states.get(outlet_ip)
 
         if current_outlet_state != desired:
-            log(f"    -> Setting outlet {outlet_ip} from {current_outlet_state} to {desired}")
+            log(f"    -> Setting outlet {outlet_ip} from '{current_outlet_state}' to '{desired}'")
             set_shelly_state(outlet_ip, desired)
             last_outlet_states[outlet_ip] = desired
         else:
-            log(f"    -> Outlet {outlet_ip} is already {current_outlet_state}, no change.")
+            log(f"    -> Outlet {outlet_ip} is already '{current_outlet_state}', no change.")
 
 def set_shelly_state(outlet_ip, state):
     """
-    Send GET to Shelly: http://outlet_ip/relay/0?turn=on (or off).
+    Sends a GET to the Shelly for on/off:
+      http://<outlet_ip>/relay/0?turn=on
     """
     url = f"http://{outlet_ip}/relay/0?turn={state}"
     try:
