@@ -72,33 +72,39 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
+    import json
+
     @client.on("status_update")
     def on_status_update(data):
-        import json
+        # 1) Print out the entire JSON payload nicely
+        pretty = json.dumps(data, indent=2)
+        log(f"[DEBUG] on_status_update from {host_ip} =>\n{pretty}")
 
-        # Print the entire JSON with indentation
-        log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
+        # 2) Show top-level keys
+        top_keys = list(data.keys())
+        log(f"[DEBUG] Top-level keys in 'data': {top_keys}")
 
-        # Also log the top-level keys, to confirm if "valve_info" is present
-        top_level_keys = list(data.keys())
-        log(f"[DEBUG] Top-level keys: {top_level_keys}")
+        # 3) Show what's under "valve_info" (if any)
+        valve_info = data.get("valve_info")
+        log(f"[DEBUG] data.get('valve_info') => {valve_info}")
 
-        # Now retrieve "valve_relays" from inside "valve_info"
+        # 4) Actually retrieve valve_relays from within valve_info
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
-        log(f"[DEBUG] Checking data['valve_info']['valve_relays'] => {valve_relays}")
+        log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
 
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             label_str  = vinfo.get("label", f"Valve {valve_id_str}")
             remote_valve_states[(host_ip, valve_id_str)] = {
                 "status": status_str,
-                "label": label_str
+                "label":  label_str
             }
             log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = "
                 f"{{status={status_str}, label={label_str}}}")
 
-        # Reevaluate after updating
+        # After storing new valve states, reevaluate
         reevaluate_all_outlets()
+
 
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
