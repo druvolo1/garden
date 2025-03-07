@@ -7,6 +7,7 @@ import socketio  # pip install "python-socketio[client]"
 from utils.settings_utils import load_settings
 from datetime import datetime
 import requests
+import json
 
 remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
@@ -72,7 +73,7 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
-    import json
+    
 
     @client.on("status_update")
     def on_status_update(data):
@@ -104,6 +105,7 @@ def open_host_connection(host_ip):
 
         # After storing new valve states, reevaluate
         reevaluate_all_outlets()
+
 
 
     try:
