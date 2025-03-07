@@ -149,7 +149,6 @@
           if (fillValveName || drainValveName) {
             document.getElementById("local-fill-container").style.display = fillValveName ? "block" : "none";
             document.getElementById("local-drain-container").style.display = drainValveName ? "block" : "none";
-
             const fillOnBtn  = document.getElementById("local-fill-on");
             const fillOffBtn = document.getElementById("local-fill-off");
             const drainOnBtn = document.getElementById("local-drain-on");
@@ -352,8 +351,8 @@
           drainOnBtn.disabled  = false;
           drainOffBtn.disabled = false;
 
-          const fillValveName  = data.valve_info.water_fill_valve;
-          const drainValveName = data.valve_info.water_drain_valve;
+          const fillValveName  = data.settings.fill_valve;
+          const drainValveName = data.settings.drain_valve;
 
           // If your remote zones also store separate IPs (fill_valve_ip/drain_valve_ip),
           // you'd retrieve them from data.valve_info or data.settings and call remoteSetValve with each IP.
