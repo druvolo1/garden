@@ -1014,8 +1014,7 @@
       });
     }
 
-    // Example: If you also want a "Delete This Outlet" button:
-    /*
+    // ========== ADD THIS DELETE BUTTON ==========
     const delBtn = document.createElement('button');
     delBtn.textContent = "Delete This Outlet";
     delBtn.style.marginTop = "10px";
@@ -1023,9 +1022,8 @@
       removeOutlet(index);
     });
     card.appendChild(delBtn);
-    */
+    // ===========================================
 
-    // Finally, append the entire card to the container
     container.appendChild(card);
   });
 }
