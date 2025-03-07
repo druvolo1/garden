@@ -40,9 +40,11 @@ from services.device_config import (
     get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
     set_timezone, set_ntp_server, set_wifi_config
 )
+
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
 from services.mdns_service import update_mdns_service
 from utils.settings_utils import load_settings
+from services.power_control_service import start_power_control_loop
 
 from api.ec import ec_blueprint
 
@@ -218,6 +220,9 @@ def start_threads():
     # Valve thread
     from services.valve_relay_service import init_valve_thread
     init_valve_thread()
+
+    log_with_timestamp("Spawning water power control monitor...")
+    start_power_control_loop()  # to spin up the power control logic
 
 # Kick off your background threads so Gunicorn sees them:
 start_threads()

@@ -30,6 +30,22 @@
     .disabled-section:hover::after {
       display: block;
     }
+
+    /* Optional: some minor styling for power-outlet cards */
+    .power-outlet-card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .power-outlet-card h4 {
+      margin: 0 0 10px 0;
+    }
+    .tracked-valve-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -192,7 +208,7 @@
       <div class="data-container">
         <h2>Water Valve Assignment</h2>
         <form id="water-valve-form">
-          
+
           <!-- Fill Valve -->
           <h3>Fill Valve Assignment</h3>
           <label for="fill-valve-ip">Fill Valve IP:</label>
@@ -298,6 +314,20 @@
         <button type="button" id="add-plant-btn">+ Add</button>
       </div>
 
+      <!-- POWER OUTLETS UI -->
+      <div class="data-container">
+        <h2>Power Outlets</h2>
+        <div id="power-outlets-list"></div>
+
+        <h3>Add New Outlet</h3>
+        <label for="new-outlet-ip">Outlet IP (Shelly IP):</label>
+        <input type="text" id="new-outlet-ip">
+        <label for="new-outlet-label">Label:</label>
+        <input type="text" id="new-outlet-label">
+        <button type="button" id="add-outlet-btn">+ Add Outlet</button>
+      </div>
+      <!-- END POWER OUTLETS UI -->
+
       <!-- Code Update / Restart Section -->
       <div class="data-container">
         <h2>Code Update</h2>
@@ -318,7 +348,7 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // We only call fetchUsbDevices() now – no single “retrieve-valves” leftover
+      // We only call fetchUsbDevices() now – the rest flows from there
       fetchUsbDevices();
     });
 
@@ -367,7 +397,7 @@
         phDevSelect.innerHTML     = '<option value="">Select a device</option>';
         dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
         valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
-        ecMeterSelect.innerHTML   = '<option value="">Select a device</option>'; // NEW
+        ecMeterSelect.innerHTML   = '<option value="">Select a device</option>';
 
         devices.forEach(dev => {
           // pH Option
@@ -503,7 +533,7 @@
         document.getElementById('sensor3-label').value = sensors.sensor3.label;
         document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
 
-        // Populate the Fill & Drain Sensor dropdowns (NEW)
+        // Populate the Fill & Drain Sensor dropdowns
         const fillSensorSelect  = document.getElementById('fill-sensor');
         const drainSensorSelect = document.getElementById('drain-sensor');
 
@@ -520,8 +550,8 @@
           drainSensorSelect.add(drainOption);
         });
 
-        fillSensorSelect.value  = settings.water_fill_sensor  || '';
-        drainSensorSelect.value = settings.water_drain_sensor || '';
+        fillSensorSelect.value  = settings.fill_sensor  || '';
+        drainSensorSelect.value = settings.drain_sensor || '';
 
         // Water Valve IPs
         document.getElementById('fill-valve-ip').value  = settings.fill_valve_ip   || '';
@@ -531,7 +561,6 @@
         if (settings.fill_valve_ip) {
           retrieveValvesFromIP(settings.fill_valve_ip, 'fill-valve')
             .then(() => {
-              // Once retrieved, set the selected fill valve
               document.getElementById('fill-valve').value = settings.fill_valve || '';
             })
             .catch(err => console.error('Auto-retrieve fill valves error:', err));
@@ -541,7 +570,6 @@
         if (settings.drain_valve_ip) {
           retrieveValvesFromIP(settings.drain_valve_ip, 'drain-valve')
             .then(() => {
-              // Once retrieved, set the selected drain valve
               document.getElementById('drain-valve').value = settings.drain_valve || '';
             })
             .catch(err => console.error('Auto-retrieve drain valves error:', err));
@@ -556,6 +584,9 @@
 
         // Program version
         document.getElementById('program-version').textContent = settings.program_version || 'N/A';
+
+        // ================= NEW: RENDER POWER OUTLETS ==================
+        renderPowerOutlets(settings.power_controls || []);
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -645,7 +676,8 @@
       })
       .then(() => {
         console.log('Settings saved successfully');
-        fetchUsbDevices(); // refresh
+        // Refresh the entire settings
+        fetchUsbDevices();
       })
       .catch(error => console.error('Error saving settings:', error));
     }
@@ -694,7 +726,6 @@
         drain_valve:     document.getElementById('drain-valve').value,
         drain_sensor:    document.getElementById('drain-sensor').value,
       };
-      // Re-use your existing saveSettings function
       saveSettings("/api/settings/", payload);
     });
 
@@ -863,8 +894,6 @@
       if (!confirm("Are you sure you want to run the software update?"))
         return;
 
-      // Example endpoint: /api/system/update_only
-      // Adjust to match whatever endpoint runs the "pull" script WITHOUT the systemctl restart
       fetch("/api/system/pull_no_restart", {
         method: "POST",
       })
@@ -885,7 +914,6 @@
         });
     });
 
-
     //-----------------------------------------------------
     // Restart Service
     //-----------------------------------------------------
@@ -894,26 +922,167 @@
         return;
       }
 
-      // Fire off the restart call, but ignore whatever the server might return
       fetch("/api/system/restart", {
         method: "POST",
       })
         .then(() => {
-          // Immediately show a simple message:
           document.getElementById('restart-status').textContent =
             "The program is restarting. Please wait...";
-          // Wait 5 seconds, then reload
           setTimeout(() => window.location.reload(), 5000);
         })
         .catch(() => {
-          // Even if there's an error (SIGTERM, etc.), 
-          // we assume the program is restarting anyway:
           document.getElementById('restart-status').textContent =
             "Could not contact server. The program may be restarting...";
           setTimeout(() => window.location.reload(), 5000);
         });
     });
 
+
+    // =============== POWER OUTLETS SECTION ===============
+    function renderPowerOutlets(powerControls) {
+      const container = document.getElementById('power-outlets-list');
+      container.innerHTML = ""; // Clear old contents
+
+      powerControls.forEach((outlet, index) => {
+        const card = document.createElement('div');
+        card.classList.add('power-outlet-card');
+
+        const title = document.createElement('h4');
+        title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
+        card.appendChild(title);
+
+        // Show existing tracked valves
+        const tvList = document.createElement('div');
+        tvList.id = `tv-list-${index}`;
+        (outlet.tracked_valves || []).forEach(tv => {
+          const row = document.createElement('div');
+          row.classList.add('tracked-valve-row');
+          row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${tv.valve_id}</span>`;
+          const removeBtn = document.createElement('button');
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener('click', () => {
+            removeTrackedValve(index, tv.host_ip, tv.valve_id);
+          });
+          row.appendChild(removeBtn);
+          tvList.appendChild(row);
+        });
+        card.appendChild(tvList);
+
+        // Add new tracked valve form
+        const addDiv = document.createElement('div');
+        addDiv.style.marginTop = "8px";
+        addDiv.innerHTML = `
+          <label>Remote IP: </label>
+          <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
+          <button id="tv-retrieve-btn-${index}">Retrieve</button>
+          <label> Valve:</label>
+          <select id="tv-select-${index}" style="margin-right:6px;">
+            <option value="">Select Valve</option>
+          </select>
+          <button id="tv-add-btn-${index}">Add Valve</button>
+        `;
+        card.appendChild(addDiv);
+
+        // Wire up the retrieve logic
+        document.getElementById(`tv-retrieve-btn-${index}`).addEventListener('click', () => {
+          const ipVal = (document.getElementById(`tv-ip-${index}`).value || "").trim();
+          if (!ipVal) return;
+          retrieveValvesFromIP(ipVal, `tv-select-${index}`)
+            .then(vals => console.log("Valves retrieved for outlet:", vals))
+            .catch(err => console.error("Error retrieving valves:", err));
+        });
+
+        // Wire up the add logic
+        document.getElementById(`tv-add-btn-${index}`).addEventListener('click', () => {
+          const ipVal = (document.getElementById(`tv-ip-${index}`).value || "").trim();
+          const valveVal = document.getElementById(`tv-select-${index}`).value;
+          if (!ipVal || !valveVal) return;
+          addTrackedValve(index, ipVal, valveVal);
+        });
+
+        // Add a remove outlet button
+        const delBtn = document.createElement('button');
+        delBtn.textContent = "Delete This Outlet";
+        delBtn.style.marginTop = "10px";
+        delBtn.addEventListener('click', () => {
+          removeOutlet(index);
+        });
+        card.appendChild(delBtn);
+
+        container.appendChild(card);
+      });
+    }
+
+    function removeOutlet(outletIndex) {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
+          if (outletIndex < 0 || outletIndex >= powerControls.length) return;
+          powerControls.splice(outletIndex, 1);
+          saveSettings("/api/settings/", { power_controls: powerControls });
+        })
+        .catch(err => console.error("Error removing outlet:", err));
+    }
+
+    function addTrackedValve(outletIndex, host_ip, valve_id) {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
+          if (!powerControls[outletIndex]) return;
+
+          if (!powerControls[outletIndex].tracked_valves) {
+            powerControls[outletIndex].tracked_valves = [];
+          }
+          // Add this new valve reference
+          powerControls[outletIndex].tracked_valves.push({ host_ip, valve_id });
+          saveSettings("/api/settings/", { power_controls: powerControls });
+        })
+        .catch(err => console.error("Error adding tracked valve:", err));
+    }
+
+    function removeTrackedValve(outletIndex, host_ip, valve_id) {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
+          if (!powerControls[outletIndex]) return;
+
+          let tv = powerControls[outletIndex].tracked_valves || [];
+          tv = tv.filter(item => !(item.host_ip === host_ip && item.valve_id === valve_id));
+          powerControls[outletIndex].tracked_valves = tv;
+          saveSettings("/api/settings/", { power_controls: powerControls });
+        })
+        .catch(err => console.error("Error removing tracked valve:", err));
+    }
+
+    // Add a new outlet
+    document.getElementById('add-outlet-btn').addEventListener('click', () => {
+      const ipVal = document.getElementById('new-outlet-ip').value.trim();
+      const labelVal = document.getElementById('new-outlet-label').value.trim();
+      if (!ipVal) {
+        alert("Please enter an outlet IP.");
+        return;
+      }
+      // Clear fields
+      document.getElementById('new-outlet-ip').value = "";
+      document.getElementById('new-outlet-label').value = "";
+
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
+          // Add new object
+          powerControls.push({
+            outlet_ip: ipVal,
+            label: labelVal,
+            tracked_valves: []
+          });
+          saveSettings("/api/settings/", { power_controls: powerControls });
+        })
+        .catch(err => console.error("Error adding new outlet:", err));
+    });
   </script>
 </body>
 </html>

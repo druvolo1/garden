@@ -62,7 +62,9 @@ if not os.path.exists(SETTINGS_FILE):
                 "sensor3": {"label": "Empty", "pin": 19}
             },
             "plant_info": {},
-            "additional_plants": []
+            "additional_plants": [],
+            # NEW: Default empty array for power_controls
+            "power_controls": []
         }, f, indent=4)
 
 
@@ -107,6 +109,11 @@ def update_settings():
 
         del new_settings["water_level_sensors"]
         water_sensors_updated = True
+
+    # NEW: Merge or overwrite power_controls if present
+    if "power_controls" in new_settings:
+        current_settings["power_controls"] = new_settings["power_controls"]
+        del new_settings["power_controls"]
 
     # Merge all remaining top-level keys (system_name, ph_range, ph_target, etc.)
     # This automatically merges any "additional_plants" array the front-end sends.
@@ -179,7 +186,8 @@ def reset_settings():
             "sensor3": {"label": "Empty", "pin": 19}
         },
         "plant_info": {},
-        "additional_plants": []
+        "additional_plants": [],
+        "power_controls": []  # <<-- reset to empty by default
     }
     save_settings(default_settings)
 
@@ -229,7 +237,6 @@ def list_usb_devices():
     # 6) Emit a status update and return the devices list
     emit_status_update()
     return jsonify(devices)
-
 
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
