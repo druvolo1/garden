@@ -72,21 +72,49 @@ def open_host_connection(host_ip):
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
+    def open_host_connection(host_ip):
+    """
+    Connect to host_ip:8000/status via Socket.IO. Listen for 'status_update'.
+    """
+    url = f"http://{host_ip}:8000"
+    client = socketio.Client(reconnection=True, reconnection_attempts=999)
+
+    @client.event
+    def connect():
+        log(f"*** CONNECT EVENT *** to {host_ip}, client.sid={client.sid}")
+
+    @client.event
+    def disconnect():
+        log(f"*** DISCONNECT EVENT *** from {host_ip}")
+
+    @client.on("status_update")
     def on_status_update(data):
-        log(f"[DEBUG] on_status_update from {host_ip} => {data}")
+        import json
+
+        # Print the entire JSON with indentation
+        log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
+
+        # Also log the top-level keys, to confirm if "valve_info" is present
+        top_level_keys = list(data.keys())
+        log(f"[DEBUG] Top-level keys: {top_level_keys}")
+
+        # Now retrieve "valve_relays" from inside "valve_info"
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
+        log(f"[DEBUG] Checking data['valve_info']['valve_relays'] => {valve_relays}")
 
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             label_str  = vinfo.get("label", f"Valve {valve_id_str}")
-            # Instead of storing a plain string, store a dictionary with both status & label:
             remote_valve_states[(host_ip, valve_id_str)] = {
                 "status": status_str,
                 "label": label_str
             }
-            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = {{status={status_str}, label={label_str}}}")
+            log(f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = "
+                f"{{status={status_str}, label={label_str}}}")
 
+        # Reevaluate after updating
         reevaluate_all_outlets()
+
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
         client.connect(url, namespaces=["/status"])
@@ -94,6 +122,7 @@ def open_host_connection(host_ip):
         sio_clients[host_ip] = client
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
+
 
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
