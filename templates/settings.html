@@ -594,7 +594,7 @@
     /**
      * Retrieve valves from the given IP and populate the given <select> by ID.
      */
-    function retrieveValvesFromIP(ipInput, selectElementId) {
+     function retrieveValvesFromIP(ipInput, selectElementId) {
       return new Promise((resolve, reject) => {
         if (!ipInput) {
           return reject(new Error('No IP address provided'));
@@ -602,7 +602,10 @@
 
         let [host, port] = ipInput.split(':');
         port = port || '8000';
-        const url = `http://${host}:${port}/api/valve_relay/list_names`;
+        // OLD:
+        // const url = `http://${host}:${port}/api/valve_relay/list_names`;
+        // NEW:
+        const url = `http://${host}:${port}/api/valve_relay/all_status`;
 
         fetch(url)
           .then(res => {
@@ -612,22 +615,33 @@
             return res.json();
           })
           .then(data => {
-            const valves = Array.isArray(data)
-              ? data
-              : data.valves || data.valve_names || data.data || [];
-            if (!valves.length) {
-              throw new Error('No valves found in response');
+            if (data.status !== "success") {
+              throw new Error(data.error || "API returned failure");
             }
+
+            // data.valves is like: { "1": {label: "Fill", status: "on"}, "2":{...}, ... }
+            const valveMap = data.valves || {};
+
+            // Clear and repopulate the <select> with each valve
             const sel = document.getElementById(selectElementId);
             sel.innerHTML = '<option value="">Select Valve</option>';
-            valves.forEach(valve => {
-              sel.add(new Option(valve, valve));
+
+            // For each key (valveId), get label
+            Object.keys(valveMap).forEach(valveId => {
+              const info = valveMap[valveId];
+              const label = info.label || `Valve ${valveId}`;
+              // We'll store the numeric ID in the <option> value, 
+              // and show the label as user-friendly text
+              const option = new Option(label, valveId);
+              sel.add(option);
             });
-            resolve(valves);
+
+            resolve(Object.keys(valveMap)); // or resolve an array of IDs
           })
           .catch(err => reject(err));
       });
     }
+
 
     // Handle clicks on the two "Retrieve" buttons
     document.getElementById('retrieve-fill-valves').addEventListener('click', () => {

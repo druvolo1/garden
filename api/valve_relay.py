@@ -160,21 +160,21 @@ def valve_status_by_name(valve_name):
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
 
-@valve_relay_blueprint.route('/list_names', methods=['GET'])
-def list_names():
-    """
-    Return just a list of all valves' labels.
-    Example: ["Fill", "Drain", "Left Corner", ...]
-    """
+#@valve_relay_blueprint.route('/list_names', methods=['GET'])
+#def list_names():
+#    """
+#    Return just a list of all valves' labels.
+#    Example: ["Fill", "Drain", "Left Corner", ...]
+#    """
     # Suppose you read from settings or from valve_status
     # If you want the IDs plus labels, you might do:
     # return ["Valve #1", "Valve #2", ...]
     # or a dictionary. Up to you.
-    vals = []
-    for v_id, state in valve_status.items():
-        label = get_label_from_settings(v_id)  # or however you store them
-        vals.append(label or f"Valve {v_id}")
-    return jsonify(vals)
+#    vals = []
+#    for v_id, state in valve_status.items():
+#        label = get_label_from_settings(v_id)  # or however you store them
+#        vals.append(label or f"Valve {v_id}")
+#    return jsonify(vals)
 
 
 # -------------------------
