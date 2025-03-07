@@ -1,5 +1,3 @@
-# File: services/power_control_service.py
-
 import eventlet
 eventlet.monkey_patch()
 
@@ -15,21 +13,13 @@ sio_clients = {}          # host_ip -> socketio.Client instance
 def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
-def start_power_control_loop():
-    """
-    Creates an Eventlet green thread to watch for changes in power_controls
-    and maintain socketio connections to remote hosts.
-    """
-    eventlet.spawn(power_control_main_loop)
-    log("Power Control loop started.")
-
 def power_control_main_loop():
     while True:
         try:
             settings = load_settings()
             power_controls = settings.get("power_controls", [])
-            
-            # 1) Gather all host_ips we need to connect to
+
+            # 1) Gather all host_ips we need from the tracked valves
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
@@ -41,21 +31,21 @@ def power_control_main_loop():
             for old_host in list(sio_clients.keys()):
                 if old_host not in needed_hosts:
                     close_host_connection(old_host)
-            
-            # 3) Ensure we have a socketio connection for each needed host
+
+            # 3) Ensure we have a socket.io connection for each needed host
             for host_ip in needed_hosts:
+                log(f"[power_control_main_loop] Checking if {host_ip} is in sio_clients => {host_ip in sio_clients}")
                 if host_ip not in sio_clients:
                     log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
                     open_host_connection(host_ip)
-            
-            # Reevaluate all outlets
+
+            # 4) Re-check all power outlet states
             reevaluate_all_outlets()
-            
+
         except Exception as e:
             log(f"power_control_main_loop error: {e}")
-        
-        eventlet.sleep(5)  # re-check every 5s
 
+        eventlet.sleep(5)  # re-check every 5 seconds
 
 def open_host_connection(host_ip):
     url = f"http://{host_ip}:8000"
@@ -63,8 +53,7 @@ def open_host_connection(host_ip):
 
     @client.event
     def connect():
-        log(f"*** CONNECT EVENT *** to {host_ip}")
-        log(f"[DEBUG] client.sid={client.sid}")
+        log(f"*** CONNECT EVENT *** to {host_ip}, client.sid={client.sid}")
 
     @client.event
     def disconnect():
@@ -76,20 +65,52 @@ def open_host_connection(host_ip):
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off")
-            key = (host_ip, int(valve_id_str))
-            remote_valve_states[key] = status_str.lower()
+            remote_valve_states[(host_ip, int(valve_id_str))] = status_str.lower()
         reevaluate_all_outlets()
 
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
-        client.connect(url, namespaces=["/status"])  
-        log(f"[{host_ip}] connect() call done. If successful, 'connect()' event logs will follow.")
+        client.connect(url, namespaces=["/status"])
+        log(f"[{host_ip}] connect() call completed.")
         sio_clients[host_ip] = client
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
 
+def reevaluate_all_outlets():
+    settings = load_settings()
+    power_controls = settings.get("power_controls", [])
+    log("[reevaluate_all_outlets] Checking each power control config...")
 
+    for pc in power_controls:
+        outlet_ip = pc.get("outlet_ip")
+        if not outlet_ip:
+            log("  No outlet_ip set in this power control config, skipping.")
+            continue
 
+        tracked = pc.get("tracked_valves", [])
+        log(f"  Outlet {outlet_ip} monitors these valves: {tracked}")
+
+        any_on = False
+        for tv in tracked:
+            host_ip = tv["host_ip"]
+            valve_id = tv["valve_id"]
+
+            current_valve_state = remote_valve_states.get((host_ip, valve_id), "off")
+            log(f"    -> Checking valve (host={host_ip}, id={valve_id}) => {current_valve_state}")
+
+            if current_valve_state == "on":
+                any_on = True
+                break
+
+        desired = "on" if any_on else "off"
+        current_outlet_state = last_outlet_states.get(outlet_ip)
+
+        if current_outlet_state != desired:
+            log(f"    -> Setting outlet {outlet_ip} from {current_outlet_state} to {desired}")
+            set_shelly_state(outlet_ip, desired)
+            last_outlet_states[outlet_ip] = desired
+        else:
+            log(f"    -> Outlet {outlet_ip} is already {current_outlet_state}, no change.")
 
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
@@ -99,31 +120,6 @@ def close_host_connection(host_ip):
             pass
         del sio_clients[host_ip]
         log(f"Closed socketio connection for {host_ip}")
-
-def reevaluate_all_outlets():
-    """
-    Looks at remote_valve_states, then sets each Shelly outlet on/off if needed.
-    """
-    settings = load_settings()
-    power_controls = settings.get("power_controls", [])
-    
-    for pc in power_controls:
-        outlet_ip = pc.get("outlet_ip")
-        if not outlet_ip:
-            continue
-        tracked = pc.get("tracked_valves", [])
-        
-        any_on = False
-        for tv in tracked:
-            st = remote_valve_states.get((tv["host_ip"], tv["valve_id"]), "off")
-            if st == "on":
-                any_on = True
-                break
-        
-        desired = "on" if any_on else "off"
-        if last_outlet_states.get(outlet_ip) != desired:
-            set_shelly_state(outlet_ip, desired)
-            last_outlet_states[outlet_ip] = desired
 
 def set_shelly_state(outlet_ip, state):
     """
