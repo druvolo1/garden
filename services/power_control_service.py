@@ -58,36 +58,48 @@ def power_control_main_loop():
 
 def open_host_connection(host_ip):
     """
-    Create a socketio.Client, define event handlers, and connect.
+    Create a socketio.Client, define event handlers, and connect to /status on the remote system.
     """
-    url = f"http://{host_ip}:8000"  # remote system’s base URL
+    url = f"http://{host_ip}:8000"
+    log(f"Attempting to open socket.io connection to {url} (namespace=/status)")
+
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
-    
+
     @client.event
     def connect():
-        log(f"Connected to remote system {host_ip}")
-    
+        log(f"[{host_ip}] SocketIO CONNECTED to {url} /status")
+
     @client.event
     def disconnect():
-        log(f"Disconnected from remote system {host_ip}")
-    
+        log(f"[{host_ip}] SocketIO DISCONNECTED")
+
     @client.on("status_update")
     def on_status_update(data):
-        # data should have a "valve_info" section if that remote system is sending it
-        valve_relays = data.get("valve_info", {}).get("valve_relays", {})
+        log(f"[{host_ip}] Received status_update event with keys: {list(data.keys())}")
+
+        # Example debug: show what we found in data["valve_info"]
+        valve_info = data.get("valve_info", {})
+        log(f"[{host_ip}] valve_info => {valve_info}")
+
+        # Now parse out the valve_relays
+        valve_relays = valve_info.get("valve_relays", {})
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off")
             key = (host_ip, int(valve_id_str))
             remote_valve_states[key] = status_str.lower()
-        # Now recalc the outlets after new data
+            log(f"[{host_ip}]   - valve_id={valve_id_str} => status={status_str}")
+
+        # Finally, after updating remote_valve_states, re-check outlets:
         reevaluate_all_outlets()
-    
+
     try:
-        client.connect(url, namespaces=["/status"])  
-        # Some systems might do client.connect(url, socketio_path="socket.io", ...)
+        # Actually try to connect:
+        client.connect(url, namespaces=["/status"])
+        log(f"[{host_ip}] connect() call finished. We'll see connect/disconnect logs next if it worked.")
         sio_clients[host_ip] = client
     except Exception as e:
         log(f"Error connecting to {host_ip}: {e}")
+
 
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
