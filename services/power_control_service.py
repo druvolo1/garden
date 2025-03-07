@@ -62,7 +62,7 @@ def open_host_connection(host_ip):
     """
     Connect to host_ip:8000/status via Socket.IO. Listen for 'status_update'.
     """
-    url = f"http://{host_ip}:8000"
+    url = f"http://{host_ip}:8000/status"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
     @client.event
