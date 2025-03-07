@@ -56,31 +56,24 @@ def power_control_main_loop():
         
         eventlet.sleep(5)  # re-check for changed settings every 5s
 
+# File: services/power_control_service.py
+
 def open_host_connection(host_ip):
     url = f"http://{host_ip}:8000"
-    log(f"[PowerControlService] Attempting to open socket.io connection to {url} (namespace=/status)")
-
-    # Pass logger=True, engineio_logger=True to get even more debug output
-    client = socketio.Client(
-        reconnection=True,
-        reconnection_attempts=999,
-        logger=True,
-        engineio_logger=True,
-    )
+    client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
     @client.event
     def connect():
-        log(f"[PowerControlService] SUCCESS: Connected to remote system {host_ip} on /status namespace")
+        log(f"*** CONNECT EVENT *** to {host_ip}")
+        log(f"[DEBUG] client.sid={client.sid}")
 
     @client.event
     def disconnect():
-        log(f"[PowerControlService] DISCONNECTED from remote system {host_ip} on /status namespace")
+        log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
     @client.on("status_update")
     def on_status_update(data):
-        log(f"[PowerControlService] Received status_update from {host_ip}: {data}")
-
-        # Now update remote_valve_states, reevaluate the outlets, etc.
+        log(f"[DEBUG] on_status_update from {host_ip} => {data}")
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off")
@@ -89,11 +82,13 @@ def open_host_connection(host_ip):
         reevaluate_all_outlets()
 
     try:
-        client.connect(url, namespaces=["/status"])
-        log(f"[PowerControlService] connect() call returned for {host_ip}, wait for connect() event.")
+        log(f"Attempting socket.io connection to {url} (namespace=/status)")
+        client.connect(url, namespaces=["/status"])  
+        log(f"[{host_ip}] connect() call done. If successful, 'connect()' event logs will follow.")
         sio_clients[host_ip] = client
     except Exception as e:
-        log(f"[PowerControlService] Error connecting to {host_ip}: {e}")
+        log(f"Error connecting to {host_ip}: {e}")
+
 
 
 
