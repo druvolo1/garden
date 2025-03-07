@@ -136,7 +136,7 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked:
             host_ip = tv["host_ip"]
-            valve_id = tv["valve_id"]
+            valve_id = int(tv["valve_id"])
 
             current_valve_state = remote_valve_states.get((host_ip, valve_id), "off")
             log(f"    -> Checking valve (host={host_ip}, id={valve_id}) => {current_valve_state}")
