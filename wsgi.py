@@ -1,11 +1,13 @@
-# File: wsgi.py
-
 import eventlet
 eventlet.monkey_patch()
 import subprocess
 import os, stat
 
 from app import app, start_threads
+from utils.settings_utils import load_settings
+
+# NEW: import your mdns_service
+from services.mdns_service import register_mdns_name, close_mdns
 
 def ensure_script_executable(script_path: str):
     """Check if script is executable by the owner; if not, chmod +x."""
@@ -38,7 +40,8 @@ def flush_avahi():
 def post_fork(server, worker):
     """
     Gunicorn calls this after a worker process is forked.
-    We'll first flush Avahi, then start any background threads.
+    We'll first flush Avahi, then start any background threads,
+    then register mDNS with the system name from settings.
     """
     print(f"[Gunicorn] Worker {worker.pid} forked. Flushing Avahi, then starting threads...")
 
@@ -50,6 +53,15 @@ def post_fork(server, worker):
     except Exception as e:
         print(f"[Gunicorn] Error starting threads in worker {worker.pid}: {e}")
         raise
+
+    # --- NEW: Register mDNS after threads are up ---
+    try:
+        s = load_settings()
+        system_name = s.get("system_name", "Garden")
+        register_mdns_name(system_name, service_port=8000)
+    except Exception as e:
+        print(f"[Gunicorn] Could not register mDNS for worker {worker.pid}: {e}")
+
 
 def when_ready(server):
     server.log.info("Gunicorn server is ready. Workers will be spawned now...")
@@ -67,8 +79,14 @@ if __name__ == "__main__":
         flush_avahi()
         start_threads()
         print("[WSGI] Background threads started successfully.")
+
+        # NEW: In local dev mode, register mDNS as well
+        s = load_settings()
+        system_name = s.get("system_name", "Garden")
+        register_mdns_name(system_name, service_port=8000)
+
     except Exception as e:
-        print(f"[WSGI] Error starting background threads: {e}")
+        print(f"[WSGI] Error starting background threads or registering mDNS: {e}")
         raise
 
     app.run(host="0.0.0.0", port=8000, debug=True)

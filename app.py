@@ -1,5 +1,3 @@
-# File: app.py
-
 import socket
 import eventlet
 eventlet.monkey_patch()
@@ -46,6 +44,8 @@ from utils.settings_utils import load_settings
 from services.power_control_service import start_power_control_loop
 
 from api.ec import ec_blueprint
+
+# We rely on mDNS registration from wsgi.py (post_fork or dev mode)
 
 # Create a SocketIO instance first
 socketio = SocketIO(async_mode="eventlet")
