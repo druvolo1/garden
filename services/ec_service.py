@@ -31,6 +31,12 @@ def log_with_timestamp(msg):
 def parse_ec_buffer():
     global ec_buffer, latest_ec_value, last_ec_command
 
+    if last_ec_command is None and not ec_command_queue.empty():
+        next_cmd = ec_command_queue.get()
+        last_ec_command = next_cmd
+        log_with_timestamp(f"[DEBUG] No active EC command. Sending queued command: {next_cmd}")
+        send_ec_command(next_cmd)
+
     while '\r' in ec_buffer:
         line, ec_buffer = ec_buffer.split('\r', 1)
         line = line.strip()
