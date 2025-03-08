@@ -70,41 +70,33 @@ def open_host_connection(host_ip):
     def on_status_connect():
         log(f"*** CONNECT EVENT (namespace=/status) *** to {host_ip}, client.sid={client.sid}")
 
-
     @client.event
     def disconnect():
         log(f"*** DISCONNECT EVENT *** from {host_ip}")
 
-    @client.on("status_update")
+    @client.on("status_update", namespace="/status")
     def on_status_update(data):
         import json
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
 
-        # 1) Show top-level keys
-        top_keys = list(data.keys())
-        log(f"[DEBUG] Top-level keys in 'data': {top_keys}")
-
-        # 2) Show what's under "valve_info" (if any)
-        valve_info = data.get("valve_info")
-        log(f"[DEBUG] data.get('valve_info') => {valve_info}")
-
-        # 3) Actually retrieve valve_relays from within valve_info
+        # 1) Show what's under "valve_info" (if any)
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
 
+        # Store only "on"/"off" in remote_valve_states so reevaluate_all_outlets()
+        # sees exactly "on"/"off" when it checks.
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             label_str  = vinfo.get("label", f"Valve {valve_id_str}")
-            remote_valve_states[(host_ip, valve_id_str)] = {
-                "status": status_str,
-                "label":  label_str
-            }
+
+            remote_valve_states[(host_ip, valve_id_str)] = status_str
+
             log(
-                f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = "
-                f"{{status={status_str}, label={label_str}}}"
+                f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = '{status_str}'"
+                f" (label was '{label_str}')"
             )
 
-        # After storing new valve states, reevaluate
+        # After storing new valve states, reevaluate immediately
         reevaluate_all_outlets()
 
     try:
@@ -154,7 +146,6 @@ def reevaluate_all_outlets():
             host_ip = tv["host_ip"]
             valve_id_str = tv["valve_id"]  # treat as a string
 
-            # Create the dictionary key
             key = (host_ip, valve_id_str)
             current_valve_state = remote_valve_states.get(key, "off")
 
@@ -178,7 +169,6 @@ def reevaluate_all_outlets():
             last_outlet_states[outlet_ip] = desired
         else:
             log(f"    -> Outlet {outlet_ip} is already '{current_outlet_state}', no change.")
-
 
 def set_shelly_state(outlet_ip, state):
     """
