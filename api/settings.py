@@ -80,9 +80,10 @@ def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
 
-    # Use Garden as fallback
+    # Use "Garden" as a fallback if system_name missing
     old_system_name = current_settings.get("system_name", "Garden")
 
+    # Detect auto-dosing changes
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
         "dosing_interval" in new_settings
@@ -107,19 +108,16 @@ def update_settings():
         del new_settings["water_level_sensors"]
         water_sensors_updated = True
 
-    # NEW: Merge or overwrite power_controls if present
+    # Merge power_controls if present
     if "power_controls" in new_settings:
         current_settings["power_controls"] = new_settings["power_controls"]
         del new_settings["power_controls"]
 
-    # Merge all remaining top-level keys (system_name, ph_range, ph_target, etc.)
-    # This automatically merges any "additional_plants" array the front-end sends.
+    # Merge everything else (system_name, ph_range, etc.)
     current_settings.update(new_settings)
-
-    # Save changes
     save_settings(current_settings)
 
-    # If water-level pins changed, reinit them
+    # If water-level pins changed, re-init them
     if water_sensors_updated:
         from services.water_level_service import force_cleanup_and_init
         force_cleanup_and_init()
@@ -128,12 +126,24 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # Check if system_name changed; if so, re-register mDNS
+    # Check if system_name changed
     new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
-        update_mdns_service(system_name=new_system_name, port=8000)
+        print(f"System name changed from {old_system_name} to {new_system_name}.")
 
-    # Emit a status_update event to notify all clients
+        # --- NEW: Call our Bash script to update the hostname + /etc/hosts ---
+        script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
+        try:
+            # Requires passwordless sudo for this script
+            subprocess.run(["sudo", script_path, new_system_name], check=True)
+            print(f"Successfully updated system hostname to {new_system_name}.")
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Unable to change system hostname: {e}")
+
+        # Re-register mDNS after changing hostname
+        #update_mdns_service(system_name=new_system_name, port=8000)
+
+    # Notify any connected clients that settings changed
     emit_status_update()
 
     return jsonify({"status": "success", "settings": current_settings})
