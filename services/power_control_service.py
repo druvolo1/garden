@@ -149,16 +149,16 @@ def reevaluate_all_outlets():
             key = (host_ip, valve_id_str)
             current_valve_state = remote_valve_states.get(key, "off")
 
-            log(f"    -> Checking valve {key}")
+            #log(f"    -> Checking valve {key}")
             log(f"       Found remote_valve_states[{key}] => '{current_valve_state}'")
-            log(f"       Is '{current_valve_state}' == 'on'?")
+            #log(f"       Is '{current_valve_state}' == 'on'?")
 
             if current_valve_state == "on":
                 log("       Yes, so this valve is on -> any_on = True")
                 any_on = True
                 break
-            else:
-                log("       No, so keep checking any others...")
+            #else:
+            #    log("       No, so keep checking any others...")
 
         desired = "on" if any_on else "off"
         current_outlet_state = last_outlet_states.get(outlet_ip)
