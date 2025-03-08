@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import json
 import os
 import subprocess
+import stat
 from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
@@ -73,6 +74,15 @@ def get_settings():
     settings["program_version"] = PROGRAM_VERSION
     return jsonify(settings)
 
+def ensure_script_executable(script_path: str):
+    """Check if script is executable by the owner; if not, chmod +x."""
+    if not os.path.isfile(script_path):
+        raise FileNotFoundError(f"Script not found: {script_path}")
+    mode = os.stat(script_path).st_mode
+    # Check if "owner execute" bit is set:
+    if not (mode & stat.S_IXUSR):
+        print(f"[INFO] Making {script_path} executable (chmod +x)")
+        subprocess.run(["chmod", "+x", script_path], check=True)
 
 # API endpoint: Update settings
 @settings_blueprint.route('/', methods=['POST'])
@@ -133,6 +143,10 @@ def update_settings():
 
         # --- NEW: Call our Bash script to update the hostname + /etc/hosts ---
         script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
+        
+        # Make sure the script is executable
+        ensure_script_executable(script_path)
+        
         try:
             # Requires passwordless sudo for this script
             subprocess.run(["sudo", script_path, new_system_name], check=True)
