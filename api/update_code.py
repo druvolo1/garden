@@ -3,6 +3,7 @@
 import os
 import shlex
 import subprocess
+import stat
 from flask import Blueprint, jsonify
 
 update_code_blueprint = Blueprint("update_code", __name__)
@@ -10,6 +11,19 @@ update_code_blueprint = Blueprint("update_code", __name__)
 # Path to your script INSIDE the garden project:
 # e.g. /home/dave/garden/scripts/garden_update.sh
 SCRIPT_PATH = "/home/dave/garden/scripts/garden_update.sh"
+
+
+def ensure_script_executable(script_path: str):
+    """
+    Check if script is executable by the owner; if not, chmod +x.
+    """
+    if not os.path.isfile(script_path):
+        raise FileNotFoundError(f"Script not found: {script_path}")
+    mode = os.stat(script_path).st_mode
+    # Check if "owner execute" bit is set:
+    if not (mode & stat.S_IXUSR):
+        print(f"[INFO] Making {script_path} executable (chmod +x)")
+        subprocess.run(["chmod", "+x", script_path], check=True)
 
 
 def run_cmd(cmd_list, cwd=None):
@@ -27,14 +41,12 @@ def run_cmd(cmd_list, cwd=None):
         lines = decoded.splitlines()
         filtered_lines = []
         for line in lines:
-            # Example: skip "already satisfied" or "Already up to date"
             if "Requirement already satisfied" in line:
                 continue
             if "Already up to date" in line:
                 continue
             filtered_lines.append(line)
 
-        # Rebuild the string from filtered lines
         filtered_out = "\n".join(filtered_lines)
         logs.append(filtered_out)
 
@@ -60,7 +72,6 @@ def pull_no_restart():
     """
     steps_output = []
     try:
-        # run_cmd is your existing helper that does subprocess.check_output
         out, err = run_cmd(["git", "pull"], cwd="/home/dave/garden")
         steps_output.append(out)
         if err:
@@ -70,8 +81,10 @@ def pull_no_restart():
                 "output": "\n".join(steps_output)
             }), 500
 
-        out, err = run_cmd(["/home/dave/garden/venv/bin/pip", "install", "-r", "requirements.txt"],
-                           cwd="/home/dave/garden")
+        out, err = run_cmd(
+            ["/home/dave/garden/venv/bin/pip", "install", "-r", "requirements.txt"],
+            cwd="/home/dave/garden"
+        )
         steps_output.append(out)
         if err:
             return jsonify({
@@ -92,6 +105,7 @@ def pull_no_restart():
             "output": "\n".join(steps_output)
         }), 500
 
+
 @update_code_blueprint.route("/restart", methods=["POST"])
 def restart_service():
     """
@@ -100,6 +114,39 @@ def restart_service():
     steps_output = []
     try:
         out, err = run_cmd(["sudo", "systemctl", "restart", "garden.service"])
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+
+        return jsonify({
+            "status": "success",
+            "output": "\n".join(steps_output)
+        })
+    except Exception as ex:
+        steps_output.append(str(ex))
+        return jsonify({
+            "status": "failure",
+            "error": str(ex),
+            "output": "\n".join(steps_output)
+        }), 500
+
+
+@update_code_blueprint.route("/garden_update", methods=["POST"])
+def run_garden_update_script():
+    """
+    Example route that calls garden_update.sh for your custom update logic.
+    """
+    steps_output = []
+    try:
+        # Ensure the script is present & executable
+        ensure_script_executable(SCRIPT_PATH)
+
+        # Now run the script via sudo
+        out, err = run_cmd(["sudo", SCRIPT_PATH])
         steps_output.append(out)
         if err:
             return jsonify({

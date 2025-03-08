@@ -28,4 +28,8 @@ sudo systemctl enable garden-updater.service
 echo "[$(date)] Ensuring garden_update.sh is executable..."
 sudo chmod +x /home/dave/garden/scripts/garden_update.sh
 
+# 5) Make sure the script is executable
+echo "[$(date)] Ensuring change_hostname.sh is executable..."
+sudo chmod +x /home/dave/garden/scripts/change_hostname.sh
+
 echo "[$(date)] setup_updater.sh completed."

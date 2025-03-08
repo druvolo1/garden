@@ -9,7 +9,6 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
-from services.mdns_service import update_mdns_service
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
@@ -153,9 +152,6 @@ def update_settings():
             print(f"Successfully updated system hostname to {new_system_name}.")
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
-
-        # Re-register mDNS after changing hostname
-        #update_mdns_service(system_name=new_system_name, port=8000)
 
     # Notify any connected clients that settings changed
     emit_status_update()
@@ -324,8 +320,6 @@ def set_system_name():
     if system_name:
         settings["system_name"] = system_name
         save_settings(settings)
-        # Re-register mDNS
-        update_mdns_service(system_name=system_name, port=8000)
         # Emit a status_update event
         emit_status_update()
 

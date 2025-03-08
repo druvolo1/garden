@@ -3,36 +3,22 @@
 import eventlet
 eventlet.monkey_patch()
 
+# Import your app & start_threads as before
 from app import app, start_threads
-# CHANGE THIS IMPORT to match the actual function name in mdns_service.py
-from services.mdns_service import update_mdns_service
-from api.valve_relay import valve_relay_blueprint
-
-# -----------------------
-# GUNICORN HOOKS/CONFIG
-# -----------------------
 
 def post_fork(server, worker):
     """
     Gunicorn calls this after a worker process is forked.
-    We'll start our threads and mDNS advertisement here.
+    We'll start our threads here.
     """
-    print(f"[Gunicorn] Worker {worker.pid} forked. Starting threads & mDNS...")
+    print(f"[Gunicorn] Worker {worker.pid} forked. Starting threads...")
 
     try:
         # Start any background threads in this worker
         start_threads()
-
-        # Register (update) the mDNS service
-        # If you want to store references, you can do so, but it's optional
-        global mdns_zeroconf, mdns_info
-        mdns_zeroconf, mdns_info = update_mdns_service(
-            system_name="MyGardenService", 
-            port=8000
-        )
-        print(f"[Gunicorn] Worker {worker.pid} mDNS service registered successfully.")
+        print(f"[Gunicorn] Worker {worker.pid} threads started successfully.")
     except Exception as e:
-        print(f"[Gunicorn] Error starting threads or mDNS in worker {worker.pid}: {e}")
+        print(f"[Gunicorn] Error starting threads in worker {worker.pid}: {e}")
         raise
 
 def when_ready(server):
@@ -41,27 +27,22 @@ def when_ready(server):
     """
     server.log.info("Gunicorn server is ready. Workers will be spawned now...")
 
-# Gunicorn configuration variables
+# Gunicorn config:
 bind = "0.0.0.0:8000"
-workers = 1            # Use 1 worker to avoid duplicating threads/mDNS
+workers = 1
 worker_class = "eventlet"
 timeout = 60
 loglevel = "debug"
-preload_app = False    # So threads/mDNS start after fork, per best practice
+preload_app = False
 
-# -----------------------
 # STANDALONE (DEV) MODE
-# -----------------------
 if __name__ == "__main__":
     print("[WSGI] Running in local development mode (not under Gunicorn).")
     try:
-        # Start the same background threads
         start_threads()
-        # Also register/update the mDNS service locally
-        mdns_zeroconf, mdns_info = update_mdns_service(system_name="GardenMonitor", port=8000)
-        print("[WSGI] Background threads and mDNS service started successfully.")
+        print("[WSGI] Background threads started successfully.")
     except Exception as e:
-        print(f"[WSGI] Error starting background threads or mDNS: {e}")
+        print(f"[WSGI] Error starting background threads: {e}")
         raise
 
     # Run Flask’s built-in dev server

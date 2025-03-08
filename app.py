@@ -42,7 +42,6 @@ from services.device_config import (
 )
 
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
-from services.mdns_service import update_mdns_service
 from utils.settings_utils import load_settings
 from services.power_control_service import start_power_control_loop
 
@@ -182,9 +181,6 @@ def broadcast_status():
 def start_threads():
     settings = load_settings()
     system_name = settings.get("system_name", "Zone 1")
-
-    update_mdns_service(system_name=system_name, port=8000)
-    log_with_timestamp(f"mDNS service registered from start_threads()! (system_name={system_name})")
 
     # pH broadcast
     log_with_timestamp("Spawning broadcast_ph_readings...")
