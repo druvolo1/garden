@@ -84,6 +84,14 @@ def send_ec_command(cmd):
         log_with_timestamp(f"Error sending EC command '{cmd}': {e}")
         last_ec_command = None
 
+def set_ec_probe_k(k_value: float = 1.0):
+    """
+    Queues the 'K,<value>' command to set the probe K type on the EZO-EC circuit.
+    """
+    cmd_str = f"K,{k_value}"
+    ec_command_queue.put(cmd_str)
+    log_with_timestamp(f"[EC] Queued K-value command: {cmd_str}")
+
 def ec_serial_reader():
     global ec_ser, ec_buffer
     log_with_timestamp("EC serial reader started.")
@@ -102,6 +110,8 @@ def ec_serial_reader():
             log_with_timestamp(f"Opened EC serial port {ec_path}. Buffer cleared.")
             with ec_lock:
                 ec_buffer = ""
+
+            set_ec_probe_k(1.0)
 
             while not ec_stop_event.ready():
                 raw = tpool.execute(ec_ser.read, 100)
