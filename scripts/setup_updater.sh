@@ -28,8 +28,12 @@ sudo systemctl enable garden-updater.service
 echo "[$(date)] Ensuring garden_update.sh is executable..."
 sudo chmod +x /home/dave/garden/scripts/garden_update.sh
 
-# 5) Make sure the script is executable
+# 5) Make sure the hostname script is executable
 echo "[$(date)] Ensuring change_hostname.sh is executable..."
 sudo chmod +x /home/dave/garden/scripts/change_hostname.sh
+
+# 6) Make sure the hostname avahi is executable
+echo "[$(date)] Ensuring change_hostname.sh is executable..."
+sudo chmod +x /home/dave/garden/scripts/flush_avahi.sh
 
 echo "[$(date)] setup_updater.sh completed."
