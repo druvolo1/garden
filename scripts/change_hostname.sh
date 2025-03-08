@@ -25,30 +25,23 @@ OLD_HOSTNAME="$(hostname)"
 
 echo "[$(date)] Changing hostname from '$OLD_HOSTNAME' to '$NEW_HOSTNAME'..."
 
-# 1) Update /etc/hosts
-#    - Remove old hostname if it exists on a 127.x.x.x line.
-#    - Then ensure there's a line for new hostname on 127.0.1.1 (common on Debian/Ubuntu).
-#      If your distro uses 127.0.0.1 instead, just swap that in below.
-
 HOSTS_FILE="/etc/hosts"
 
 echo "Updating /etc/hosts..."
 
-# A simple approach: remove lines that contain the old hostname (if you wish to remove them),
-# but only if they start with 127. or if they'd break other lines (like IPv6).
-# Then we ensure new hostname is appended to the 127.0.1.1 line.
+# 1) Remove the old hostname from 127.x.x.x lines (word-boundary match).
+#    This ensures you won't keep old references.
+sudo sed -i "s/\b$OLD_HOSTNAME\b//g" "$HOSTS_FILE"
 
-sudo sed -i "/127\..*$OLD_HOSTNAME/d" "$HOSTS_FILE"
+# 2) Now overwrite the '127.0.1.1' line with the new hostname only.
+#    If there's no line matching '^127.0.1.1', append a new one.
+if grep -q "^127.0.1.1" "$HOSTS_FILE"; then
+    sudo sed -i "s/^127.0.1.1.*/127.0.1.1   $NEW_HOSTNAME/" "$HOSTS_FILE"
+else
+    echo "127.0.1.1   $NEW_HOSTNAME" | sudo tee -a "$HOSTS_FILE" >/dev/null
+fi
 
-# If there's already a line for 127.0.1.1, we just add the new hostname to the end of that line
-# if it's not already present. Otherwise, create a new line.
-# This quick inline approach checks if '127.0.1.1' exists, and if so, adds $NEW_HOSTNAME; 
-# if not, it appends a brand new line at the end.
-grep -q "^127.0.1.1" "$HOSTS_FILE" && \
-  sudo sed -i "s/^127.0.1.1.*/& $NEW_HOSTNAME/" "$HOSTS_FILE" || \
-  sudo bash -c "echo '127.0.1.1   $NEW_HOSTNAME' >> '$HOSTS_FILE'"
-
-# 2) Actually set the new hostname via hostnamectl
+# 3) Actually set the new hostname via hostnamectl
 echo "Setting hostname with hostnamectl..."
 sudo hostnamectl set-hostname "$NEW_HOSTNAME"
 
