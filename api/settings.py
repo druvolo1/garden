@@ -90,16 +90,58 @@ def update_settings():
     new_settings = request.get_json() or {}
     current_settings = load_settings()
 
+    # Use "Garden" as a fallback if system_name is missing
     old_system_name = current_settings.get("system_name", "Garden")
 
-    # [Unchanged merging logic above, removed for brevity]
+    # Detect whether auto-dosing settings changed (to reset timers if needed)
+    auto_dosing_changed = (
+        "auto_dosing_enabled" in new_settings or
+        "dosing_interval" in new_settings
+    )
+
+    # 1) Merge relay_ports if present
+    if "relay_ports" in new_settings:
+        if "relay_ports" not in current_settings:
+            current_settings["relay_ports"] = {}
+        current_settings["relay_ports"].update(new_settings["relay_ports"])
+        del new_settings["relay_ports"]
+
+    # 2) Merge water_level_sensors if present
+    water_sensors_updated = False
+    if "water_level_sensors" in new_settings:
+        if "water_level_sensors" not in current_settings:
+            current_settings["water_level_sensors"] = {}
+
+        for sensor_key, sensor_data in new_settings["water_level_sensors"].items():
+            current_settings["water_level_sensors"][sensor_key] = sensor_data
+
+        del new_settings["water_level_sensors"]
+        water_sensors_updated = True
+
+    # 3) Merge power_controls if present
+    if "power_controls" in new_settings:
+        current_settings["power_controls"] = new_settings["power_controls"]
+        del new_settings["power_controls"]
+
+    # 4) Merge everything else (system_name, ph_range, etc.)
+    current_settings.update(new_settings)
+    save_settings(current_settings)
+
+    # If water-level pins changed, re-init them
+    if water_sensors_updated:
+        from services.water_level_service import force_cleanup_and_init
+        force_cleanup_and_init()
+
+    # If auto-dosing changed, reset the auto-dose timer
+    if auto_dosing_changed:
+        reset_auto_dose_timer()
 
     # Check if system_name changed
     new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
         print(f"System name changed from {old_system_name} to {new_system_name}.")
 
-        # Call the script that updates the Linux hostname, as before
+        # Run your change_hostname.sh script
         script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
         ensure_script_executable(script_path)
 
@@ -109,7 +151,7 @@ def update_settings():
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # --- NEW: Update mDNS registration for the new system name ---
+        # Also update mDNS registration to match the new name
         try:
             register_mdns_name(new_system_name, service_port=8000)
             print(f"[mDNS] Re-registered new system name: {new_system_name}.local")
@@ -120,7 +162,6 @@ def update_settings():
     emit_status_update()
 
     return jsonify({"status": "success", "settings": current_settings})
-
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
