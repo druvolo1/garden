@@ -343,6 +343,27 @@
         <div id="restart-status"></div>
       </div>
 
+      <!-- Import / Export Settings Section -->
+      <div class="data-container">
+        <h2>Import / Export Settings</h2>
+        
+        <!-- Export button -->
+        <p>Download a copy of the current settings.json:</p>
+        <button id="export-btn">Export Settings</button>
+
+        <hr>
+
+        <!-- Import form -->
+        <p>Upload a new settings.json to replace the existing settings:</p>
+        <form id="import-form">
+          <input type="file" id="import-file" accept=".json">
+          <button type="submit">Import Settings</button>
+        </form>
+
+        <div id="import-status"></div>
+      </div>
+
+
     </div>
   </main>
 
@@ -1153,6 +1174,68 @@
         })
         .catch(err => console.error("Error adding new outlet:", err));
     });
+
+    // -----------------------------------------------------
+  // EXPORT
+  // -----------------------------------------------------
+  document.getElementById('export-btn').addEventListener('click', () => {
+    // Simply navigate the browser to /api/settings/export
+    // so the user is prompted to download the file
+    window.location.href = '/api/settings/export';
+  });
+
+  // -----------------------------------------------------
+  // IMPORT
+  // -----------------------------------------------------
+  document.getElementById('import-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('import-file');
+    if (!fileInput.files || fileInput.files.length === 0) {
+      alert("Please select a .json file first.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    // Post to /api/settings/import
+    fetch('/api/settings/import', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          document.getElementById('import-status').textContent =
+            "Settings file imported successfully. Restarting service...";
+          // Just like your existing "Restart Service" logic:
+          setTimeout(() => {
+            // This is optional: you could have the backend do the restart,
+            // but here's how to call the same /api/system/restart you already have
+            fetch("/api/system/restart", { method: "POST" })
+              .then(() => {
+                document.getElementById('import-status').textContent =
+                  "Service is restarting. Please wait...";
+                // Wait 5 seconds, then reload
+                setTimeout(() => window.location.reload(), 5000);
+              })
+              .catch(() => {
+                document.getElementById('import-status').textContent =
+                  "Could not contact server, but it may be restarting anyway. Reloading...";
+                setTimeout(() => window.location.reload(), 5000);
+              });
+          }, 1000);
+        } else {
+          document.getElementById('import-status').textContent =
+            "Error importing settings: " + (data.error || 'Unknown error');
+        }
+      })
+      .catch(err => {
+        document.getElementById('import-status').textContent =
+          "Fetch error: " + err;
+      });
+  });
+
   </script>
 </body>
 </html>

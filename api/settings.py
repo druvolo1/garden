@@ -328,3 +328,98 @@ def set_system_name():
         emit_status_update()
 
     return jsonify({"system_name": settings.get("system_name", "Garden")})
+
+@settings_blueprint.route('/export', methods=['GET'])
+def export_settings():
+    """
+    Serves the current settings.json as a downloadable file.
+    """
+    if not os.path.exists(SETTINGS_FILE):
+        return jsonify({
+            "status": "failure",
+            "error": "No settings.json found on server."
+        }), 404
+
+    return send_file(
+        SETTINGS_FILE,
+        mimetype='application/json',
+        as_attachment=True,
+        download_name='settings.json'  # or 'settings_export.json'
+    )
+
+@settings_blueprint.route('/import', methods=['POST'])
+def import_settings():
+    if 'file' not in request.files:
+        return jsonify({
+            "status": "failure",
+            "error": "No file part in request."
+        }), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({
+            "status": "failure",
+            "error": "No selected file."
+        }), 400
+
+    try:
+        # 1) Parse the uploaded file to ensure valid JSON
+        data = json.load(file)
+
+        # 2) Overwrite the existing settings.json
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+
+        # 3) (Optional) Perform additional checks, migrations, etc.
+        if "system_name" not in data:
+            return jsonify({
+                "status": "failure",
+                "error": "Missing 'system_name' in imported settings."
+            }), 400
+
+        # 4) Attempt to re-init services that depend on the settings
+        try:
+            from services.ph_service import restart_serial_reader
+            from services.pump_relay_service import reinitialize_relay_service
+            from services.valve_relay_service import stop_valve_thread, init_valve_thread
+            from services.auto_dose_utils import reset_auto_dose_timer
+
+            restart_serial_reader()
+            reinitialize_relay_service()
+
+            stop_valve_thread()
+            init_valve_thread()
+
+            reset_auto_dose_timer()
+
+            print("[IMPORT] Successfully re-initialized dependent services.")
+
+        except Exception as ex:
+            # If a re-init fails, print the error...
+            print(f"[IMPORT] Service re-init failed: {ex}")
+
+            # ...and trigger the same service restart logic as your "Restart Service" button:
+            import subprocess
+            try:
+                subprocess.run(["sudo", "systemctl", "restart", "garden.service"], check=True)
+                print("[IMPORT] Triggered service restart due to re-init failure.")
+            except Exception as restart_err:
+                print(f"[IMPORT] Could not restart garden.service: {restart_err}")
+                # You might return an error response or proceed as you see fit.
+
+        # 5) (Optional) Notify the rest of the system that settings changed
+        from status_namespace import emit_status_update
+        emit_status_update()
+
+        return jsonify({"status": "success"}), 200
+
+    except json.JSONDecodeError:
+        return jsonify({
+            "status": "failure",
+            "error": "Invalid JSON in uploaded file."
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "status": "failure",
+            "error": str(e)
+        }), 500
