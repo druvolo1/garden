@@ -54,10 +54,6 @@ def force_cleanup_and_init():
         _pins_inited = False
         ensure_pins_inited()
 
-    # Optional: if you have a status_namespace, you can emit here
-    # from status_namespace import emit_status_update
-    # threading.Timer(0.5, emit_status_update).start()
-
 def get_water_level_status():
     sensors = load_water_level_sensors()
     ensure_pins_inited()
@@ -88,8 +84,9 @@ def get_water_level_status():
 
 def monitor_water_level_sensors():
     """
-    Continuously monitor sensor changes. If the fill or drain sensor triggers,
-    call the appropriate valve API route to turn that valve off.
+    Continuously monitors sensor changes. 
+    If the fill sensor is "not triggered" => turn OFF the fill valve.
+    If the drain sensor is "triggered" => turn OFF the drain valve.
     """
     from status_namespace import emit_status_update
 
@@ -99,39 +96,49 @@ def monitor_water_level_sensors():
         try:
             current_state = get_water_level_status()
 
-            # Only act if there's an actual change in sensor states
             if current_state != _last_sensor_state:
                 _last_sensor_state = current_state
 
                 settings = load_settings()
                 valve_info = settings.get("valve_info", {})
 
-                # Where your fill sensor is assigned (e.g. "sensor1" => "Full")
+                # Example:
+                #  "fill_sensor": "sensor1"
+                #  "drain_sensor": "sensor3"
+                #  "fill_valve": "1"
+                #  "drain_valve": "2"
+                #  "fill_valve_ip": "zone4.local"
+                #  "drain_valve_ip": "zone4.local"
+                #  "valve_labels": { "1": "fill 4", "2": "drain 4" }
+
                 fill_sensor_key = valve_info.get("fill_sensor", "sensor1")
                 drain_sensor_key = valve_info.get("drain_sensor", "sensor3")
 
-                # The numeric IDs
                 fill_valve_id  = valve_info.get("fill_valve")   # e.g. "1"
                 drain_valve_id = valve_info.get("drain_valve")  # e.g. "2"
 
-                # The dictionary of ID->label
-                valve_labels = valve_info.get("valve_labels", {})
+                fill_valve_ip  = valve_info.get("fill_valve_ip")   # e.g. "zone4.local"
+                drain_valve_ip = valve_info.get("drain_valve_ip")  # e.g. "zone4.local"
 
-                # Convert the numeric ID => user-friendly name
+                # ID-> label map
+                valve_labels = valve_info.get("valve_labels", {})
+                
+                # Convert ID => label (e.g. "1" => "fill 4")
                 fill_valve_label  = valve_labels.get(fill_valve_id, fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
-                # Fill logic: If the fill sensor reads "not triggered" => turn off fill
+                # Fill logic
                 if fill_sensor_key in current_state:
+                    # If sensor is "not triggered," we want to shut off the fill valve
                     if not current_state[fill_sensor_key]["triggered"] and fill_valve_label:
-                        turn_off_valve_by_name(fill_valve_label)
+                        turn_off_valve(fill_valve_label, fill_valve_ip)
 
-                # Drain logic: If the drain sensor reads "triggered" => turn off drain
+                # Drain logic
                 if drain_sensor_key in current_state:
+                    # If sensor is "triggered," we want to shut off the drain valve
                     if current_state[drain_sensor_key]["triggered"] and drain_valve_label:
-                        turn_off_valve_by_name(drain_valve_label)
+                        turn_off_valve(drain_valve_label, drain_valve_ip)
 
-                # If you have a real-time UI, broadcast the status update
                 emit_status_update()
 
         except Exception as e:
@@ -139,24 +146,33 @@ def monitor_water_level_sensors():
 
         time.sleep(0.5)
 
-def turn_off_valve_by_name(valve_name: str):
+def turn_off_valve(valve_label: str, valve_ip: str):
     """
-    Make a local request to /api/valve_relay/<valve_name>/off
-    so that all valve logic is handled in valve_relay.py
+    Decides whether to send the request locally or to a remote device 
+    based on whether `valve_ip` is empty or not. Then calls the name-based 
+    route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off
     """
-    if not valve_name:
+    if not valve_label:
         return
 
-    url = f"http://127.0.0.1:8000/api/valve_relay/{valve_name}/off"
+    # If there's no valve_ip, assume local
+    if not valve_ip:
+        url = f"http://127.0.0.1:8000/api/valve_relay/{valve_label}/off"
+    else:
+        # Use the remote IP from valve_info
+        url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
+
+    print(f"[WaterLevel] turning OFF valve '{valve_label}' via {url}")
+
     try:
         resp = requests.post(url)
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "success":
-                print(f"Valve '{valve_name}' turned off via API route.")
+                print(f"Valve '{valve_label}' turned off (http {valve_ip or 'localhost'}).")
             else:
-                print(f"Valve '{valve_name}' off error: {data.get('error')}")
+                print(f"Valve '{valve_label}' off error: {data.get('error')}")
         else:
-            print(f"Valve '{valve_name}' off returned HTTP {resp.status_code}.")
+            print(f"Valve '{valve_label}' off returned HTTP {resp.status_code}.")
     except Exception as ex:
-        print(f"Error calling valve off route for '{valve_name}': {ex}")
+        print(f"Error calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
