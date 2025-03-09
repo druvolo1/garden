@@ -9,13 +9,11 @@ except ImportError:
     GPIO = None
     print("RPi.GPIO not available. Using mock environment.")
 
-import requests  # <-- Import requests so we can call the local API
+import requests
 from utils.settings_utils import load_settings
-
 
 _pins_lock = threading.Lock()
 _pins_inited = False
-
 _last_sensor_state = {}
 
 def load_water_level_sensors():
@@ -56,62 +54,84 @@ def force_cleanup_and_init():
         _pins_inited = False
         ensure_pins_inited()
 
-    # Emit a status update
-    threading.Timer(0.5, emit_status_update).start()
+    # Optional: if you have a status_namespace, you can emit here
+    # from status_namespace import emit_status_update
+    # threading.Timer(0.5, emit_status_update).start()
 
 def get_water_level_status():
     sensors = load_water_level_sensors()
     ensure_pins_inited()
 
     status = {}
-    for sensor_key, cfg in sensors.items():
-        label = cfg.get("label", sensor_key)
-        pin = cfg.get("pin")
-        triggered = False
-        if GPIO and pin is not None:
-            sensor_state = GPIO.input(pin)  # 0 or 1
-            triggered = (sensor_state == 1)
-        status[sensor_key] = {
-            "label": label,
-            "pin": pin,
-            "triggered": triggered
-        }
+    if GPIO:
+        for sensor_key, cfg in sensors.items():
+            label = cfg.get("label", sensor_key)
+            pin = cfg.get("pin")
+            triggered = False
+            if pin is not None:
+                sensor_state = GPIO.input(pin)  # 0 or 1
+                triggered = (sensor_state == 1)
+            status[sensor_key] = {
+                "label": label,
+                "pin": pin,
+                "triggered": triggered
+            }
+    else:
+        # Mock environment: assume all sensors are "not triggered"
+        for sensor_key, cfg in sensors.items():
+            status[sensor_key] = {
+                "label": cfg.get("label", sensor_key),
+                "pin": cfg.get("pin"),
+                "triggered": False
+            }
     return status
 
 def monitor_water_level_sensors():
+    """
+    Continuously monitor sensor changes. If the fill or drain sensor triggers,
+    call the appropriate valve API route to turn that valve off.
+    """
     from status_namespace import emit_status_update
-    """
-    Continuously monitor sensor changes. If the fill or drain sensor is triggered,
-    POST to the local valve_relay API to turn that valve off.
-    """
+
     global _last_sensor_state
 
     while True:
         try:
             current_state = get_water_level_status()
 
-            # Compare with the last known state, so we only act on changes
+            # Only act if there's an actual change in sensor states
             if current_state != _last_sensor_state:
                 _last_sensor_state = current_state
 
-                # Load assigned sensor->valve from settings
                 settings = load_settings()
-                fill_sensor_key  = settings.get("water_fill_sensor")   # e.g. "sensor1"
-                drain_sensor_key = settings.get("water_drain_sensor")  # e.g. "sensor2"
-                fill_valve_name  = settings.get("water_fill_valve")    # e.g. "Fill Valve"
-                drain_valve_name = settings.get("water_drain_valve")   # e.g. "Drain Valve"
+                valve_info = settings.get("valve_info", {})
 
-                # If the assigned fill sensor is triggered, turn off the fill valve
-                if fill_sensor_key and fill_sensor_key in current_state:
-                    if not current_state[fill_sensor_key]["triggered"] and fill_valve_name:
-                        turn_off_valve_by_name(fill_valve_name)
+                # Where your fill sensor is assigned (e.g. "sensor1" => "Full")
+                fill_sensor_key = valve_info.get("fill_sensor", "sensor1")
+                drain_sensor_key = valve_info.get("drain_sensor", "sensor3")
 
-                # If the assigned drain sensor is triggered, turn off the drain valve
-                if drain_sensor_key and drain_sensor_key in current_state:
-                    if current_state[drain_sensor_key]["triggered"] and drain_valve_name:
-                        turn_off_valve_by_name(drain_valve_name)
+                # The numeric IDs
+                fill_valve_id  = valve_info.get("fill_valve")   # e.g. "1"
+                drain_valve_id = valve_info.get("drain_valve")  # e.g. "2"
 
-                # Emit a status update so clients see the change
+                # The dictionary of ID->label
+                valve_labels = valve_info.get("valve_labels", {})
+
+                # Convert the numeric ID => user-friendly name
+                fill_valve_label  = valve_labels.get(fill_valve_id, fill_valve_id)
+                drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
+
+                # Fill logic: If the fill sensor reads "not triggered" => turn off fill
+                if fill_sensor_key in current_state:
+                    if not current_state[fill_sensor_key]["triggered"] and fill_valve_label:
+                        turn_off_valve_by_name(fill_valve_label)
+
+                # Drain logic: If the drain sensor reads "triggered" => turn off drain
+                if drain_sensor_key in current_state:
+                    if current_state[drain_sensor_key]["triggered"] and drain_valve_label:
+                        turn_off_valve_by_name(drain_valve_label)
+
+                # If you have a real-time UI, broadcast the status update
                 emit_status_update()
 
         except Exception as e:
@@ -119,18 +139,15 @@ def monitor_water_level_sensors():
 
         time.sleep(0.5)
 
-
 def turn_off_valve_by_name(valve_name: str):
     """
     Make a local request to /api/valve_relay/<valve_name>/off
-    so that all valve logic stays in the valve_relay Blueprint.
+    so that all valve logic is handled in valve_relay.py
     """
     if not valve_name:
         return
 
-    # Typically we’d point to localhost:8000, or your actual IP if needed
     url = f"http://127.0.0.1:8000/api/valve_relay/{valve_name}/off"
-
     try:
         resp = requests.post(url)
         if resp.status_code == 200:
