@@ -1,7 +1,7 @@
-# File: services/water_level_service.py
-
 import threading
 import time
+import socket
+import requests
 
 try:
     import RPi.GPIO as GPIO
@@ -9,7 +9,6 @@ except ImportError:
     GPIO = None
     print("RPi.GPIO not available. Using mock environment.")
 
-import requests
 from utils.settings_utils import load_settings
 
 _pins_lock = threading.Lock()
@@ -42,14 +41,11 @@ def ensure_pins_inited():
                     if pin is not None:
                         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 _pins_inited = True
-                #print("[WaterLevel DEBUG] Water-level pins have been initialized.")
             except Exception as e:
-                #print(f"[WaterLevel DEBUG] Error initializing water-level pins: {e}")
-                pass
+                print(f"[WaterLevel DEBUG] Error initializing water-level pins: {e}")
 
 def force_cleanup_and_init():
     if not GPIO:
-        #print("[WaterLevel DEBUG] Mock environment, nothing to cleanup.")
         return
 
     with _pins_lock:
@@ -117,8 +113,8 @@ def monitor_water_level_sensors():
                 fill_valve_id  = settings.get("fill_valve")   # e.g. "1"
                 drain_valve_id = settings.get("drain_valve")  # e.g. "2"
 
-                fill_valve_ip  = settings.get("fill_valve_ip")   # e.g. "172.16.1.xxx"
-                drain_valve_ip = settings.get("drain_valve_ip")  # e.g. "172.16.1.xxx"
+                fill_valve_ip  = settings.get("fill_valve_ip")   # e.g. "zone4.local" or "172.16.1.xxx"
+                drain_valve_ip = settings.get("drain_valve_ip")
 
                 # Also read the valve_labels from top-level (like your JSON)
                 valve_labels = settings.get("valve_labels", {})
@@ -146,16 +142,46 @@ def monitor_water_level_sensors():
 
         time.sleep(0.5)
 
+def get_local_ip_address():
+    """
+    Returns the Pi's primary IP address for local connections
+    (the one you'd normally get with 'hostname -I' or a socket trick).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # connect to a public IP just to pick the default interface
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
     Decides whether to send the request locally or to a remote device
     based on whether `valve_ip` is empty or not. Then calls the name-based
-    route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off
+    route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off.
+
+    NEW LOGIC:
+    - If valve_ip is something like "zone4.local" or "Zone4.local", let's replace
+      it with our own IP from get_local_ip_address().
     """
     if not valve_label:
         return
 
+    # If user configured the IP as "[system_name].local", override with local IP
+    # for example, if your system_name is "zone4"
+    # You can get your actual system_name from a config or use 'socket.gethostname()'
+    # For simplicity, just check if it ends with '.local'
+    if valve_ip and valve_ip.lower().endswith(".local"):
+        # Replace with the Pi's IP
+        resolved_ip = get_local_ip_address()
+        print(f"[DEBUG] valve_ip '{valve_ip}' replaced with local IP '{resolved_ip}'.")
+        valve_ip = resolved_ip
+
     if not valve_ip:
+        # If still empty or was never set, default to 127.0.0.1
         url = f"http://127.0.0.1:8000/api/valve_relay/{valve_label}/off"
     else:
         url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
