@@ -143,43 +143,43 @@ def get_local_ip_address():
 
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
-    Decide whether to send the request locally or to a remote device
-    based on whether `valve_ip` is empty or not. Then call the route
-    /api/valve_relay/<valve_label>/off.
-
-    We also detect if valve_ip == "<system_name>.local"
-    and replace it with our own IP so we don't rely on local .local resolution.
+    Calls /api/valve_relay/<valve_label>/off on the given IP. 
+    If valve_ip is empty, treat that as an error. 
+    If it's localhost, 127.0.0.1, or <system_name>.local, replace with our LAN IP.
+    Otherwise, use it as is.
     """
     if not valve_label:
+        print("[ERROR] No valve_label provided.")
         return
 
-    # 1) Grab current system name from settings
-    s = load_settings()
-    system_name = s.get("system_name", "Garden")
+    # 1) Enforce that valve_ip is not empty.
+    if not valve_ip:
+        print("[ERROR] No valve_ip provided (empty). Aborting turn_off_valve call.")
+        return
 
-    # 2) If the IP is exactly <system_name>.local (case-insensitive),
-    #    we override it with our local IP.
-    #    e.g. if system_name="Zone4", then check "zone4.local".
-    if valve_ip and valve_ip.lower() == f"{system_name.lower()}.local":
+    s = load_settings()
+    system_name = s.get("system_name", "Garden").lower()
+    # 2) If valve_ip is "localhost", "127.0.0.1", or "<system_name>.local", override with LAN IP.
+    if (valve_ip.lower() == "localhost"
+        or valve_ip.lower() == "127.0.0.1"
+        or valve_ip.lower() == f"{system_name}.local"):
+        
         resolved_ip = get_local_ip_address()
         print(f"[DEBUG] Replacing '{valve_ip}' with local IP '{resolved_ip}'.")
         valve_ip = resolved_ip
 
-    # 3) If still empty, go with 127.0.0.1
-    if not valve_ip:
-        url = f"http://127.0.0.1:8000/api/valve_relay/{valve_label}/off"
-    else:
-        url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
+    url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
 
     try:
         resp = requests.post(url)
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "success":
-                print(f"Valve '{valve_label}' turned off successfully (http {valve_ip or 'localhost'}).")
+                print(f"Valve '{valve_label}' turned off successfully (http {valve_ip}).")
             else:
-                print(f"Valve '{valve_label}' off error: {data.get('error')}")
+                print(f"[ERROR] Valve '{valve_label}' off failed: {data.get('error')}")
         else:
-            print(f"Valve '{valve_label}' off returned HTTP {resp.status_code}")
+            print(f"[ERROR] Valve '{valve_label}' off returned HTTP {resp.status_code}")
     except Exception as ex:
-        print(f"Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
+        print(f"[ERROR] Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
+
