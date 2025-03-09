@@ -19,8 +19,7 @@ def log(msg):
 
 def get_local_ip_address():
     """
-    Return the Pi’s primary LAN IP, or '127.0.0.1' on fallback.
-    Same logic as in water_level_service.py.
+    Return this Pi’s primary LAN IP, or '127.0.0.1' on fallback.
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -33,7 +32,7 @@ def get_local_ip_address():
 
 def start_power_control_loop():
     """
-    Spawns the background thread to connect to remote valves & control Shelly outlets.
+    Spawns the background thread that connects to remote valves & controls Shelly outlets.
     """
     eventlet.spawn(power_control_main_loop)
     log("Power Control loop started.")
@@ -44,7 +43,7 @@ def power_control_main_loop():
             settings = load_settings()
             power_controls = settings.get("power_controls", [])
 
-            # 1) Gather host IPs from the 'tracked_valves' entries
+            # 1) Gather a list of host IPs from the 'tracked_valves' config
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
@@ -57,11 +56,9 @@ def power_control_main_loop():
                 if old_host not in needed_hosts:
                     close_host_connection(old_host)
 
-            # 3) Ensure we have a socket.io connection to each needed host
+            # 3) Ensure a Socket.IO connection to each needed host
             for host_ip in needed_hosts:
-                already_connected = (host_ip in sio_clients)
-                log(f"[power_control_main_loop] Checking if {host_ip} is in sio_clients => {already_connected}")
-                if not already_connected:
+                if host_ip not in sio_clients:
                     log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
                     open_host_connection(host_ip)
 
@@ -71,26 +68,24 @@ def power_control_main_loop():
         except Exception as e:
             log(f"power_control_main_loop error: {e}")
 
-        eventlet.sleep(5)  # loop every 5s
+        eventlet.sleep(5)  # loop every 5 seconds
 
 def open_host_connection(host_ip):
     """
-    Connect to host_ip:8000 via Socket.IO, listening on the '/status' namespace
-    for 'status_update' events.
-    
-    Added logic to replace 'host_ip' if it's 'localhost', '127.0.0.1', or
-    <system_name>.local with get_local_ip_address().
+    Connect to host_ip:8000 via Socket.IO (namespace=/status).
+    If host_ip is localhost, 127.0.0.1, or <system_name>.local, override it
+    with get_local_ip_address() so we avoid self‐DNS issues.
     """
-    # 1) Ensure host_ip is not empty
+
     if not host_ip:
-        log("[open_host_connection] ERROR: host_ip is empty, cannot connect.")
+        log("[open_host_connection] ERROR: host_ip is empty.")
         return
 
-    # 2) Compare to system_name.local or 'localhost', '127.0.0.1'
     s = load_settings()
     system_name = s.get("system_name", "Garden").lower()
     lower_host = host_ip.lower()
-    if lower_host == "localhost" or lower_host == "127.0.0.1" or lower_host == f"{system_name}.local":
+
+    if lower_host in ["localhost", "127.0.0.1", f"{system_name}.local"]:
         resolved_ip = get_local_ip_address()
         log(f"[open_host_connection] Replacing '{host_ip}' with local IP '{resolved_ip}'.")
         host_ip = resolved_ip
@@ -100,43 +95,40 @@ def open_host_connection(host_ip):
 
     @client.on("connect", namespace="/status")
     def on_status_connect():
-        log(f"*** CONNECT EVENT (namespace=/status) *** to {host_ip}, client.sid={client.sid}")
+        log(f"*** CONNECT EVENT to {host_ip} (namespace=/status), client.sid={client.sid}")
 
     @client.event
     def disconnect():
-        log(f"*** DISCONNECT EVENT *** from {host_ip}")
+        log(f"*** DISCONNECT EVENT from {host_ip}")
 
     @client.on("status_update", namespace="/status")
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
 
-        # 1) Show what's under "valve_info" (if any)
+        # Update remote_valve_states for each valve in data
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
 
-        # Store only "on"/"off" in remote_valve_states so reevaluate_all_outlets()
-        # sees exactly "on"/"off" when it checks.
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             label_str  = vinfo.get("label", f"Valve {valve_id_str}")
 
             remote_valve_states[(host_ip, valve_id_str)] = status_str
-
             log(
                 f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = '{status_str}'"
-                f" (label was '{label_str}')"
+                f" (label='{label_str}')"
             )
 
-        # After storing new valve states, reevaluate immediately
+        # Evaluate power states after every update
         reevaluate_all_outlets()
 
     try:
         log(f"Attempting socket.io connection to {url} (namespace=/status)")
         client.connect(url, namespaces=["/status"])
-        log(f"[{host_ip}] connect() call completed.")
+        log(f"[{host_ip}] connect() completed.")
         sio_clients[host_ip] = client
-    except Exception as e:
-        log(f"Error connecting to {host_ip}: {e}")
+    except Exception as ex:
+        log(f"Error connecting to {host_ip}: {ex}")
 
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
@@ -149,24 +141,24 @@ def close_host_connection(host_ip):
 
 def reevaluate_all_outlets():
     """
-    For each outlet in 'power_controls', if any tracked valve is 'on', turn Shelly on; else off.
+    For each configured outlet in power_controls, if ANY tracked valve is "on",
+    turn the Shelly to "on." Otherwise set it "off."
     """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
 
-    # Show the entire remote_valve_states keys/values for debugging
     if remote_valve_states:
         log("Current remote_valve_states:")
         for k, v in remote_valve_states.items():
-            log(f"  Key: {k} => '{v}'")
+            log(f"  Key={k}, state='{v}'")
     else:
         log("No entries in remote_valve_states yet.")
 
     for pc in power_controls:
         outlet_ip = pc.get("outlet_ip")
         if not outlet_ip:
-            log("  This power control config has no outlet_ip, skipping.")
+            log("  This power control config has no outlet_ip. Skipping.")
             continue
 
         tracked_valves = pc.get("tracked_valves", [])
@@ -174,36 +166,34 @@ def reevaluate_all_outlets():
 
         any_on = False
         for tv in tracked_valves:
-            host_ip = tv["host_ip"]
-            valve_id_str = tv["valve_id"]  # treat as a string
-
-            key = (host_ip, valve_id_str)
+            key = (tv["host_ip"], tv["valve_id"])  # tuple
             current_valve_state = remote_valve_states.get(key, "off")
-
             log(f"       Found remote_valve_states[{key}] => '{current_valve_state}'")
+
             if current_valve_state == "on":
-                log("       Yes, so this valve is on -> any_on = True")
                 any_on = True
+                log("       => Valve is on, so we want the outlet on.")
                 break
 
         desired = "on" if any_on else "off"
-        current_outlet_state = last_outlet_states.get(outlet_ip)
+        old_state = last_outlet_states.get(outlet_ip)
 
-        if current_outlet_state != desired:
-            log(f"    -> Setting outlet {outlet_ip} from '{current_outlet_state}' to '{desired}'")
+        if old_state != desired:
+            log(f"    -> Setting outlet {outlet_ip} from '{old_state}' to '{desired}'")
             set_shelly_state(outlet_ip, desired)
             last_outlet_states[outlet_ip] = desired
         else:
-            log(f"    -> Outlet {outlet_ip} is already '{current_outlet_state}', no change.")
+            log(f"    -> Outlet {outlet_ip} is already '{old_state}', no change.")
 
 def set_shelly_state(outlet_ip, state):
     """
-    Sends a GET to the Shelly for on/off:
+    Shelly switches typically toggle with a GET:
       http://<outlet_ip>/relay/0?turn=on
+    or ?turn=off
     """
     url = f"http://{outlet_ip}/relay/0?turn={state}"
     try:
         resp = requests.get(url, timeout=3)
         log(f"Shelly {outlet_ip} => {state}, HTTP {resp.status_code}")
-    except Exception as e:
-        log(f"Error setting Shelly {outlet_ip} to {state}: {e}")
+    except Exception as ex:
+        log(f"Error setting Shelly {outlet_ip} to {state}: {ex}")
