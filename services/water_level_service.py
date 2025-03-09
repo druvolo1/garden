@@ -42,13 +42,14 @@ def ensure_pins_inited():
                     if pin is not None:
                         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 _pins_inited = True
-                print("[WaterLevel DEBUG] Water-level pins have been initialized.")
+                #print("[WaterLevel DEBUG] Water-level pins have been initialized.")
             except Exception as e:
-                print(f"[WaterLevel ERROR] Error initializing water-level pins: {e}")
+                #print(f"[WaterLevel DEBUG] Error initializing water-level pins: {e}")
+                pass
 
 def force_cleanup_and_init():
     if not GPIO:
-        print("[WaterLevel DEBUG] Mock environment, nothing to cleanup.")
+        #print("[WaterLevel DEBUG] Mock environment, nothing to cleanup.")
         return
 
     with _pins_lock:
@@ -103,14 +104,8 @@ def monitor_water_level_sensors():
         try:
             current_state = get_water_level_status()
 
-            # Debug: show the entire sensor state
-            print("[WaterLevel DEBUG] Current water level states:")
-            for k, v in current_state.items():
-                print(f"   {k}: label={v['label']} triggered={v['triggered']} pin={v['pin']}")
-
             # Only act when sensor states change
             if current_state != _last_sensor_state:
-                print("[WaterLevel DEBUG] Sensor states changed since last check.")
                 _last_sensor_state = current_state
 
                 settings = load_settings()
@@ -130,46 +125,24 @@ def monitor_water_level_sensors():
                 fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
-                # Debug prints
-                print(f"[WaterLevel DEBUG] fill_sensor_key={fill_sensor_key}, drain_sensor_key={drain_sensor_key}")
-                print(f"[WaterLevel DEBUG] fill_valve_label={fill_valve_label}, drain_valve_label={drain_valve_label}")
-                print(f"[WaterLevel DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
-
                 # Fill logic: "If fill sensor is NOT triggered => OFF"
                 if fill_sensor_key in current_state:
                     fill_triggered = current_state[fill_sensor_key]["triggered"]
-                    print(f"[WaterLevel DEBUG] Fill sensor '{fill_sensor_key}' triggered={fill_triggered}")
-
                     # If sensor is "not triggered," we want to shut off the fill valve
                     if not fill_triggered and fill_valve_label:
-                        print("[WaterLevel DEBUG] Fill sensor is NOT triggered → turning OFF fill valve.")
                         turn_off_valve(fill_valve_label, fill_valve_ip)
-                    else:
-                        print("[WaterLevel DEBUG] Fill sensor condition not met; no action.")
-                else:
-                    print(f"[WaterLevel DEBUG] Fill sensor key '{fill_sensor_key}' not found in current_state!")
 
                 # Drain logic: "If drain sensor is triggered => OFF"
                 if drain_sensor_key in current_state:
                     drain_triggered = current_state[drain_sensor_key]["triggered"]
-                    print(f"[WaterLevel DEBUG] Drain sensor '{drain_sensor_key}' triggered={drain_triggered}")
-
-                    # If sensor is "triggered," we want to shut off the drain valve
                     if drain_triggered and drain_valve_label:
-                        print("[WaterLevel DEBUG] Drain sensor IS triggered → turning OFF drain valve.")
                         turn_off_valve(drain_valve_label, drain_valve_ip)
-                    else:
-                        print("[WaterLevel DEBUG] Drain sensor condition not met; no action.")
-                else:
-                    print(f"[WaterLevel DEBUG] Drain sensor key '{drain_sensor_key}' not found in current_state!")
 
-                # Finally, emit a status update for any connected UI
+                # Emit a status update for any connected UI
                 emit_status_update()
-            else:
-                print("[WaterLevel DEBUG] Sensor states are unchanged; no action taken.")
 
         except Exception as e:
-            print(f"[WaterLevel ERROR] Exception in monitor_water_level_sensors: {e}")
+            print(f"Exception in monitor_water_level_sensors: {e}")
 
         time.sleep(0.5)
 
@@ -180,7 +153,6 @@ def turn_off_valve(valve_label: str, valve_ip: str):
     route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off
     """
     if not valve_label:
-        print("[WaterLevel DEBUG] turn_off_valve() called with empty valve_label; aborting.")
         return
 
     if not valve_ip:
@@ -188,18 +160,15 @@ def turn_off_valve(valve_label: str, valve_ip: str):
     else:
         url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
 
-    print(f"[WaterLevel DEBUG] turn_off_valve -> Valve='{valve_label}' IP='{valve_ip or 'localhost'}' URL={url}")
-
     try:
         resp = requests.post(url)
-        print(f"[WaterLevel DEBUG] POST {url} => HTTP {resp.status_code}")
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "success":
-                print(f"[WaterLevel INFO] Valve '{valve_label}' turned off successfully (http {valve_ip or 'localhost'}).")
+                print(f"Valve '{valve_label}' turned off successfully (http {valve_ip or 'localhost'}).")
             else:
-                print(f"[WaterLevel WARN] Valve '{valve_label}' off error: {data.get('error')}")
+                print(f"Valve '{valve_label}' off error: {data.get('error')}")
         else:
-            print(f"[WaterLevel WARN] Valve '{valve_label}' off returned HTTP {resp.status_code}")
+            print(f"Valve '{valve_label}' off returned HTTP {resp.status_code}")
     except Exception as ex:
-        print(f"[WaterLevel ERROR] Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
+        print(f"Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
