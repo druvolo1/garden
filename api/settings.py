@@ -162,10 +162,23 @@ def update_settings():
         except Exception as e:
             print(f"[mDNS] Error re-registering name: {e}")
 
+        # 3) (NEW) Also register the pure system name without "-pc"
+        try:
+            from services.mdns_service import register_mdns_pure_system_name
+            register_mdns_pure_system_name(new_system_name, service_port=8000)
+            print(f"[mDNS] Also broadcasting pure name: {new_system_name}.local")
+        except Exception as e:
+            print(f"[mDNS] Error registering pure system name: {e}")
+
         # Notify any connected clients that settings changed
         emit_status_update()
 
         return jsonify({"status": "success", "settings": current_settings})
+
+    # If the system name didn't change, just emit status and return
+    emit_status_update()
+    return jsonify({"status": "success", "settings": current_settings})
+
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
