@@ -341,11 +341,12 @@ def export_settings():
         }), 404
 
     return send_file(
-        SETTINGS_FILE,
-        mimetype='application/json',
-        as_attachment=True,
-        download_name='settings.json'  # or 'settings_export.json'
-    )
+    SETTINGS_FILE,
+    mimetype='application/json',
+    as_attachment=True,
+    attachment_filename='settings.json'  # <-- works in Flask < 2.0
+)
+
 
 @settings_blueprint.route('/import', methods=['POST'])
 def import_settings():
