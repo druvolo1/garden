@@ -224,7 +224,7 @@ def emit_status_update():
 # 4) Our /status Namespace class
 ###############################################################################
 class StatusNamespace(Namespace):
-    def on_connect, auth=None):
+    def on_connect(self, auth=None):
         log_with_timestamp("Connected with auth =", auth)
         emit_status_update()  # immediate aggregator send
 
