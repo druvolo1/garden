@@ -26,29 +26,22 @@ from api.valve_relay import valve_relay_blueprint
 from api.update_code import update_code_blueprint
 from api.ec import ec_blueprint
 
-# Import only the class (avoid circular import of the aggregator function)
-from status_namespace import StatusNamespace, aggregator_socketio
+# Import the aggregator's set_socketio_instance + our /status namespace
+from status_namespace import StatusNamespace, set_socketio_instance
 
-# Other services
+# Services
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
-from services.ph_service import (
-    get_latest_ph_reading, start_serial_reader, stop_serial_reader,
-    latest_ph_value, serial_reader
-)
+from services.ph_service import get_latest_ph_reading, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
-from services.plant_service import get_weeks_since_start
 from services.error_service import check_for_hardware_errors
-from services.device_config import (
-    get_hostname, get_ip_config, get_timezone, is_daylight_savings,
-    get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
-    set_timezone, set_ntp_server, set_wifi_config
-)
-from services.water_level_service import get_water_level_status, monitor_water_level_sensors
+from services.water_level_service import monitor_water_level_sensors
 from services.power_control_service import start_power_control_loop
 from utils.settings_utils import load_settings
 
-# --- Create global SocketIO instance ---
+########################################################################
+# 1) Create the global SocketIO instance
+########################################################################
 socketio = SocketIO(
     async_mode="eventlet",
     cors_allowed_origins="*"
@@ -68,25 +61,27 @@ def get_local_ip():
         s.close()
     return ip
 
-# Create the Flask app
+########################################################################
+# 2) Create the Flask app and init SocketIO
+########################################################################
 app = Flask(__name__)
 CORS(app)
 
-# Initialize SocketIO with the app
 socketio.init_app(app, async_mode="eventlet", cors_allowed_origins="*")
 
-# Let status_namespace.py have our main socketio reference:
-aggregator_socketio = socketio  # <--- we set the global in status_namespace
+# Let status_namespace.py have our main SocketIO reference
+set_socketio_instance(socketio)
 
-# Register your custom Namespace for /status
+# Now register the /status namespace
 socketio.on_namespace(StatusNamespace('/status'))
 
-###############################################################################
-# Background tasks
-###############################################################################
+########################################################################
+# 3) Background tasks
+########################################################################
 def auto_dosing_loop():
     from api.settings import load_settings
     log_with_timestamp("Inside auto dosing loop")
+
     while True:
         try:
             settings = load_settings()
@@ -99,7 +94,6 @@ def auto_dosing_loop():
                 continue
 
             now = datetime.now()
-
             if auto_dose_state.get("last_interval") != interval_hours:
                 auto_dose_state["last_interval"] = interval_hours
                 auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
@@ -129,6 +123,7 @@ def auto_dosing_loop():
                     )
 
             eventlet.sleep(5)
+
         except Exception as e:
             log_with_timestamp(f"[AutoDosing] Error: {e}")
             eventlet.sleep(5)
@@ -168,9 +163,7 @@ def broadcast_ec_readings():
 
 def broadcast_status():
     """
-    Periodically calls emit_status_update() from status_namespace.
-    That function merges local states + remote aggregator states,
-    then emits a status_update to /status.
+    Periodically call emit_status_update() from status_namespace.
     """
     from status_namespace import emit_status_update
     log_with_timestamp("Inside function for broadcasting status updates")
@@ -192,7 +185,6 @@ def start_threads():
     log_with_timestamp("Spawning broadcast_ec_readings...")
     eventlet.spawn(broadcast_ec_readings)
 
-    # Actually start the EC serial reader
     from services.ec_service import start_ec_serial_reader
     log_with_timestamp("Spawning ec_serial_reader...")
     eventlet.spawn(start_ec_serial_reader)
@@ -200,6 +192,7 @@ def start_threads():
     log_with_timestamp("Spawning auto_dosing_loop...")
     eventlet.spawn(auto_dosing_loop)
 
+    from services.ph_service import serial_reader
     log_with_timestamp("Spawning pH serial reader...")
     eventlet.spawn(serial_reader)
 
@@ -212,20 +205,18 @@ def start_threads():
     log_with_timestamp("Spawning water level sensor monitor...")
     eventlet.spawn(monitor_water_level_sensors)
 
-    # Valve thread
     from services.valve_relay_service import init_valve_thread
     init_valve_thread()
 
     log_with_timestamp("Spawning water power control monitor...")
     start_power_control_loop()
 
-# Kick off your background threads so Gunicorn sees them:
-# (We also do this from wsgi.py if you're using Gunicorn)
+# Start threads so Gunicorn sees them
 start_threads()
 
-###############################################################################
+########################################################################
 # Register Blueprints
-###############################################################################
+########################################################################
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
@@ -237,9 +228,9 @@ app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 
 
-###############################################################################
+########################################################################
 # Routes
-###############################################################################
+########################################################################
 @app.route('/')
 def index():
     pi_ip = get_local_ip()
@@ -264,14 +255,11 @@ def valves_page():
 
 @socketio.on('connect')
 def handle_connect():
-    """
-    Basic connect handler for the default namespace;
-    separate from the '/status' namespace in status_namespace.py
-    """
+    """ Basic connect handler for the default namespace. """
     log_with_timestamp("Client connected (default namespace)")
-    current_ph = get_latest_ph_reading()
-    if current_ph is not None:
-        socketio.emit('ph_update', {'ph': current_ph})
+    ph_value = get_latest_ph_reading()
+    if ph_value is not None:
+        socketio.emit('ph_update', {'ph': ph_value})
 
 @app.route('/api/ph/latest', methods=['GET'])
 def get_ph_latest():
@@ -283,7 +271,9 @@ def get_ph_latest():
 
 @app.route('/dosage', methods=['GET'])
 def dosage_page():
+    from services.dosage_service import get_dosage_info
     dosage_data = get_dosage_info()
+
     if auto_dose_state.get("last_dose_time"):
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -326,9 +316,9 @@ def device_timezones():
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
 
-###############################################################################
+########################################################################
 # MAIN
-###############################################################################
+########################################################################
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)

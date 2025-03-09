@@ -1,6 +1,6 @@
 # File: status_namespace.py
 
-import socketio  # for python-socketio (used by the aggregator to connect to remote IPs)
+import socketio  # for python-socketio (used by aggregator to connect to remote IPs)
 from flask_socketio import Namespace
 from datetime import datetime
 
@@ -12,32 +12,31 @@ from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
 
-# -------------------------------------------------------------------
-# 1) Global reference to the Flask-SocketIO instance, plus a setter.
-# -------------------------------------------------------------------
+###############################################################################
+# 1) We store a reference to the main Flask-SocketIO instance in _socketio
+#    so we can call emit(...) from inside status_namespace.py
+###############################################################################
 _socketio = None
 
 def set_socketio_instance(sio):
     """
-    Called in app.py after creating socketio = SocketIO(app, ...).
-    This eliminates circular imports.
+    Called once from app.py after the app initializes its SocketIO object.
+    Eliminates circular import by not importing from app here.
     """
     global _socketio
     _socketio = sio
 
-# -------------------------------------------------------------------
-# 2) Aggregator data structures
-# -------------------------------------------------------------------
-REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_update"
-REMOTE_CLIENTS = {}  # remote_ip -> python-socketio.Client instance
+###############################################################################
+# 2) Data structures for aggregator logic
+###############################################################################
+REMOTE_STATES = {}  # remote_ip -> last-known JSON from that remote's "status_update"
+REMOTE_CLIENTS = {} # remote_ip -> python-socketio.Client instance
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def is_local_host(host: str, local_names=None):
-    """
-    Decide if `host` is "local" or truly remote.
-    """
+    """ Decide if `host` is "local" or truly remote. """
     if not host or host.lower() in ("localhost", "127.0.0.1"):
         log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
         return True
@@ -52,9 +51,9 @@ def is_local_host(host: str, local_names=None):
     return False
 
 def connect_to_remote_if_needed(remote_ip):
-    """
-    Creates (or reuses) a python-socketio.Client to remote_ip:8000/status.
-    If we haven't connected before, set up event handlers for "status_update."
+    """ 
+    Create (or reuse) a python-socketio.Client to remote_ip:8000/status.
+    If not connected yet, set up event handlers.
     """
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
@@ -86,17 +85,13 @@ def connect_to_remote_if_needed(remote_ip):
     url = f"http://{remote_ip}:8000/status"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
-        # Attempt websocket, fallback to polling
         sio.connect(url, transports=["websocket","polling"])
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
 
 def get_cached_remote_states(remote_ip):
-    """
-    Return the last-known `status_update` data from remote_ip (if any),
-    or an empty dict if we haven't received anything yet.
-    """
+    """Return the last-known status data from remote_ip."""
     data = REMOTE_STATES.get(remote_ip, {})
     if data:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found keys: {list(data.keys())}")
@@ -104,24 +99,23 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-# -------------------------------------------------------------------
-# 3) The main aggregator: merges local + remote valve info by label
-# -------------------------------------------------------------------
+###############################################################################
+# 3) The aggregator: merges local + remote valve states (by label)
+###############################################################################
 def emit_status_update():
-    """
-    Emit a status_update event with merged local & remote valve states (by LABEL).
-    Broadcast to /status so all connected clients see it.
+    """ 
+    Merges local + remote state and emits "status_update" to /status namespace.
     """
     try:
         if not _socketio:
-            log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit status_update.")
+            log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
             return
 
         # 1) Load main settings
         settings = load_settings()
         log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
-        # 2) Copy auto_dose_state
+        # 2) Format auto_dose_state
         auto_dose_copy = dict(auto_dose_state)
         if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
             auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
@@ -140,14 +134,13 @@ def emit_status_update():
         # Water level
         water_level_info = get_water_level_status()
 
-        # fill/drain IPs
+        # fill/drain
         fill_valve_ip  = (settings.get("fill_valve_ip")   or "").strip()
         fill_valve     =  settings.get("fill_valve", "")
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
         drain_valve    =  settings.get("drain_valve", "")
         log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
 
-        # local/remote label aggregator
         valve_labels = settings.get("valve_labels", {})
         log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")
 
@@ -206,7 +199,7 @@ def emit_status_update():
             "valve_relays":    aggregator_map
         }
 
-        # 6) Build final payload
+        # 6) Final payload
         status_payload = {
             "settings":      settings,
             "current_ph":    get_latest_ph_reading(),
@@ -218,13 +211,8 @@ def emit_status_update():
             "errors":        []
         }
 
-        # 7) Emit
-        _socketio.emit(
-            "status_update",
-            status_payload,
-            namespace="/status",
-            broadcast=True
-        )
+        # 7) Emit to /status
+        _socketio.emit("status_update", status_payload, namespace="/status", broadcast=True)
         log_with_timestamp("Status update emitted successfully (label-based aggregator).")
 
     except Exception as e:
@@ -232,13 +220,13 @@ def emit_status_update():
         import traceback
         traceback.print_exc()
 
-# -------------------------------------------------------------------
+###############################################################################
 # 4) Our /status Namespace class
-# -------------------------------------------------------------------
+###############################################################################
 class StatusNamespace(Namespace):
     def on_connect(self):
         log_with_timestamp("StatusNamespace: Client connected.")
-        emit_status_update()
+        emit_status_update()  # immediate aggregator send
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
