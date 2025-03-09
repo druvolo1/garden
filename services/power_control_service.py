@@ -30,6 +30,25 @@ def get_local_ip_address():
     finally:
         s.close()
 
+def standardize_host_ip(raw_host_ip):
+    """
+    If raw_host_ip is empty, or is 'localhost', '127.0.0.1', or '<system_name>.local',
+    replace it with this Pi’s LAN IP. Otherwise return raw_host_ip unchanged.
+    """
+    if not raw_host_ip:
+        return None
+
+    s = load_settings()
+    system_name = s.get("system_name", "Garden").lower()
+    lower_host = raw_host_ip.lower()
+
+    if lower_host in ["localhost", "127.0.0.1", f"{system_name}.local"]:
+        new_ip = get_local_ip_address()
+        log(f"[standardize_host_ip] Replacing '{raw_host_ip}' with '{new_ip}'.")
+        return new_ip
+
+    return raw_host_ip
+
 def start_power_control_loop():
     """
     Spawns the background thread that connects to remote valves & controls Shelly outlets.
@@ -43,11 +62,14 @@ def power_control_main_loop():
             settings = load_settings()
             power_controls = settings.get("power_controls", [])
 
-            # 1) Gather a list of host IPs from the 'tracked_valves' config
+            # 1) Gather the host IPs from 'tracked_valves'
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
-                    needed_hosts.add(tv["host_ip"])
+                    # Use standardize_host_ip so it's consistent
+                    fixed_host = standardize_host_ip(tv["host_ip"])
+                    if fixed_host:
+                        needed_hosts.add(fixed_host)
 
             log(f"[power_control_main_loop] Needed hosts for power control: {needed_hosts}")
 
@@ -56,7 +78,7 @@ def power_control_main_loop():
                 if old_host not in needed_hosts:
                     close_host_connection(old_host)
 
-            # 3) Ensure a Socket.IO connection to each needed host
+            # 3) Ensure we have a Socket.IO connection to each needed host
             for host_ip in needed_hosts:
                 if host_ip not in sio_clients:
                     log(f"[power_control_main_loop] Opening socket.io connection to {host_ip}")
@@ -70,25 +92,20 @@ def power_control_main_loop():
 
         eventlet.sleep(5)  # loop every 5 seconds
 
-def open_host_connection(host_ip):
+def open_host_connection(raw_host_ip):
     """
-    Connect to host_ip:8000 via Socket.IO (namespace=/status).
-    If host_ip is localhost, 127.0.0.1, or <system_name>.local, override it
-    with get_local_ip_address() so we avoid self‐DNS issues.
+    Connect to raw_host_ip:8000 via Socket.IO (namespace=/status).
+    If raw_host_ip is 'localhost', '127.0.0.1', or '<system_name>.local',
+    we replace it with get_local_ip_address() to avoid self-DNS issues.
     """
-
-    if not host_ip:
+    if not raw_host_ip:
         log("[open_host_connection] ERROR: host_ip is empty.")
         return
 
-    s = load_settings()
-    system_name = s.get("system_name", "Garden").lower()
-    lower_host = host_ip.lower()
-
-    if lower_host in ["localhost", "127.0.0.1", f"{system_name}.local"]:
-        resolved_ip = get_local_ip_address()
-        log(f"[open_host_connection] Replacing '{host_ip}' with local IP '{resolved_ip}'.")
-        host_ip = resolved_ip
+    host_ip = standardize_host_ip(raw_host_ip)
+    if not host_ip:
+        log(f"[open_host_connection] Could not standardize empty host? Skipping.")
+        return
 
     url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
@@ -113,6 +130,7 @@ def open_host_connection(host_ip):
             status_str = vinfo.get("status", "off").lower()
             label_str  = vinfo.get("label", f"Valve {valve_id_str}")
 
+            # Store the state by the standardized host IP
             remote_valve_states[(host_ip, valve_id_str)] = status_str
             log(
                 f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = '{status_str}'"
@@ -142,7 +160,7 @@ def close_host_connection(host_ip):
 def reevaluate_all_outlets():
     """
     For each configured outlet in power_controls, if ANY tracked valve is "on",
-    turn the Shelly to "on." Otherwise set it "off."
+    turn Shelly "on". Otherwise set it "off".
     """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
@@ -166,9 +184,13 @@ def reevaluate_all_outlets():
 
         any_on = False
         for tv in tracked_valves:
-            key = (tv["host_ip"], tv["valve_id"])  # tuple
-            current_valve_state = remote_valve_states.get(key, "off")
-            log(f"       Found remote_valve_states[{key}] => '{current_valve_state}'")
+            # Standardize the host IP so it matches what we used in open_host_connection
+            fixed_host_ip = standardize_host_ip(tv["host_ip"])
+            valve_id = tv["valve_id"]
+
+            # Now look up remote_valve_states with the fixed host
+            current_valve_state = remote_valve_states.get((fixed_host_ip, valve_id), "off")
+            log(f"       Found remote_valve_states[({fixed_host_ip}, {valve_id})] => '{current_valve_state}'")
 
             if current_valve_state == "on":
                 any_on = True
@@ -187,9 +209,8 @@ def reevaluate_all_outlets():
 
 def set_shelly_state(outlet_ip, state):
     """
-    Shelly switches typically toggle with a GET:
-      http://<outlet_ip>/relay/0?turn=on
-    or ?turn=off
+    Shelly switches typically toggle with:
+      GET http://<outlet_ip>/relay/0?turn=on  (or off)
     """
     url = f"http://{outlet_ip}/relay/0?turn={state}"
     try:
