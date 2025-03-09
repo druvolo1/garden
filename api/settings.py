@@ -142,27 +142,30 @@ def update_settings():
     if new_system_name != old_system_name:
         print(f"System name changed from {old_system_name} to {new_system_name}.")
 
-        # Run your change_hostname.sh script
+        # We'll append "-pc" to the OS hostname
+        appended_hostname = f"{new_system_name}-pc"
+
+        # 1) Run your change_hostname.sh script with appended_hostname
         script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
         ensure_script_executable(script_path)
 
         try:
-            subprocess.run(["sudo", script_path, new_system_name], check=True)
-            print(f"Successfully updated system hostname to {new_system_name}.")
+            subprocess.run(["sudo", script_path, appended_hostname], check=True)
+            print(f"Successfully updated system hostname to {appended_hostname}.")
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # Also update mDNS registration to match the new name
+        # 2) Update mDNS registration with the appended name as well
         try:
-            register_mdns_name(new_system_name, service_port=8000)
-            print(f"[mDNS] Re-registered new system name: {new_system_name}.local")
+            register_mdns_name(appended_hostname, service_port=8000)
+            print(f"[mDNS] Re-registered new system name: {appended_hostname}.local")
         except Exception as e:
             print(f"[mDNS] Error re-registering name: {e}")
 
-    # Notify any connected clients that settings changed
-    emit_status_update()
+        # Notify any connected clients that settings changed
+        emit_status_update()
 
-    return jsonify({"status": "success", "settings": current_settings})
+        return jsonify({"status": "success", "settings": current_settings})
 
 # API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
