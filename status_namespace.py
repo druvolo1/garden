@@ -1,7 +1,7 @@
 # File: status_namespace.py
 
-import socketio  # <-- Make sure you `pip install "python-socketio[client]"`
-from flask_socketio import Namespace
+import socketio  # <-- Make sure you `pip install "python-socketio[client]"`.
+from flask_socketio import Namespace, socketio as flask_socketio
 from services.ph_service import get_latest_ph_reading
 from services.ec_service import get_latest_ec_reading
 from utils.settings_utils import load_settings
@@ -22,16 +22,16 @@ def is_local_host(host: str, local_names=None):
     Decide if `host` is "local" or truly remote. You can expand this logic as needed.
     """
     if not host or host.lower() in ("localhost", "127.0.0.1"):
-        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
         return True
     if local_names:
         host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
             if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
-                log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")  # (DEBUG)
+                log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")
                 return True
-    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")  # (DEBUG)
+    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
 
 def connect_to_remote_if_needed(remote_ip):
@@ -40,10 +40,10 @@ def connect_to_remote_if_needed(remote_ip):
     If we haven't connected before, set up event handlers for "status_update."
     """
     if not remote_ip:
-        log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")  # (DEBUG)
+        log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
     if remote_ip in REMOTE_CLIENTS:
-        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
         return  # Already connected
 
     log_with_timestamp(f"[AGG] Creating new Socket.IO client for remote {remote_ip}")
@@ -65,12 +65,13 @@ def connect_to_remote_if_needed(remote_ip):
     def on_remote_status_update(data):
         # We store the entire payload from that remote
         REMOTE_STATES[remote_ip] = data
-        log_with_timestamp(f"[AGG] on_remote_status_update from {remote_ip}, keys: {list(data.keys())}")  # (DEBUG)
+        log_with_timestamp(f"[AGG] on_remote_status_update from {remote_ip}, keys: {list(data.keys())}")
 
     url = f"http://{remote_ip}:8000/status"
     try:
-        log_with_timestamp(f"[AGG] Attempting to connect to {url}")  # (DEBUG)
-        sio.connect(url, transports=["websocket"])
+        log_with_timestamp(f"[AGG] Attempting to connect to {url}")
+        # We try both websocket and polling as fallback
+        sio.connect(url, transports=["websocket", "polling"])
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
@@ -82,21 +83,22 @@ def get_cached_remote_states(remote_ip):
     """
     data = REMOTE_STATES.get(remote_ip, {})
     if data:
-        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found data with keys: {list(data.keys())}")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found data with keys: {list(data.keys())}")
     else:
-        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
 def emit_status_update():
     """
     Emit a status_update event with merged local & remote valve states (by LABEL).
+    Broadcast to /status so all connected aggregator clients (and any other /status clients) receive it.
     """
     try:
         from app import socketio  # your Flask-SocketIO instance
 
         # 1) Load main settings
         settings = load_settings()
-        log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
         # 2) Format auto_dose_state
         auto_dose_copy = dict(auto_dose_state)
@@ -120,11 +122,11 @@ def emit_status_update():
         fill_valve     =  settings.get("fill_valve", "")
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
         drain_valve    =  settings.get("drain_valve", "")
-        log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
 
         # ANY numeric keys in valve_labels become possible local channels
         valve_labels = settings.get("valve_labels", {})
-        log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")  # (DEBUG)
+        log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")
 
         local_system_name = settings.get("system_name", "Garden")
 
@@ -134,7 +136,7 @@ def emit_status_update():
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
 
         if valve_relay_device:
-            log_with_timestamp(f"[DEBUG] local valve_relay_device={valve_relay_device}")  # (DEBUG)
+            log_with_timestamp(f"[DEBUG] local valve_relay_device={valve_relay_device}")
             # For each numeric ID -> label, get local status
             for valve_id_str, label in valve_labels.items():
                 try:
@@ -142,13 +144,13 @@ def emit_status_update():
                 except:
                     continue
                 status = get_valve_status(valve_id)  # "on" / "off" / "unknown"
-                log_with_timestamp(f"[DEBUG] local valve_id={valve_id}, label={label}, status={status}")  # (DEBUG)
+                log_with_timestamp(f"[DEBUG] local valve_id={valve_id}, label={label}, status={status}")
                 label_map_local[label] = {
                     "label": label,
                     "status": status
                 }
         else:
-            log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")  # (DEBUG)
+            log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
 
         # aggregator_map = label-> {label, status}
         aggregator_map = dict(label_map_local)
@@ -157,12 +159,12 @@ def emit_status_update():
         local_names = [local_system_name]
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
             if not ip_addr:
-                log_with_timestamp("[DEBUG] skip empty ip_addr")  # (DEBUG)
+                log_with_timestamp("[DEBUG] skip empty ip_addr")
                 continue
 
             # Check if it's local or remote
             if is_local_host(ip_addr, local_names):
-                log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")  # (DEBUG)
+                log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")
             else:
                 # Attempt aggregator connection
                 connect_to_remote_if_needed(ip_addr)
@@ -171,8 +173,7 @@ def emit_status_update():
                 remote_valve_info = remote_data.get("valve_info", {})
                 remote_valve_relays = remote_valve_info.get("valve_relays", {})
 
-                # Debug how many label_keys we found
-                log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_valve_relays)} label_keys")  # (DEBUG)
+                log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_valve_relays)} label_keys")
 
                 for label_key, label_obj in remote_valve_relays.items():
                     aggregator_map[label_key] = {
@@ -200,13 +201,28 @@ def emit_status_update():
             "errors": []
         }
 
-        socketio.emit("status_update", status_payload, namespace="/status")
+        # Emit on the /status namespace, broadcast to all clients
+        socketio.emit(
+            "status_update",
+            status_payload,
+            namespace="/status",
+            broadcast=True
+        )
         log_with_timestamp("Status update emitted successfully (label-based aggregator).")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
+#
+# --- OPTIONAL EXTRA EVENT HANDLER ---
+# This ensures we definitely see a log line whenever a client (like aggregator) connects to /status.
+# This can be helpful if concurrency or custom logic means the aggregator's connect might not trigger on_connect below.
+#
+@flask_socketio.on("connect", namespace="/status")
+def aggregator_connected():
+    log_with_timestamp("+++ /status on_connect triggered (aggregator or local client) +++")
 
 class StatusNamespace(Namespace):
     def on_connect(self):
