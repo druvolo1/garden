@@ -28,7 +28,8 @@ def load_water_level_sensors():
 def ensure_pins_inited():
     global _pins_inited
     if not GPIO:
-        return  # mock environment, no-op
+        print("[WaterLevel DEBUG] Mock environment, no GPIO setup.")
+        return
 
     with _pins_lock:
         if not _pins_inited:
@@ -41,13 +42,15 @@ def ensure_pins_inited():
                     if pin is not None:
                         GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 _pins_inited = True
-                print("Water-level pins have been initialized.")
+                print("[WaterLevel DEBUG] Water-level pins have been initialized.")
             except Exception as e:
-                print(f"Error initializing water-level pins: {e}")
+                print(f"[WaterLevel ERROR] Error initializing water-level pins: {e}")
 
 def force_cleanup_and_init():
     if not GPIO:
+        print("[WaterLevel DEBUG] Mock environment, nothing to cleanup.")
         return
+
     with _pins_lock:
         global _pins_inited
         GPIO.cleanup()
@@ -73,18 +76,19 @@ def get_water_level_status():
                 "triggered": triggered
             }
     else:
-        # Mock environment: assume all sensors are "not triggered"
+        # Mock environment
         for sensor_key, cfg in sensors.items():
             status[sensor_key] = {
                 "label": cfg.get("label", sensor_key),
                 "pin": cfg.get("pin"),
                 "triggered": False
             }
+
     return status
 
 def monitor_water_level_sensors():
     """
-    Continuously monitors sensor changes. 
+    Continuously monitors sensor changes.
     If the fill sensor is "not triggered" => turn OFF the fill valve.
     If the drain sensor is "triggered" => turn OFF the drain valve.
     """
@@ -96,20 +100,17 @@ def monitor_water_level_sensors():
         try:
             current_state = get_water_level_status()
 
+            # Debug: show the entire sensor state
+            print("[WaterLevel DEBUG] Current water level states:")
+            for k, v in current_state.items():
+                print(f"   {k}: label={v['label']} triggered={v['triggered']} pin={v['pin']}")
+
             if current_state != _last_sensor_state:
+                print("[WaterLevel DEBUG] Sensor states changed since last check.")
                 _last_sensor_state = current_state
 
                 settings = load_settings()
                 valve_info = settings.get("valve_info", {})
-
-                # Example:
-                #  "fill_sensor": "sensor1"
-                #  "drain_sensor": "sensor3"
-                #  "fill_valve": "1"
-                #  "drain_valve": "2"
-                #  "fill_valve_ip": "zone4.local"
-                #  "drain_valve_ip": "zone4.local"
-                #  "valve_labels": { "1": "fill 4", "2": "drain 4" }
 
                 fill_sensor_key = valve_info.get("fill_sensor", "sensor1")
                 drain_sensor_key = valve_info.get("drain_sensor", "sensor3")
@@ -120,59 +121,77 @@ def monitor_water_level_sensors():
                 fill_valve_ip  = valve_info.get("fill_valve_ip")   # e.g. "zone4.local"
                 drain_valve_ip = valve_info.get("drain_valve_ip")  # e.g. "zone4.local"
 
-                # ID-> label map
                 valve_labels = valve_info.get("valve_labels", {})
-                
-                # Convert ID => label (e.g. "1" => "fill 4")
                 fill_valve_label  = valve_labels.get(fill_valve_id, fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
+                print(f"[WaterLevel DEBUG] fill_sensor_key={fill_sensor_key}, drain_sensor_key={drain_sensor_key}")
+                print(f"[WaterLevel DEBUG] fill_valve_label={fill_valve_label}, drain_valve_label={drain_valve_label}")
+                print(f"[WaterLevel DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
+
                 # Fill logic
                 if fill_sensor_key in current_state:
+                    fill_triggered = current_state[fill_sensor_key]["triggered"]
+                    print(f"[WaterLevel DEBUG] Fill sensor '{fill_sensor_key}' triggered={fill_triggered}")
                     # If sensor is "not triggered," we want to shut off the fill valve
-                    if not current_state[fill_sensor_key]["triggered"] and fill_valve_label:
+                    if (not fill_triggered) and fill_valve_label:
+                        print("[WaterLevel DEBUG] Fill sensor is NOT triggered → turning OFF fill valve.")
                         turn_off_valve(fill_valve_label, fill_valve_ip)
+                    else:
+                        print("[WaterLevel DEBUG] Fill sensor condition not met; no action.")
+
+                else:
+                    print(f"[WaterLevel DEBUG] Fill sensor key '{fill_sensor_key}' not found in current_state!")
 
                 # Drain logic
                 if drain_sensor_key in current_state:
+                    drain_triggered = current_state[drain_sensor_key]["triggered"]
+                    print(f"[WaterLevel DEBUG] Drain sensor '{drain_sensor_key}' triggered={drain_triggered}")
                     # If sensor is "triggered," we want to shut off the drain valve
-                    if current_state[drain_sensor_key]["triggered"] and drain_valve_label:
+                    if drain_triggered and drain_valve_label:
+                        print("[WaterLevel DEBUG] Drain sensor IS triggered → turning OFF drain valve.")
                         turn_off_valve(drain_valve_label, drain_valve_ip)
+                    else:
+                        print("[WaterLevel DEBUG] Drain sensor condition not met; no action.")
+                else:
+                    print(f"[WaterLevel DEBUG] Drain sensor key '{drain_sensor_key}' not found in current_state!")
 
                 emit_status_update()
+            else:
+                print("[WaterLevel DEBUG] Sensor states are unchanged; no action taken.")
 
         except Exception as e:
-            print(f"Error monitoring water level sensors: {e}")
+            print(f"[WaterLevel ERROR] Exception in monitor_water_level_sensors: {e}")
 
         time.sleep(0.5)
 
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
-    Decides whether to send the request locally or to a remote device 
-    based on whether `valve_ip` is empty or not. Then calls the name-based 
+    Decides whether to send the request locally or to a remote device
+    based on whether `valve_ip` is empty or not. Then calls the name-based
     route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off
     """
     if not valve_label:
+        print("[WaterLevel DEBUG] turn_off_valve() called with empty valve_label; aborting.")
         return
 
-    # If there's no valve_ip, assume local
     if not valve_ip:
         url = f"http://127.0.0.1:8000/api/valve_relay/{valve_label}/off"
     else:
-        # Use the remote IP from valve_info
         url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
 
-    print(f"[WaterLevel] turning OFF valve '{valve_label}' via {url}")
+    print(f"[WaterLevel DEBUG] turn_off_valve -> Valve='{valve_label}' IP='{valve_ip or 'localhost'}' URL={url}")
 
     try:
         resp = requests.post(url)
+        print(f"[WaterLevel DEBUG] POST {url} => HTTP {resp.status_code}")
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "success":
-                print(f"Valve '{valve_label}' turned off (http {valve_ip or 'localhost'}).")
+                print(f"[WaterLevel INFO] Valve '{valve_label}' turned off successfully (http {valve_ip or 'localhost'}).")
             else:
-                print(f"Valve '{valve_label}' off error: {data.get('error')}")
+                print(f"[WaterLevel WARN] Valve '{valve_label}' off error: {data.get('error')}")
         else:
-            print(f"Valve '{valve_label}' off returned HTTP {resp.status_code}.")
+            print(f"[WaterLevel WARN] Valve '{valve_label}' off returned HTTP {resp.status_code}")
     except Exception as ex:
-        print(f"Error calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
+        print(f"[WaterLevel ERROR] Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
