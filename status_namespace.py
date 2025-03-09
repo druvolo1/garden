@@ -1,10 +1,4 @@
 # File: status_namespace.py
-#
-# This version adds aggregator logic using python-socketio as a client.
-# Each time we see a valve IP in settings that isn't local, we:
-#   1) Connect (once) to that remote server's /status socket.
-#   2) Cache the most recent status_update we get from the remote.
-#   3) Merge that remote's valve states into our final "valve_info" before emitting.
 
 import socketio  # <-- Make sure you `pip install "python-socketio[client]"`
 from flask_socketio import Namespace
@@ -25,13 +19,12 @@ def log_with_timestamp(msg):
 
 def is_local_host(host: str, local_names=None):
     """
-    Decide if `host` is "local" (so we handle valves ourselves) or truly remote.
-    You can expand this logic as needed.
+    Decide if `host` is "local" or truly remote. You can expand this logic as needed.
     """
     if not host or host.lower() in ("localhost", "127.0.0.1"):
         return True
     if local_names:
-        # If your local system_name is "Zone4", you might consider "Zone4.local" or "zone4" as local too.
+        # If your local system_name is "Zone4", you might consider "Zone4.local" or "zone4" local, etc.
         host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
@@ -41,7 +34,7 @@ def is_local_host(host: str, local_names=None):
 
 def connect_to_remote_if_needed(remote_ip):
     """
-    Creates (or reuses) a Socket.IO client to that remote IP:8000/status.
+    Creates (or reuses) a Socket.IO client to remote_ip:8000/status.
     If we haven't connected before, set up event handlers for "status_update."
     """
     if not remote_ip:
@@ -66,10 +59,8 @@ def connect_to_remote_if_needed(remote_ip):
 
     @sio.on("status_update")
     def on_remote_status_update(data):
-        # Save the entire payload from that remote
+        # We store the entire payload from that remote
         REMOTE_STATES[remote_ip] = data
-        # We don't automatically emit our own "status_update" here; we wait
-        # until our normal emit_status_update cycle (or whenever you prefer).
 
     url = f"http://{remote_ip}:8000/status"
     try:
@@ -86,10 +77,9 @@ def get_cached_remote_states(remote_ip):
     """
     return REMOTE_STATES.get(remote_ip, {})
 
-
 def emit_status_update():
     """
-    Emit a status_update event with merged local & remote valve states.
+    Emit a status_update event with merged local & remote valve states (by LABEL).
     """
     try:
         from app import socketio  # your Flask-SocketIO instance
@@ -119,51 +109,74 @@ def emit_status_update():
         fill_valve     =  settings.get("fill_valve", "")
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
         drain_valve    =  settings.get("drain_valve", "")
-        valve_labels   =  settings.get("valve_labels", {})
+
+        # ANY numeric keys in valve_labels become possible local channels
+        valve_labels = settings.get("valve_labels", {})
+
         local_system_name = settings.get("system_name", "Garden")
 
-        # 5) Collect LOCAL valve relays
+        # ----------------------------------------------------------------------
+        # 5) Build a label-keyed dictionary for LOCAL valves  (ADDED / CHANGED)
+        # ----------------------------------------------------------------------
         from services.valve_relay_service import get_valve_status
-        local_valve_relays = {}
-        # If we have a local USB device assigned, let's assume channels 1..8 are local
+        label_map_local = {}
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
+
         if valve_relay_device:
-            # gather local states for all labeled valves
+            # For each numeric ID -> label, get local status
             for valve_id_str, label in valve_labels.items():
-                valve_id = int(valve_id_str)
-                local_valve_relays[valve_id_str] = {
+                try:
+                    valve_id = int(valve_id_str)
+                except:
+                    continue
+                status = get_valve_status(valve_id)  # "on" / "off" / "unknown"
+                label_map_local[label] = {
                     "label": label,
-                    "status": get_valve_status(valve_id)
+                    "status": status
                 }
+        # If there's no local device, label_map_local stays empty
 
-        # 6) For any IP that is NOT local, ensure we connect via Socket.IO, then pull last-known states
-        aggregated_valve_relays = dict(local_valve_relays)  # start with local
+        # Create aggregator map (label -> {label, status})
+        aggregator_map = dict(label_map_local)
 
-        # Are these IPs local or remote?
-        # If they're remote, connect once, then merge from REMOTE_STATES.
-        local_names = [local_system_name]  # could add synonyms if you want
+        # ----------------------------------------------------------------------
+        # 6) Merge REMOTE states (also by label)  (ADDED / CHANGED)
+        # ----------------------------------------------------------------------
+        local_names = [local_system_name]  # If you have synonyms, add them here
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
             if ip_addr and not is_local_host(ip_addr, local_names):
                 # Connect if needed
                 connect_to_remote_if_needed(ip_addr)
-                # Merge remote states into aggregator
+                # Grab the remote's last-known status_update
                 remote_data = get_cached_remote_states(ip_addr)
                 remote_valve_info = remote_data.get("valve_info", {})
-                remote_relays = remote_valve_info.get("valve_relays", {})
-                # Combine them, overwriting or adding
-                aggregated_valve_relays.update(remote_relays)
+                remote_valve_relays = remote_valve_info.get("valve_relays", {})
 
-        # 7) Build the final valve_info
+                # Now, because the remote is also label-based, `remote_valve_relays`
+                # is something like:
+                #   {"Zone 4 Fill": {"label":"Zone 4 Fill","status":"off"}, ... }
+                for label_key, label_obj in remote_valve_relays.items():
+                    # label_key = e.g. "Zone 4 Fill"
+                    # label_obj = {"label":"Zone 4 Fill", "status":"off"}
+                    aggregator_map[label_key] = {
+                        "label": label_obj.get("label", label_key),
+                        "status": label_obj.get("status", "unknown")
+                    }
+
+        # ----------------------------------------------------------------------
+        # 7) Construct final valve_info with label-based 'valve_relays'
+        # ----------------------------------------------------------------------
         valve_info = {
-            "fill_valve_ip":   fill_valve_ip,
-            "fill_valve":      fill_valve,
-            "drain_valve_ip":  drain_valve_ip,
-            "drain_valve":     drain_valve,
-            "valve_labels":    valve_labels,
-            "valve_relays":    aggregated_valve_relays
+            "fill_valve_ip":  fill_valve_ip,
+            "fill_valve":     fill_valve,
+            "drain_valve_ip": drain_valve_ip,
+            "drain_valve":    drain_valve,
+            "valve_labels":   valve_labels,
+            # Instead of numeric keys, aggregator_map is keyed by the LABEL
+            "valve_relays":   aggregator_map
         }
 
-        # 8) Construct final payload
+        # 8) Build the final payload
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
@@ -175,16 +188,19 @@ def emit_status_update():
             "errors": []
         }
 
-        # 9) Emit over our local /status namespace
+        # 9) Emit it
+        from app import socketio
         socketio.emit("status_update", status_payload, namespace="/status")
-        log_with_timestamp("Status update emitted successfully (aggregator).")
+        log_with_timestamp("Status update emitted successfully (label-based aggregator).")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
 
-
+#
+# No change below here
+#
 class StatusNamespace(Namespace):
     def on_connect(self):
         log_with_timestamp("StatusNamespace: Client connected.")

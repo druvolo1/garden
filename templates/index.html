@@ -16,9 +16,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- NOTE: This index.html contains both local + remote-zone logic in the front end.
-       Now that we've added aggregator logic to status_namespace.py, the local machine
-       can also supply remote valves in its own "status_update" if it references them. -->
+  <!-- NOTE: This index.html still has local + remote zone logic.
+       The aggregator in status_namespace.py now merges by valve label. -->
 
   <!-- Navigation Menu -->
   <nav>
@@ -78,7 +77,6 @@
         <div id="local-fill-container" style="display:none;">
           <label>Fill Valve: <span id="local-fill-status">Off</span></label>
           <div style="display:flex; gap:8px; margin-top:4px;">
-            <!-- We'll color-code these with .btn-on-active, .btn-off-active, etc. -->
             <button id="local-fill-on" disabled>On</button>
             <button id="local-fill-off" disabled>Off</button>
           </div>
@@ -164,7 +162,6 @@
         drainOnBtn.disabled  = !drainValveName;
         drainOffBtn.disabled = !drainValveName;
 
-        // If not set, define the onClick for local toggles
         if (!fillOnBtn.onclick) {
           fillOnBtn.onclick   = () => setValveLocal(fillValveIp,  fillValveName,  "local-fill-status",  "on");
           fillOffBtn.onclick  = () => setValveLocal(fillValveIp,  fillValveName,  "local-fill-status",  "off");
@@ -173,26 +170,30 @@
         }
 
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
+
+        // ---------- ADDED / CHANGED: label-based iteration ----------
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
 
-          // Suppose your settings have 'valve_labels' that map numeric IDs -> "fill 4"/"drain 4"
-          // fillValveName, drainValveName might be "4", so we can do:
+          // Suppose 'fill_valve' = "4", but now that doesn't matter. We look up the label in valve_labels
+          // For local color update, we still want fillLabel & drainLabel:
           const fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
           const drainLabel = data.settings?.valve_labels?.[drainValveName] || drainValveName;
 
-          // relays might look like: {"1":{"label":"fill 4","status":"off"},"2":{"label":"drain 4","status":"off"}}
-          for (let rId in relays) {
-            const rInfo = relays[rId];
-            const rLabel = rInfo.label;
+          // Because aggregator is label-keyed, we do:
+          //   for (let labelKey in relays) { ... }
+          // Each labelKey is e.g. "Zone 4 Fill".
+          for (let labelKey in relays) {
+            const rInfo   = relays[labelKey];
+            const rLabel  = rInfo.label;    // e.g. "Zone 4 Fill"
             const rStatus = (rInfo.status || "").toLowerCase();
 
-            // If rLabel == fillLabel, update fill status
+            // If rLabel == fillLabel, update fill status UI
             if (rLabel && rLabel === fillLabel) {
               document.getElementById("local-fill-status").textContent = (rStatus === "on") ? "On" : "Off";
               updateLocalValveButtons("fill", rStatus);
             }
-            // If rLabel == drainLabel, update drain status
+            // If rLabel == drainLabel, update drain status UI
             if (rLabel && rLabel === drainLabel) {
               document.getElementById("local-drain-status").textContent = (rStatus === "on") ? "On" : "Off";
               updateLocalValveButtons("drain", rStatus);
@@ -253,19 +254,16 @@
       if (span) {
         span.textContent = (action === "on") ? "On" : "Off";
       }
-      // figure out if it's fill or drain
       const prefix = spanId.includes("fill") ? "fill" : "drain";
       updateLocalValveButtons(prefix, action);
     }
 
     // Use the same color-coded classes as in valves.html
     function updateLocalValveButtons(valvePrefix, newStatus) {
-      // newStatus is "on" or "off"
       const onBtn  = document.getElementById(`local-${valvePrefix}-on`);
       const offBtn = document.getElementById(`local-${valvePrefix}-off`);
       if (!onBtn || !offBtn) return;
 
-      // Clear previous classes
       onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
       offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
 
@@ -346,7 +344,6 @@
         console.error(`[REMOTE ${host}] connect_error:`, err);
       });
 
-      // For each remote zone, handle the "status_update" the same way
       remoteSocket.on("status_update", (data) => {
         console.log(`[REMOTE ${host}] status_update:`, data);
 
@@ -389,7 +386,6 @@
         drainOnBtn.disabled  = !drainValveName;
         drainOffBtn.disabled = !drainValveName;
 
-        // If no onClick yet, define them
         if (!fillOnBtn.onclick) {
           fillOnBtn.onclick   = () => remoteSetValve(fillValveIp,  fillValveName,  `${zoneId}-fill-status`,  "on",  zoneId, "fill");
           fillOffBtn.onclick  = () => remoteSetValve(fillValveIp,  fillValveName,  `${zoneId}-fill-status`,  "off", zoneId, "fill");
@@ -397,16 +393,15 @@
           drainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveName,`${zoneId}-drain-status`, "off", zoneId, "drain");
         }
 
-        // If the server includes valve_relays for the remote, parse them
+        // ---------- ADDED / CHANGED: label-based iteration ----------
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
           const fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
           const drainLabel = data.settings?.valve_labels?.[drainValveName] || drainValveName;
 
-          // e.g. relays["1"] = {label:"fill 4", status:"off"}, relays["2"] = {label:"drain 4", status:"off"}
-          for (let rId in relays) {
-            const rInfo = relays[rId];
-            const rLabel = rInfo.label;
+          for (let labelKey in relays) {
+            const rInfo   = relays[labelKey];
+            const rLabel  = rInfo.label;
             const rStatus = (rInfo.status || "").toLowerCase();
 
             if (rLabel && rLabel === fillLabel) {
@@ -422,14 +417,12 @@
       });
     }
 
-    // Toggle remote valves the same as local, but for remote zone
     function remoteSetValve(host, valveName, statusSpanId, action, zoneId, valvePrefix) {
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
       fetch(url, { method:'POST' })
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            // Optimistic update
             document.getElementById(statusSpanId).textContent = (action === "on") ? "On" : "Off";
             updateRemoteValveButtons(zoneId, valvePrefix, action);
           } else {
@@ -439,7 +432,6 @@
         .catch(err => console.error(`[REMOTE ${host}] valve fetch error:`, err));
     }
 
-    // Color-code the remote zone's fill/drain On/Off buttons
     function updateRemoteValveButtons(zoneId, valvePrefix, newStatus) {
       const onBtn  = document.getElementById(`${zoneId}-${valvePrefix}-on`);
       const offBtn = document.getElementById(`${zoneId}-${valvePrefix}-off`);
