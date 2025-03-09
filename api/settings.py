@@ -9,7 +9,9 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
-from services.mdns_service import register_mdns_name
+from services.mdns_service import register_mdns_pc_hostname
+from services.mdns_service import register_mdns_pure_system_name
+
 from flask import send_file
 
 # Create the Blueprint for settings
@@ -155,16 +157,17 @@ def update_settings():
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # 2) Update mDNS registration with the appended name as well
+        # 2) Update mDNS registration for the PC hostname
+        from services.mdns_service import register_mdns_pc_hostname
         try:
-            register_mdns_name(appended_hostname, service_port=8000)
+            register_mdns_pc_hostname(new_system_name, service_port=8000)
             print(f"[mDNS] Re-registered new system name: {appended_hostname}.local")
         except Exception as e:
             print(f"[mDNS] Error re-registering name: {e}")
 
-        # 3) (NEW) Also register the pure system name without "-pc"
+        # 3) Also register the pure system name without "-pc"
+        from services.mdns_service import register_mdns_pure_system_name
         try:
-            from services.mdns_service import register_mdns_pure_system_name
             register_mdns_pure_system_name(new_system_name, service_port=8000)
             print(f"[mDNS] Also broadcasting pure name: {new_system_name}.local")
         except Exception as e:
@@ -172,12 +175,12 @@ def update_settings():
 
         # Notify any connected clients that settings changed
         emit_status_update()
-
         return jsonify({"status": "success", "settings": current_settings})
 
     # If the system name didn't change, just emit status and return
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
+
 
 
 # API endpoint: Reset settings to defaults
