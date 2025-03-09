@@ -225,8 +225,8 @@ def emit_status_update():
 ###############################################################################
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
-        log_with_timestamp("Connected with auth =", auth)
-        emit_status_update()  # immediate aggregator send
+        log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
+        emit_status_update()
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
