@@ -22,14 +22,16 @@ def is_local_host(host: str, local_names=None):
     Decide if `host` is "local" or truly remote. You can expand this logic as needed.
     """
     if not host or host.lower() in ("localhost", "127.0.0.1"):
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")  # (DEBUG)
         return True
     if local_names:
-        # If your local system_name is "Zone4", you might consider "Zone4.local" or "zone4" local, etc.
         host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
             if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
+                log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")  # (DEBUG)
                 return True
+    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")  # (DEBUG)
     return False
 
 def connect_to_remote_if_needed(remote_ip):
@@ -38,44 +40,52 @@ def connect_to_remote_if_needed(remote_ip):
     If we haven't connected before, set up event handlers for "status_update."
     """
     if not remote_ip:
+        log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")  # (DEBUG)
         return
     if remote_ip in REMOTE_CLIENTS:
+        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")  # (DEBUG)
         return  # Already connected
 
-    print(f"[AGG] Creating new Socket.IO client for remote {remote_ip}")
+    log_with_timestamp(f"[AGG] Creating new Socket.IO client for remote {remote_ip}")
     sio = socketio.Client(logger=False, engineio_logger=False)
 
     @sio.event
     def connect():
-        print(f"[AGG] Connected to remote {remote_ip}")
+        log_with_timestamp(f"[AGG] Connected to remote {remote_ip}")
 
     @sio.event
     def disconnect():
-        print(f"[AGG] Disconnected from remote {remote_ip}")
+        log_with_timestamp(f"[AGG] Disconnected from remote {remote_ip}")
 
     @sio.event
     def connect_error(data):
-        print(f"[AGG] Connect error for remote {remote_ip}: {data}")
+        log_with_timestamp(f"[AGG] Connect error for remote {remote_ip}: {data}")
 
     @sio.on("status_update")
     def on_remote_status_update(data):
         # We store the entire payload from that remote
         REMOTE_STATES[remote_ip] = data
+        log_with_timestamp(f"[AGG] on_remote_status_update from {remote_ip}, keys: {list(data.keys())}")  # (DEBUG)
 
     url = f"http://{remote_ip}:8000/status"
     try:
-        print(f"[AGG] Attempting to connect to {url}")
+        log_with_timestamp(f"[AGG] Attempting to connect to {url}")  # (DEBUG)
         sio.connect(url, transports=["websocket"])
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
-        print(f"[AGG] Failed to connect to {remote_ip}: {e}")
+        log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
 
 def get_cached_remote_states(remote_ip):
     """
     Return the last-known `status_update` data from remote_ip (if any),
     or an empty dict if we haven't received anything yet.
     """
-    return REMOTE_STATES.get(remote_ip, {})
+    data = REMOTE_STATES.get(remote_ip, {})
+    if data:
+        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found data with keys: {list(data.keys())}")  # (DEBUG)
+    else:
+        log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")  # (DEBUG)
+    return data
 
 def emit_status_update():
     """
@@ -86,6 +96,7 @@ def emit_status_update():
 
         # 1) Load main settings
         settings = load_settings()
+        log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")  # (DEBUG)
 
         # 2) Format auto_dose_state
         auto_dose_copy = dict(auto_dose_state)
@@ -109,20 +120,21 @@ def emit_status_update():
         fill_valve     =  settings.get("fill_valve", "")
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
         drain_valve    =  settings.get("drain_valve", "")
+        log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")  # (DEBUG)
 
         # ANY numeric keys in valve_labels become possible local channels
         valve_labels = settings.get("valve_labels", {})
+        log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")  # (DEBUG)
 
         local_system_name = settings.get("system_name", "Garden")
 
-        # ----------------------------------------------------------------------
-        # 5) Build a label-keyed dictionary for LOCAL valves  (ADDED / CHANGED)
-        # ----------------------------------------------------------------------
+        # 5) Build a label-keyed dictionary for LOCAL valves
         from services.valve_relay_service import get_valve_status
         label_map_local = {}
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
 
         if valve_relay_device:
+            log_with_timestamp(f"[DEBUG] local valve_relay_device={valve_relay_device}")  # (DEBUG)
             # For each numeric ID -> label, get local status
             for valve_id_str, label in valve_labels.items():
                 try:
@@ -130,53 +142,53 @@ def emit_status_update():
                 except:
                     continue
                 status = get_valve_status(valve_id)  # "on" / "off" / "unknown"
+                log_with_timestamp(f"[DEBUG] local valve_id={valve_id}, label={label}, status={status}")  # (DEBUG)
                 label_map_local[label] = {
                     "label": label,
                     "status": status
                 }
-        # If there's no local device, label_map_local stays empty
+        else:
+            log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")  # (DEBUG)
 
-        # Create aggregator map (label -> {label, status})
+        # aggregator_map = label-> {label, status}
         aggregator_map = dict(label_map_local)
 
-        # ----------------------------------------------------------------------
-        # 6) Merge REMOTE states (also by label)  (ADDED / CHANGED)
-        # ----------------------------------------------------------------------
-        local_names = [local_system_name]  # If you have synonyms, add them here
+        # 6) Merge REMOTE states
+        local_names = [local_system_name]
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
-            if ip_addr and not is_local_host(ip_addr, local_names):
-                # Connect if needed
+            if not ip_addr:
+                log_with_timestamp("[DEBUG] skip empty ip_addr")  # (DEBUG)
+                continue
+
+            # Check if it's local or remote
+            if is_local_host(ip_addr, local_names):
+                log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")  # (DEBUG)
+            else:
+                # Attempt aggregator connection
                 connect_to_remote_if_needed(ip_addr)
-                # Grab the remote's last-known status_update
+                # Grab last-known remote data
                 remote_data = get_cached_remote_states(ip_addr)
                 remote_valve_info = remote_data.get("valve_info", {})
                 remote_valve_relays = remote_valve_info.get("valve_relays", {})
 
-                # Now, because the remote is also label-based, `remote_valve_relays`
-                # is something like:
-                #   {"Zone 4 Fill": {"label":"Zone 4 Fill","status":"off"}, ... }
+                # Debug how many label_keys we found
+                log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_valve_relays)} label_keys")  # (DEBUG)
+
                 for label_key, label_obj in remote_valve_relays.items():
-                    # label_key = e.g. "Zone 4 Fill"
-                    # label_obj = {"label":"Zone 4 Fill", "status":"off"}
                     aggregator_map[label_key] = {
                         "label": label_obj.get("label", label_key),
                         "status": label_obj.get("status", "unknown")
                     }
 
-        # ----------------------------------------------------------------------
-        # 7) Construct final valve_info with label-based 'valve_relays'
-        # ----------------------------------------------------------------------
         valve_info = {
             "fill_valve_ip":  fill_valve_ip,
             "fill_valve":     fill_valve,
             "drain_valve_ip": drain_valve_ip,
             "drain_valve":    drain_valve,
             "valve_labels":   valve_labels,
-            # Instead of numeric keys, aggregator_map is keyed by the LABEL
             "valve_relays":   aggregator_map
         }
 
-        # 8) Build the final payload
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
@@ -188,8 +200,6 @@ def emit_status_update():
             "errors": []
         }
 
-        # 9) Emit it
-        from app import socketio
         socketio.emit("status_update", status_payload, namespace="/status")
         log_with_timestamp("Status update emitted successfully (label-based aggregator).")
 
@@ -198,9 +208,6 @@ def emit_status_update():
         import traceback
         traceback.print_exc()
 
-#
-# No change below here
-#
 class StatusNamespace(Namespace):
     def on_connect(self):
         log_with_timestamp("StatusNamespace: Client connected.")
