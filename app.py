@@ -1,3 +1,6 @@
+###############################################################################
+# app.py
+###############################################################################
 import socket
 import eventlet
 eventlet.monkey_patch()
@@ -12,7 +15,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
-# Import your other blueprints
+# Blueprints
 from api.ph import ph_blueprint
 from api.pump_relay import relay_blueprint
 from api.water_level import water_level_blueprint
@@ -21,9 +24,12 @@ from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
 from api.valve_relay import valve_relay_blueprint
 from api.update_code import update_code_blueprint
+from api.ec import ec_blueprint
 
-from status_namespace import StatusNamespace, emit_status_update
+# Import only the class (avoid circular import of the aggregator function)
+from status_namespace import StatusNamespace, aggregator_socketio
 
+# Other services
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import (
@@ -38,17 +44,15 @@ from services.device_config import (
     get_ntp_server, get_wifi_config, set_hostname, set_ip_config,
     set_timezone, set_ntp_server, set_wifi_config
 )
-
 from services.water_level_service import get_water_level_status, monitor_water_level_sensors
-from utils.settings_utils import load_settings
 from services.power_control_service import start_power_control_loop
+from utils.settings_utils import load_settings
 
-from api.ec import ec_blueprint
-
-# We rely on mDNS registration from wsgi.py (post_fork or dev mode)
-
-# Create a SocketIO instance first
-socketio = SocketIO(async_mode="eventlet")
+# --- Create global SocketIO instance ---
+socketio = SocketIO(
+    async_mode="eventlet",
+    cors_allowed_origins="*"
+)
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -64,25 +68,22 @@ def get_local_ip():
         s.close()
     return ip
 
-#################
-# CREATE FLASK APP
-#################
+# Create the Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Now initialize SocketIO with the Flask app
-socketio.init_app(
-    app,
-    async_mode="eventlet",
-    cors_allowed_origins="*"
-)
+# Initialize SocketIO with the app
+socketio.init_app(app, async_mode="eventlet", cors_allowed_origins="*")
 
-# Register your Socket.IO namespace
+# Let status_namespace.py have our main socketio reference:
+aggregator_socketio = socketio  # <--- we set the global in status_namespace
+
+# Register your custom Namespace for /status
 socketio.on_namespace(StatusNamespace('/status'))
 
-#################
-# BACKGROUND TASKS
-#################
+###############################################################################
+# Background tasks
+###############################################################################
 def auto_dosing_loop():
     from api.settings import load_settings
     log_with_timestamp("Inside auto dosing loop")
@@ -166,6 +167,12 @@ def broadcast_ec_readings():
             eventlet.sleep(5)
 
 def broadcast_status():
+    """
+    Periodically calls emit_status_update() from status_namespace.
+    That function merges local states + remote aggregator states,
+    then emits a status_update to /status.
+    """
+    from status_namespace import emit_status_update
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
@@ -175,18 +182,13 @@ def broadcast_status():
             log_with_timestamp(f"[broadcast_status] Error: {e}")
             eventlet.sleep(5)
 
-#################
-# START THREADS
-#################
 def start_threads():
     settings = load_settings()
     system_name = settings.get("system_name", "Garden")
 
-    # pH broadcast
     log_with_timestamp("Spawning broadcast_ph_readings...")
     eventlet.spawn(broadcast_ph_readings)
 
-    # EC broadcast
     log_with_timestamp("Spawning broadcast_ec_readings...")
     eventlet.spawn(broadcast_ec_readings)
 
@@ -195,15 +197,12 @@ def start_threads():
     log_with_timestamp("Spawning ec_serial_reader...")
     eventlet.spawn(start_ec_serial_reader)
 
-    # Auto-dosing
     log_with_timestamp("Spawning auto_dosing_loop...")
     eventlet.spawn(auto_dosing_loop)
 
-    # pH serial
     log_with_timestamp("Spawning pH serial reader...")
     eventlet.spawn(serial_reader)
 
-    # Status, hardware checker, water level, etc.
     log_with_timestamp("Spawning status broadcaster...")
     eventlet.spawn(broadcast_status)
 
@@ -218,14 +217,15 @@ def start_threads():
     init_valve_thread()
 
     log_with_timestamp("Spawning water power control monitor...")
-    start_power_control_loop()  # to spin up the power control logic
+    start_power_control_loop()
 
 # Kick off your background threads so Gunicorn sees them:
+# (We also do this from wsgi.py if you're using Gunicorn)
 start_threads()
 
-#################
-# REGISTER BLUEPRINTS
-#################
+###############################################################################
+# Register Blueprints
+###############################################################################
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
 app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
@@ -237,9 +237,9 @@ app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 
 
-#################
-# ROUTES
-#################
+###############################################################################
+# Routes
+###############################################################################
 @app.route('/')
 def index():
     pi_ip = get_local_ip()
@@ -264,7 +264,11 @@ def valves_page():
 
 @socketio.on('connect')
 def handle_connect():
-    log_with_timestamp("Client connected")
+    """
+    Basic connect handler for the default namespace;
+    separate from the '/status' namespace in status_namespace.py
+    """
+    log_with_timestamp("Client connected (default namespace)")
     current_ph = get_latest_ph_reading()
     if current_ph is not None:
         socketio.emit('ph_update', {'ph': current_ph})
@@ -322,9 +326,9 @@ def device_timezones():
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
 
-#################
+###############################################################################
 # MAIN
-#################
+###############################################################################
 if __name__ == "__main__":
     log_with_timestamp("[WSGI] Running in local development mode...")
     socketio.run(app, host="0.0.0.0", port=8000, debug=False)
