@@ -212,7 +212,7 @@ def emit_status_update():
         }
 
         # 7) Emit to /status
-        _socketio.emit("status_update", status_payload, namespace="/status", broadcast=True)
+        _socketio.emit("status_update", status_payload, namespace="/status")
         log_with_timestamp("Status update emitted successfully (label-based aggregator).")
 
     except Exception as e:
@@ -224,8 +224,8 @@ def emit_status_update():
 # 4) Our /status Namespace class
 ###############################################################################
 class StatusNamespace(Namespace):
-    def on_connect(self):
-        log_with_timestamp("StatusNamespace: Client connected.")
+    def on_connect, auth=None):
+        log_with_timestamp("Connected with auth =", auth)
         emit_status_update()  # immediate aggregator send
 
     def on_disconnect(self):
