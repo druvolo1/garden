@@ -45,7 +45,7 @@ def register_mdns_pc_hostname(system_name: str, service_port=8000):
     appended_hostname = f"{system_name}-pc"  # e.g. "Zone4-pc"
     local_ip = _get_local_ip()
 
-    service_type = "_garden._tcp.local."
+    service_type = "_http._tcp.local."
     service_name = f"{appended_hostname}.{service_type}"  # e.g. "Zone4-pc._garden._tcp.local."
     address_bytes = socket.inet_aton(local_ip)
 
