@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- 1) Viewport meta tag for mobile responsiveness -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Garden Monitoring System</title>
   
+  <!-- Link to your existing style.css, which has .btn-on-active, .btn-off-active, etc. -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  
+
   <!-- jQuery and Socket.IO -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
@@ -73,6 +73,7 @@
         <div id="local-fill-container" style="display:none;">
           <label>Fill Valve: <span id="local-fill-status">Off</span></label>
           <div style="display:flex; gap:8px; margin-top:4px;">
+            <!-- We'll color-code these with .btn-on-active, .btn-off-active, etc. -->
             <button id="local-fill-on" disabled>On</button>
             <button id="local-fill-off" disabled>Off</button>
           </div>
@@ -95,6 +96,7 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
+      // 1) Connect to the local status namespace
       const localSocket = io("/status", {
         transports: ["websocket"],
         reconnectionAttempts: 5,
@@ -113,44 +115,41 @@
         console.error("[LOCAL] connect_error:", err);
       });
 
-      // On each "status_update", update local zone UI
+      // On each status_update, we refresh the local zone's info
       localSocket.on("status_update", (data) => {
         console.log("[LOCAL] status_update:", data);
 
-        // A) System Name
+        // A) Basic System info
         if (data.settings?.system_name) {
           document.getElementById("local-system-name").textContent = data.settings.system_name;
         }
-
-        // B) pH
         if (data.current_ph !== undefined) {
           document.getElementById("local-ph-display").textContent = parseFloat(data.current_ph).toFixed(2);
         } else {
           document.getElementById("local-ph-display").textContent = "N/A";
         }
-
-        // C) EC
         if (data.current_ec !== undefined) {
           document.getElementById("local-ec-display").textContent = parseFloat(data.current_ec).toFixed(2);
         } else {
           document.getElementById("local-ec-display").textContent = "N/A";
         }
 
-        // D) Water Level
+        // B) Water Level sensors
         if (data.water_level && data.settings?.water_level_sensors) {
           renderSensors("local", data.settings.water_level_sensors, data.water_level);
         }
 
-        // E) Valve Settings
-        let fillValveName  = data.settings?.fill_valve;
-        let drainValveName = data.settings?.drain_valve;
-        let fillValveIp    = data.settings?.fill_valve_ip  || window.location.hostname;
-        let drainValveIp   = data.settings?.drain_valve_ip || window.location.hostname;
+        // C) Valve config from settings
+        const fillValveName  = data.settings?.fill_valve;
+        const drainValveName = data.settings?.drain_valve;
+        const fillValveIp    = data.settings?.fill_valve_ip  || window.location.hostname;
+        const drainValveIp   = data.settings?.drain_valve_ip || window.location.hostname;
 
-        // Show/hide the fill/drain UI if they're configured
+        // Show or hide the fill/drain container if we have them
         document.getElementById("local-fill-container").style.display  = fillValveName ? "block" : "none";
         document.getElementById("local-drain-container").style.display = drainValveName ? "block" : "none";
 
+        // Enable or disable the On/Off buttons
         const fillOnBtn  = document.getElementById("local-fill-on");
         const fillOffBtn = document.getElementById("local-fill-off");
         const drainOnBtn = document.getElementById("local-drain-on");
@@ -161,7 +160,7 @@
         drainOnBtn.disabled  = !drainValveName;
         drainOffBtn.disabled = !drainValveName;
 
-        // Attach event handlers if not set yet
+        // If not set, define the onClick handlers for local toggles
         if (!fillOnBtn.onclick) {
           fillOnBtn.onclick   = () => setValveLocal(fillValveIp,  fillValveName,  "local-fill-status",  "on");
           fillOffBtn.onclick  = () => setValveLocal(fillValveIp,  fillValveName,  "local-fill-status",  "off");
@@ -169,54 +168,51 @@
           drainOffBtn.onclick = () => setValveLocal(drainValveIp, drainValveName, "local-drain-status", "off");
         }
 
-        // F) If the server is sending the actual valve states in data.valve_info.valve_relays,
-        //    let's parse them to update "local-fill-status"/"local-drain-status" in real time.
+        // D) If the server passes real-time statuses in data.valve_info.valve_relays, update UI
         if (data.valve_info?.valve_relays) {
-          const relays = data.valve_info.valve_relays; // e.g. { "1": {label:"Drain",status:"off"},...}
-          // fill_valve_label / drain_valve_label from settings
-          let fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
-          let drainLabel = data.settings?.valve_labels?.[drainValveName] || drainValveName;
+          const relays = data.valve_info.valve_relays; 
+          // Possibly we match them by numeric ID or by label. 
+          // The sample code here matches them by label from your settings, if you prefer:
+          const fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
+          const drainLabel = data.settings?.valve_labels?.[drainValveName] || drainValveName;
 
-          // For each relay ID, if the label matches fillLabel or drainLabel, update the UI
           for (let rId in relays) {
             const rInfo = relays[rId];
             const rLabel = rInfo.label;
             const rStatus = rInfo.status.toLowerCase();
 
-            // If this relay label matches our local fill label, update
+            // If matches fill label
             if (rLabel && rLabel === fillLabel) {
-              document.getElementById("local-fill-status").textContent =
-                (rStatus === "on") ? "On" : "Off";
+              document.getElementById("local-fill-status").textContent = (rStatus === "on") ? "On" : "Off";
+              updateLocalValveButtons("fill", rStatus);
             }
-            // If this relay label matches our local drain label, update
+            // If matches drain label
             if (rLabel && rLabel === drainLabel) {
-              document.getElementById("local-drain-status").textContent =
-                (rStatus === "on") ? "On" : "Off";
+              document.getElementById("local-drain-status").textContent = (rStatus === "on") ? "On" : "Off";
+              updateLocalValveButtons("drain", rStatus);
             }
           }
         }
       });
 
-      // Load local settings to discover additional remote hosts
+      // 2) Load local settings once to find additional_plants (remote hosts)
       fetch("/api/settings")
         .then(r => r.json())
         .then(settings => {
           const extra = settings.additional_plants || [];
-          if (extra.length > 0) {
-            extra.forEach(host => {
-              setupRemoteZone(host);
-            });
-          }
+          extra.forEach(host => {
+            setupRemoteZone(host);
+          });
         })
         .catch(err => console.error("[LOCAL] error loading additional_plants:", err));
     });
 
-    // Renders local or remote sensor states
+    // Renders sensor data for local or remote
     function renderSensors(prefix, sensorDefs, waterLevel) {
       for (let i = 1; i <= 3; i++) {
         const sensorKey = `sensor${i}`;
-        const labelKey  = sensorDefs[sensorKey] ? sensorDefs[sensorKey].label : `Sensor ${i}`;
-        const triggered = waterLevel[sensorKey] ? waterLevel[sensorKey].triggered : null;
+        const labelKey  = sensorDefs[sensorKey]?.label || `Sensor ${i}`;
+        const triggered = waterLevel[sensorKey]?.triggered ?? null;
         const displayEl = document.getElementById(`${prefix}-sensor${i}-display`);
         if (!displayEl) continue;
 
@@ -228,7 +224,7 @@
       }
     }
 
-    // Called when user clicks On/Off for the local zone
+    // Called when user toggles local fill/drain
     function setValveLocal(host, valveName, statusSpanId, action) {
       if (!valveName) return;
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
@@ -236,7 +232,7 @@
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            // Optimistically update the text, or wait for socket update. We'll do both for instant UI.
+            // Optimistic UI update
             updateValveStatusUI(statusSpanId, action);
           } else {
             console.error("[LOCAL] Valve error:", data.error);
@@ -245,15 +241,40 @@
         .catch(err => console.error("[LOCAL] Valve fetch error:", err));
     }
 
+    // Immediately update the text (and color-coded buttons) 
     function updateValveStatusUI(spanId, action) {
       const span = document.getElementById(spanId);
-      if (!span) return;
-      span.textContent = (action === "on") ? "On" : "Off";
+      if (span) {
+        span.textContent = (action === "on") ? "On" : "Off";
+      }
+      // "fill" or "drain" 
+      const prefix = spanId.includes("fill") ? "fill" : "drain";
+      updateLocalValveButtons(prefix, action);
     }
 
-    // ---------------------- Remote zone logic ----------------------
+    // Use the .btn-on-active / .btn-off-active classes for local fill/drain
+    function updateLocalValveButtons(valvePrefix, newStatus) {
+      // newStatus is "on"/"off"
+      const onBtn  = document.getElementById(`local-${valvePrefix}-on`);
+      const offBtn = document.getElementById(`local-${valvePrefix}-off`);
+      if (!onBtn || !offBtn) return;
+
+      // Clear old classes
+      onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+      offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+
+      if (newStatus === "on") {
+        onBtn.classList.add("btn-on-active");
+        offBtn.classList.add("btn-inactive");
+      } else {
+        onBtn.classList.add("btn-inactive");
+        offBtn.classList.add("btn-off-active");
+      }
+    }
+
+    // ----------------- Remote Zones -----------------
     function setupRemoteZone(host) {
-      // 1) Build UI container
+      // create a section for each remote
       const zoneId = host.replace(/[^a-zA-Z0-9]/g, "_");
       const container = document.createElement("section");
       container.className = "data-container";
@@ -302,7 +323,6 @@
       `;
       document.getElementById("remote-zones").appendChild(container);
 
-      // 2) Connect a Socket.IO client to the remote zone
       const remoteUrl = `http://${host}:8000/status`;
       console.log(`[REMOTE] Connecting to ${remoteUrl}`);
       const remoteSocket = io(remoteUrl, {
@@ -314,31 +334,27 @@
       remoteSocket.on("connect", () => {
         console.log(`[REMOTE ${host}] connected`);
       });
-
       remoteSocket.on("disconnect", () => {
         console.log(`[REMOTE ${host}] disconnected`);
       });
-
       remoteSocket.on("connect_error", (err) => {
         console.error(`[REMOTE ${host}] connect_error:`, err);
       });
 
-      // On each status update from the remote zone, update the remote UI
+      // For each remote zone's status_update, we do the same steps
       remoteSocket.on("status_update", (data) => {
         console.log(`[REMOTE ${host}] status_update:`, data);
 
-        // system name
+        // Basic info
         if (data.settings?.system_name) {
           document.getElementById(`${zoneId}-system-name`).textContent = data.settings.system_name;
         }
-        // pH
         if (data.current_ph !== undefined) {
           document.getElementById(`${zoneId}-ph-display`).textContent =
             parseFloat(data.current_ph).toFixed(2);
         } else {
           document.getElementById(`${zoneId}-ph-display`).textContent = "N/A";
         }
-        // EC
         if (data.current_ec !== undefined) {
           document.getElementById(`${zoneId}-ec-display`).textContent =
             parseFloat(data.current_ec).toFixed(2);
@@ -346,74 +362,94 @@
           document.getElementById(`${zoneId}-ec-display`).textContent = "N/A";
         }
 
-        // Water level
         if (data.settings?.water_level_sensors && data.water_level) {
           renderSensors(zoneId, data.settings.water_level_sensors, data.water_level);
         }
 
-        // Valve info
-        if (data.valve_info) {
-          document.getElementById(`${zoneId}-fill-container`).style.display = "block";
-          document.getElementById(`${zoneId}-drain-container`).style.display = "block";
+        // Now handle the remote fill/drain
+        const fillValveName  = data.settings?.fill_valve;
+        const drainValveName = data.settings?.drain_valve;
+        const fillValveIp    = data.valve_info?.fill_valve_ip  || host;
+        const drainValveIp   = data.valve_info?.drain_valve_ip || host;
 
-          const fillOnBtn   = document.getElementById(`${zoneId}-fill-on`);
-          const fillOffBtn  = document.getElementById(`${zoneId}-fill-off`);
-          const drainOnBtn  = document.getElementById(`${zoneId}-drain-on`);
-          const drainOffBtn = document.getElementById(`${zoneId}-drain-off`);
+        // Show or hide
+        document.getElementById(`${zoneId}-fill-container`).style.display  = fillValveName ? "block" : "none";
+        document.getElementById(`${zoneId}-drain-container`).style.display = drainValveName ? "block" : "none";
 
-          fillOnBtn.disabled   = false;
-          fillOffBtn.disabled  = false;
-          drainOnBtn.disabled  = false;
-          drainOffBtn.disabled = false;
+        const fillOnBtn  = document.getElementById(`${zoneId}-fill-on`);
+        const fillOffBtn = document.getElementById(`${zoneId}-fill-off`);
+        const drainOnBtn = document.getElementById(`${zoneId}-drain-on`);
+        const drainOffBtn= document.getElementById(`${zoneId}-drain-off`);
 
-          const fillValveName  = data.valve_info.fill_valve;
-          const drainValveName = data.valve_info.drain_valve;
-          const remoteFillHost  = data.valve_info.fill_valve_ip  || host;
-          const remoteDrainHost = data.valve_info.drain_valve_ip || host;
+        fillOnBtn.disabled   = !fillValveName;
+        fillOffBtn.disabled  = !fillValveName;
+        drainOnBtn.disabled  = !drainValveName;
+        drainOffBtn.disabled = !drainValveName;
 
-          // Button handlers
-          if (!fillOnBtn.onclick) {
-            fillOnBtn.onclick   = () => remoteSetValve(remoteFillHost, fillValveName,  `${zoneId}-fill-status`,  "on");
-            fillOffBtn.onclick  = () => remoteSetValve(remoteFillHost, fillValveName,  `${zoneId}-fill-status`,  "off");
-            drainOnBtn.onclick  = () => remoteSetValve(remoteDrainHost, drainValveName, `${zoneId}-drain-status`, "on");
-            drainOffBtn.onclick = () => remoteSetValve(remoteDrainHost, drainValveName, `${zoneId}-drain-status`, "off");
-          }
+        // If not set, define the remote onClick
+        if (!fillOnBtn.onclick) {
+          fillOnBtn.onclick   = () => remoteSetValve(fillValveIp,  fillValveName,  `${zoneId}-fill-status`,  "on", zoneId, "fill");
+          fillOffBtn.onclick  = () => remoteSetValve(fillValveIp,  fillValveName,  `${zoneId}-fill-status`,  "off", zoneId, "fill");
+          drainOnBtn.onclick  = () => remoteSetValve(drainValveIp, drainValveName, `${zoneId}-drain-status`, "on", zoneId, "drain");
+          drainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveName,`${zoneId}-drain-status`, "off", zoneId, "drain");
+        }
 
-          // Also update the displayed On/Off from valve_relays, if present
-          if (data.valve_info.valve_relays) {
-            const relays = data.valve_info.valve_relays;
-            for (let rId in relays) {
-              let rLabel = relays[rId].label;
-              let rStatus = relays[rId].status.toLowerCase();
+        // If we have valve_relays, let's parse them to see actual on/off states
+        if (data.valve_info?.valve_relays) {
+          const relays = data.valve_info.valve_relays;
+          const fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
+          const drainLabel = data.settings?.valve_labels?.[drainValveName] || drainValveName;
 
-              // If this label matches fillValveName, update fill status text
-              if (rLabel && rLabel === fillValveName) {
-                document.getElementById(`${zoneId}-fill-status`).textContent = 
-                  (rStatus === "on") ? "On" : "Off";
-              }
-              // If this label matches drainValveName, update drain status text
-              if (rLabel && rLabel === drainValveName) {
-                document.getElementById(`${zoneId}-drain-status`).textContent = 
-                  (rStatus === "on") ? "On" : "Off";
-              }
+          for (let rId in relays) {
+            const rInfo = relays[rId];
+            const rStatus = rInfo.status.toLowerCase();
+            const rLabel = rInfo.label;
+
+            if (rLabel && rLabel === fillLabel) {
+              document.getElementById(`${zoneId}-fill-status`).textContent = (rStatus === "on") ? "On" : "Off";
+              updateRemoteValveButtons(zoneId, "fill", rStatus);
+            }
+            if (rLabel && rLabel === drainLabel) {
+              document.getElementById(`${zoneId}-drain-status`).textContent = (rStatus === "on") ? "On" : "Off";
+              updateRemoteValveButtons(zoneId, "drain", rStatus);
             }
           }
         }
       });
     }
 
-    function remoteSetValve(host, valveName, statusSpanId, action) {
+    // We color-code remote fill/drain the same way as local
+    function remoteSetValve(host, valveName, statusSpanId, action, zoneId, valvePrefix) {
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
-      fetch(url, { method: 'POST' })
+      fetch(url, { method:'POST' })
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
+            // Optimistic update
             document.getElementById(statusSpanId).textContent = (action === "on") ? "On" : "Off";
+            updateRemoteValveButtons(zoneId, valvePrefix, action);
           } else {
             console.error(`[REMOTE ${host}] valve error:`, data.error);
           }
         })
         .catch(err => console.error(`[REMOTE ${host}] valve fetch error:`, err));
+    }
+
+    function updateRemoteValveButtons(zoneId, valvePrefix, newStatus) {
+      const onBtn  = document.getElementById(`${zoneId}-${valvePrefix}-on`);
+      const offBtn = document.getElementById(`${zoneId}-${valvePrefix}-off`);
+      if (!onBtn || !offBtn) return;
+
+      onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+      offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+
+      if (newStatus === "on") {
+        onBtn.classList.add("btn-on-active");
+        offBtn.classList.add("btn-inactive");
+      } else {
+        onBtn.classList.add("btn-inactive");
+        offBtn.classList.add("btn-off-active");
+      }
     }
   </script>
 </body>
