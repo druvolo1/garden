@@ -76,7 +76,7 @@ def get_water_level_status():
                 "triggered": triggered
             }
     else:
-        # Mock environment
+        # Mock environment: assume all sensors are "not triggered"
         for sensor_key, cfg in sensors.items():
             status[sensor_key] = {
                 "label": cfg.get("label", sensor_key),
@@ -91,6 +91,9 @@ def monitor_water_level_sensors():
     Continuously monitors sensor changes.
     If the fill sensor is "not triggered" => turn OFF the fill valve.
     If the drain sensor is "triggered" => turn OFF the drain valve.
+
+    Because your settings store fill/drain info at the top level,
+    we read fill_valve_ip, fill_valve, fill_sensor, etc. from settings directly.
     """
     from status_namespace import emit_status_update
 
@@ -105,48 +108,52 @@ def monitor_water_level_sensors():
             for k, v in current_state.items():
                 print(f"   {k}: label={v['label']} triggered={v['triggered']} pin={v['pin']}")
 
+            # Only act when sensor states change
             if current_state != _last_sensor_state:
                 print("[WaterLevel DEBUG] Sensor states changed since last check.")
                 _last_sensor_state = current_state
 
                 settings = load_settings()
-                valve_info = settings.get("valve_info", {})
 
-                fill_sensor_key = valve_info.get("fill_sensor", "sensor1")
-                drain_sensor_key = valve_info.get("drain_sensor", "sensor3")
+                # Pull these keys from the TOP LEVEL of the settings
+                fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
+                drain_sensor_key = settings.get("drain_sensor", "sensor3")
 
-                fill_valve_id  = valve_info.get("fill_valve")   # e.g. "1"
-                drain_valve_id = valve_info.get("drain_valve")  # e.g. "2"
+                fill_valve_id  = settings.get("fill_valve")   # e.g. "1"
+                drain_valve_id = settings.get("drain_valve")  # e.g. "2"
 
-                fill_valve_ip  = valve_info.get("fill_valve_ip")   # e.g. "zone4.local"
-                drain_valve_ip = valve_info.get("drain_valve_ip")  # e.g. "zone4.local"
+                fill_valve_ip  = settings.get("fill_valve_ip")   # e.g. "172.16.1.xxx"
+                drain_valve_ip = settings.get("drain_valve_ip")  # e.g. "172.16.1.xxx"
 
-                valve_labels = valve_info.get("valve_labels", {})
-                fill_valve_label  = valve_labels.get(fill_valve_id, fill_valve_id)
+                # Also read the valve_labels from top-level (like your JSON)
+                valve_labels = settings.get("valve_labels", {})
+                fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
+                # Debug prints
                 print(f"[WaterLevel DEBUG] fill_sensor_key={fill_sensor_key}, drain_sensor_key={drain_sensor_key}")
                 print(f"[WaterLevel DEBUG] fill_valve_label={fill_valve_label}, drain_valve_label={drain_valve_label}")
                 print(f"[WaterLevel DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
 
-                # Fill logic
+                # Fill logic: "If fill sensor is NOT triggered => OFF"
                 if fill_sensor_key in current_state:
                     fill_triggered = current_state[fill_sensor_key]["triggered"]
                     print(f"[WaterLevel DEBUG] Fill sensor '{fill_sensor_key}' triggered={fill_triggered}")
+
                     # If sensor is "not triggered," we want to shut off the fill valve
-                    if (not fill_triggered) and fill_valve_label:
+                    if not fill_triggered and fill_valve_label:
                         print("[WaterLevel DEBUG] Fill sensor is NOT triggered → turning OFF fill valve.")
                         turn_off_valve(fill_valve_label, fill_valve_ip)
                     else:
                         print("[WaterLevel DEBUG] Fill sensor condition not met; no action.")
-
                 else:
                     print(f"[WaterLevel DEBUG] Fill sensor key '{fill_sensor_key}' not found in current_state!")
 
-                # Drain logic
+                # Drain logic: "If drain sensor is triggered => OFF"
                 if drain_sensor_key in current_state:
                     drain_triggered = current_state[drain_sensor_key]["triggered"]
                     print(f"[WaterLevel DEBUG] Drain sensor '{drain_sensor_key}' triggered={drain_triggered}")
+
                     # If sensor is "triggered," we want to shut off the drain valve
                     if drain_triggered and drain_valve_label:
                         print("[WaterLevel DEBUG] Drain sensor IS triggered → turning OFF drain valve.")
@@ -156,6 +163,7 @@ def monitor_water_level_sensors():
                 else:
                     print(f"[WaterLevel DEBUG] Drain sensor key '{drain_sensor_key}' not found in current_state!")
 
+                # Finally, emit a status update for any connected UI
                 emit_status_update()
             else:
                 print("[WaterLevel DEBUG] Sensor states are unchanged; no action taken.")
