@@ -16,6 +16,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- NOTE: This index.html contains both local + remote-zone logic in the front end.
+       Now that we've added aggregator logic to status_namespace.py, the local machine
+       can also supply remote valves in its own "status_update" if it references them. -->
+
   <!-- Navigation Menu -->
   <nav>
     <ul>
@@ -181,7 +185,7 @@
           for (let rId in relays) {
             const rInfo = relays[rId];
             const rLabel = rInfo.label;
-            const rStatus = rInfo.status.toLowerCase();
+            const rStatus = (rInfo.status || "").toLowerCase();
 
             // If rLabel == fillLabel, update fill status
             if (rLabel && rLabel === fillLabel) {
@@ -403,7 +407,7 @@
           for (let rId in relays) {
             const rInfo = relays[rId];
             const rLabel = rInfo.label;
-            const rStatus = rInfo.status.toLowerCase();
+            const rStatus = (rInfo.status || "").toLowerCase();
 
             if (rLabel && rLabel === fillLabel) {
               document.getElementById(`${zoneId}-fill-status`).textContent = (rStatus === "on" ? "On" : "Off");
