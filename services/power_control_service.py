@@ -8,6 +8,7 @@ from utils.settings_utils import load_settings
 from datetime import datetime
 import requests
 import json
+import socket
 
 remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
@@ -15,6 +16,20 @@ sio_clients = {}          # host_ip -> socketio.Client instance
 
 def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
+
+def get_local_ip_address():
+    """
+    Return the Pi’s primary LAN IP, or '127.0.0.1' on fallback.
+    Same logic as in water_level_service.py.
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 def start_power_control_loop():
     """
@@ -62,7 +77,24 @@ def open_host_connection(host_ip):
     """
     Connect to host_ip:8000 via Socket.IO, listening on the '/status' namespace
     for 'status_update' events.
+    
+    Added logic to replace 'host_ip' if it's 'localhost', '127.0.0.1', or
+    <system_name>.local with get_local_ip_address().
     """
+    # 1) Ensure host_ip is not empty
+    if not host_ip:
+        log("[open_host_connection] ERROR: host_ip is empty, cannot connect.")
+        return
+
+    # 2) Compare to system_name.local or 'localhost', '127.0.0.1'
+    s = load_settings()
+    system_name = s.get("system_name", "Garden").lower()
+    lower_host = host_ip.lower()
+    if lower_host == "localhost" or lower_host == "127.0.0.1" or lower_host == f"{system_name}.local":
+        resolved_ip = get_local_ip_address()
+        log(f"[open_host_connection] Replacing '{host_ip}' with local IP '{resolved_ip}'.")
+        host_ip = resolved_ip
+
     url = f"http://{host_ip}:8000"
     client = socketio.Client(reconnection=True, reconnection_attempts=999)
 
@@ -76,7 +108,6 @@ def open_host_connection(host_ip):
 
     @client.on("status_update", namespace="/status")
     def on_status_update(data):
-        import json
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
 
         # 1) Show what's under "valve_info" (if any)
@@ -149,16 +180,11 @@ def reevaluate_all_outlets():
             key = (host_ip, valve_id_str)
             current_valve_state = remote_valve_states.get(key, "off")
 
-            #log(f"    -> Checking valve {key}")
             log(f"       Found remote_valve_states[{key}] => '{current_valve_state}'")
-            #log(f"       Is '{current_valve_state}' == 'on'?")
-
             if current_valve_state == "on":
                 log("       Yes, so this valve is on -> any_on = True")
                 any_on = True
                 break
-            #else:
-            #    log("       No, so keep checking any others...")
 
         desired = "on" if any_on else "off"
         current_outlet_state = last_outlet_states.get(outlet_ip)
