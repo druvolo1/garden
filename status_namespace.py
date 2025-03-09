@@ -9,6 +9,8 @@ from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
 from datetime import datetime
+from app import socketio
+
 
 # Keep track of known remote states and clients
 REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_update"
