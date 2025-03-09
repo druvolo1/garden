@@ -84,14 +84,6 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
-    """
-    Continuously monitors sensor changes.
-    If the fill sensor is "not triggered" => turn OFF the fill valve.
-    If the drain sensor is "triggered" => turn OFF the drain valve.
-
-    Because your settings store fill/drain info at the top level,
-    we read fill_valve_ip, fill_valve, fill_sensor, etc. from settings directly.
-    """
     from status_namespace import emit_status_update
 
     global _last_sensor_state
@@ -106,7 +98,6 @@ def monitor_water_level_sensors():
 
                 settings = load_settings()
 
-                # Pull these keys from the TOP LEVEL of the settings
                 fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
                 drain_sensor_key = settings.get("drain_sensor", "sensor3")
 
@@ -116,25 +107,22 @@ def monitor_water_level_sensors():
                 fill_valve_ip  = settings.get("fill_valve_ip")   # e.g. "zone4.local" or "172.16.1.xxx"
                 drain_valve_ip = settings.get("drain_valve_ip")
 
-                # Also read the valve_labels from top-level (like your JSON)
                 valve_labels = settings.get("valve_labels", {})
                 fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
-                # Fill logic: "If fill sensor is NOT triggered => OFF"
+                # Fill logic
                 if fill_sensor_key in current_state:
                     fill_triggered = current_state[fill_sensor_key]["triggered"]
-                    # If sensor is "not triggered," we want to shut off the fill valve
                     if not fill_triggered and fill_valve_label:
                         turn_off_valve(fill_valve_label, fill_valve_ip)
 
-                # Drain logic: "If drain sensor is triggered => OFF"
+                # Drain logic
                 if drain_sensor_key in current_state:
                     drain_triggered = current_state[drain_sensor_key]["triggered"]
                     if drain_triggered and drain_valve_label:
                         turn_off_valve(drain_valve_label, drain_valve_ip)
 
-                # Emit a status update for any connected UI
                 emit_status_update()
 
         except Exception as e:
@@ -143,13 +131,9 @@ def monitor_water_level_sensors():
         time.sleep(0.5)
 
 def get_local_ip_address():
-    """
-    Returns the Pi's primary IP address for local connections
-    (the one you'd normally get with 'hostname -I' or a socket trick).
-    """
+    """Return the Pi’s primary LAN IP, or '127.0.0.1' on fallback."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # connect to a public IP just to pick the default interface
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
     except:
@@ -159,29 +143,30 @@ def get_local_ip_address():
 
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
-    Decides whether to send the request locally or to a remote device
-    based on whether `valve_ip` is empty or not. Then calls the name-based
-    route in valve_relay.py, e.g. /api/valve_relay/<valve_label>/off.
+    Decide whether to send the request locally or to a remote device
+    based on whether `valve_ip` is empty or not. Then call the route
+    /api/valve_relay/<valve_label>/off.
 
-    NEW LOGIC:
-    - If valve_ip is something like "zone4.local" or "Zone4.local", let's replace
-      it with our own IP from get_local_ip_address().
+    We also detect if valve_ip == "<system_name>.local"
+    and replace it with our own IP so we don't rely on local .local resolution.
     """
     if not valve_label:
         return
 
-    # If user configured the IP as "[system_name].local", override with local IP
-    # for example, if your system_name is "zone4"
-    # You can get your actual system_name from a config or use 'socket.gethostname()'
-    # For simplicity, just check if it ends with '.local'
-    if valve_ip and valve_ip.lower().endswith(".local"):
-        # Replace with the Pi's IP
+    # 1) Grab current system name from settings
+    s = load_settings()
+    system_name = s.get("system_name", "Garden")
+
+    # 2) If the IP is exactly <system_name>.local (case-insensitive),
+    #    we override it with our local IP.
+    #    e.g. if system_name="Zone4", then check "zone4.local".
+    if valve_ip and valve_ip.lower() == f"{system_name.lower()}.local":
         resolved_ip = get_local_ip_address()
-        print(f"[DEBUG] valve_ip '{valve_ip}' replaced with local IP '{resolved_ip}'.")
+        print(f"[DEBUG] Replacing '{valve_ip}' with local IP '{resolved_ip}'.")
         valve_ip = resolved_ip
 
+    # 3) If still empty, go with 127.0.0.1
     if not valve_ip:
-        # If still empty or was never set, default to 127.0.0.1
         url = f"http://127.0.0.1:8000/api/valve_relay/{valve_label}/off"
     else:
         url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
