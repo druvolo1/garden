@@ -7,7 +7,7 @@ from app import app, start_threads
 from utils.settings_utils import load_settings
 
 # NEW: import your mdns_service
-from services.mdns_service import register_mdns_name, close_mdns
+from services.mdns_service import register_mdns_name, close_mdns, register_mdns_app_name
 
 def ensure_script_executable(script_path: str):
     """Check if script is executable by the owner; if not, chmod +x."""
@@ -54,11 +54,17 @@ def post_fork(server, worker):
         print(f"[Gunicorn] Error starting threads in worker {worker.pid}: {e}")
         raise
 
-    # --- NEW: Register mDNS after threads are up ---
+    # --- Register mDNS after threads are up ---
     try:
         s = load_settings()
         system_name = s.get("system_name", "Garden")
+
+        # 1) Hostname-based name
         register_mdns_name(system_name, service_port=8000)
+
+        # 2) Stable "app" name that never changes
+        register_mdns_app_name("gardenapp", service_port=8000)
+
     except Exception as e:
         print(f"[Gunicorn] Could not register mDNS for worker {worker.pid}: {e}")
 
@@ -80,10 +86,15 @@ if __name__ == "__main__":
         start_threads()
         print("[WSGI] Background threads started successfully.")
 
-        # NEW: In local dev mode, register mDNS as well
+        # In local dev mode, register both as well
         s = load_settings()
         system_name = s.get("system_name", "Garden")
+
+        # 1) Hostname-based name
         register_mdns_name(system_name, service_port=8000)
+
+        # 2) Stable "app" name
+        register_mdns_app_name("gardenapp", service_port=8000)
 
     except Exception as e:
         print(f"[WSGI] Error starting background threads or registering mDNS: {e}")

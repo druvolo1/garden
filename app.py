@@ -180,7 +180,7 @@ def broadcast_status():
 #################
 def start_threads():
     settings = load_settings()
-    system_name = settings.get("system_name", "Zone 1")
+    system_name = settings.get("system_name", "Garden")
 
     # pH broadcast
     log_with_timestamp("Spawning broadcast_ph_readings...")
