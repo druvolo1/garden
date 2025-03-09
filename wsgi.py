@@ -6,7 +6,7 @@ import os, stat
 from app import app, start_threads
 from utils.settings_utils import load_settings
 
-# NEW: import your mdns_service
+# You import these new functions at the top
 from services.mdns_service import register_mdns_pc_hostname, close_mdns, register_mdns_pure_system_name
 
 def ensure_script_executable(script_path: str):
@@ -15,7 +15,6 @@ def ensure_script_executable(script_path: str):
         raise FileNotFoundError(f"Script not found: {script_path}")
 
     mode = os.stat(script_path).st_mode
-    # Check if the owner-execute bit is set:
     if not (mode & stat.S_IXUSR):
         print(f"[INFO] Making {script_path} executable (chmod +x)")
         subprocess.run(["chmod", "+x", script_path], check=True)
@@ -26,11 +25,8 @@ def flush_avahi():
     Ensures the script is executable first.
     """
     script_path = "/home/dave/garden/scripts/flush_avahi.sh"
-
-    # 1) Make sure it’s executable
     ensure_script_executable(script_path)
 
-    # 2) Call the script with sudo
     try:
         subprocess.run(["sudo", script_path], check=True)
         print("[Gunicorn] Avahi has been flushed prior to starting threads.")
@@ -59,15 +55,14 @@ def post_fork(server, worker):
         s = load_settings()
         system_name = s.get("system_name", "Garden")
 
-        # 1) Hostname-based name
+        # Hostname-based name => e.g. "Zone4-pc.local"
         register_mdns_pc_hostname(system_name, service_port=8000)
 
-        # 2) Stable "app" name that never changes
+        # Stable "app" name => e.g. "gardenapp.local"
         register_mdns_pure_system_name("gardenapp", service_port=8000)
 
     except Exception as e:
         print(f"[Gunicorn] Could not register mDNS for worker {worker.pid}: {e}")
-
 
 def when_ready(server):
     server.log.info("Gunicorn server is ready. Workers will be spawned now...")
@@ -86,15 +81,19 @@ if __name__ == "__main__":
         start_threads()
         print("[WSGI] Background threads started successfully.")
 
-        # In local dev mode, register both as well
         s = load_settings()
         system_name = s.get("system_name", "Garden")
 
-        # 1) Hostname-based name
-        register_mdns_name(system_name, service_port=8000)
+        # CHANGE THESE TWO LINES:
+        #
+        # Previously you had:
+        #     register_mdns_name(system_name, 8000)
+        #     register_mdns_app_name("gardenapp", 8000)
+        #
+        # Now you must use the new function names:
 
-        # 2) Stable "app" name
-        register_mdns_app_name("gardenapp", service_port=8000)
+        register_mdns_pc_hostname(system_name, service_port=8000)
+        register_mdns_pure_system_name("gardenapp", service_port=8000)
 
     except Exception as e:
         print(f"[WSGI] Error starting background threads or registering mDNS: {e}")
