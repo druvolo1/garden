@@ -10,6 +10,7 @@ from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
 from services.mdns_service import register_mdns_name
+from flask import send_file
 
 # Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
