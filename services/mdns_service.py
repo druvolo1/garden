@@ -85,7 +85,7 @@ def register_mdns_pure_system_name(system_name: str, service_port=8000):
 
     local_ip = _get_local_ip()
 
-    service_type = "_garden._tcp.local."
+    service_type = "_http._tcp.local."
     service_name = f"{system_name}.{service_type}"  # e.g. "Zone4._garden._tcp.local."
     address_bytes = socket.inet_aton(local_ip)
 
