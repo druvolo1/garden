@@ -332,21 +332,12 @@ def set_system_name():
 
 @settings_blueprint.route('/export', methods=['GET'])
 def export_settings():
-    """
-    Serves the current settings.json as a downloadable file.
-    """
-    if not os.path.exists(SETTINGS_FILE):
-        return jsonify({
-            "status": "failure",
-            "error": "No settings.json found on server."
-        }), 404
-
     return send_file(
-    SETTINGS_FILE,
-    mimetype='application/json',
-    as_attachment=True,
-    attachment_filename='settings.json'  # <-- works in Flask < 2.0
-)
+        SETTINGS_FILE,
+        mimetype='application/json',
+        as_attachment=True,
+        download_name='settings.json'   # <-- Use download_name (Flask 2.0+)
+    )
 
 
 @settings_blueprint.route('/import', methods=['POST'])
