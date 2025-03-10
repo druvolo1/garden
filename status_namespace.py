@@ -52,12 +52,13 @@ def is_local_host(host: str, local_names=None):
 
 def connect_to_remote_if_needed(remote_ip):
     """ 
-    Create (or reuse) a python-socketio.Client to remote_ip:8000/status.
-    If not connected yet, set up event handlers.
+    Create (or reuse) a python-socketio.Client to connect to remote_ip:8000,
+    then subscribe to the '/status' namespace with a 'status_update' handler.
     """
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
+    
     if remote_ip in REMOTE_CLIENTS:
         log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
         return  # Already connected
@@ -77,15 +78,24 @@ def connect_to_remote_if_needed(remote_ip):
     def connect_error(data):
         log_with_timestamp(f"[AGG] Connect error for remote {remote_ip}: {data}")
 
-    @sio.on("status_update")
+    # Here’s the key: by specifying namespace="/status", we’re telling
+    # python-socketio we want to receive events in that namespace.
+    @sio.on("status_update", namespace="/status")
     def on_remote_status_update(data):
         REMOTE_STATES[remote_ip] = data
         log_with_timestamp(f"[AGG] on_remote_status_update from {remote_ip}, keys: {list(data.keys())}")
 
-    url = f"http://{remote_ip}:8000/status"
+    # Use the base path for socket.io – typically "http://<ip>:8000".
+    # Do NOT append "/status" to the URL, because that's not how python-socketio
+    # recognizes a namespace. Instead, we specify namespace="/status" above.
+    url = f"http://{remote_ip}:8000"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
-        sio.connect(url, transports=["websocket","polling"])
+        sio.connect(
+            url,
+            socketio_path="/socket.io",
+            transports=["websocket", "polling"]
+        )
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
