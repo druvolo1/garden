@@ -993,12 +993,12 @@
         .then(() => {
           document.getElementById('restart-status').textContent =
             "The program is restarting. Please wait...";
-          setTimeout(() => window.location.reload(), 5000);
+          setTimeout(() => window.location.reload(), 10000);
         })
         .catch(() => {
           document.getElementById('restart-status').textContent =
             "Could not contact server. The program may be restarting...";
-          setTimeout(() => window.location.reload(), 5000);
+          setTimeout(() => window.location.reload(), 10000);
         });
     });
 
