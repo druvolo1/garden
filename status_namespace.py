@@ -114,7 +114,8 @@ def get_cached_remote_states(remote_ip):
 ###############################################################################
 def emit_status_update():
     """ 
-    Merges local + remote state and emits "status_update" to /status namespace.
+    Merges local + remote states, but only keeps the fill_valve / drain_valve
+    that match this Pi's 'Zone X Fill' / 'Zone X Drain'.
     """
     try:
         if not _socketio:
@@ -146,15 +147,21 @@ def emit_status_update():
 
         # fill/drain
         fill_valve_ip  = (settings.get("fill_valve_ip")   or "").strip()
-        fill_valve     =  settings.get("fill_valve", "")
+        fill_valve     =  settings.get("fill_valve", "")   # e.g. "4"
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
-        drain_valve    =  settings.get("drain_valve", "")
+        drain_valve    =  settings.get("drain_valve", "")  # e.g. "4"
         log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
 
         valve_labels = settings.get("valve_labels", {})
         log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")
 
-        local_system_name = settings.get("system_name", "Garden")
+        # We'll construct the two key strings we want to keep:
+        # "Zone X Fill" and "Zone X Drain" based on fill_valve, drain_valve
+        keep_labels = set()
+        if fill_valve:
+            keep_labels.add(f"Zone {fill_valve} Fill")
+        if drain_valve:
+            keep_labels.add(f"Zone {drain_valve} Drain")
 
         # 4) Gather local label->status
         from services.valve_relay_service import get_valve_status
@@ -176,14 +183,14 @@ def emit_status_update():
 
         aggregator_map = dict(label_map_local)
 
-        # 5) Merge remote states
+        # 5) Merge remote states (unchanged from your code)
+        local_system_name = settings.get("system_name", "Garden")
         local_names = [local_system_name]
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
             if not ip_addr:
                 log_with_timestamp("[DEBUG] skip empty ip_addr")
                 continue
 
-            # local or remote?
             if is_local_host(ip_addr, local_names):
                 log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")
             else:
@@ -199,17 +206,24 @@ def emit_status_update():
                         "status": label_obj.get("status", "unknown")
                     }
 
-        # Build final valve_info
+        # 6) Filter aggregator_map so it only keeps the two labels we care about:
+        # e.g. "Zone 4 Fill" or "Zone 4 Drain"
+        filtered_map = {}
+        for label_key, data_obj in aggregator_map.items():
+            if label_key in keep_labels:
+                filtered_map[label_key] = data_obj
+
+        # 7) Build final valve_info with only the filtered states
         valve_info = {
             "fill_valve_ip":   fill_valve_ip,
             "fill_valve":      fill_valve,
             "drain_valve_ip":  drain_valve_ip,
             "drain_valve":     drain_valve,
             "valve_labels":    valve_labels,
-            "valve_relays":    aggregator_map
+            "valve_relays":    filtered_map
         }
 
-        # 6) Final payload
+        # 8) Final payload
         status_payload = {
             "settings":      settings,
             "current_ph":    get_latest_ph_reading(),
@@ -221,14 +235,14 @@ def emit_status_update():
             "errors":        []
         }
 
-        # 7) Emit to /status
         _socketio.emit("status_update", status_payload, namespace="/status")
-        log_with_timestamp("Status update emitted successfully (label-based aggregator).")
+        log_with_timestamp("Status update emitted successfully (filtered for local zone only).")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 ###############################################################################
 # 4) Our /status Namespace class
