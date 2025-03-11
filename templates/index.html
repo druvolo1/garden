@@ -170,25 +170,25 @@
         }
 
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
-        // We'll figure out the aggregator's label by the same logic we used there:
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
 
-          // aggregator uses: valve_labels[valveId] or "Valve #X"
-          const fillLabel  = data.settings?.valve_labels?.[fillValveId]  || `Valve #${fillValveId}`;
-          const drainLabel = data.settings?.valve_labels?.[drainValveId] || `Valve #${drainValveId}`;
+          // These are the actual remote labels the user picked/assigned.
+          const fillLabel  = data.settings?.fill_valve_label  || "";
+          const drainLabel = data.settings?.drain_valve_label || "";
 
           for (let labelKey in relays) {
             const rInfo   = relays[labelKey];
-            const rLabel  = rInfo.label;    
+            const rLabel  = rInfo.label;      // e.g. "Zone 1 Fill"
             const rStatus = (rInfo.status || "").toLowerCase();
 
-            // If rLabel == fillLabel, update fill status
+            // Match the aggregator's label to our fill_valve_label
             if (rLabel && rLabel === fillLabel) {
               document.getElementById("local-fill-status").textContent = (rStatus === "on") ? "On" : "Off";
               updateLocalValveButtons("fill", rStatus);
             }
-            // If rLabel == drainLabel, update drain status
+
+            // Similarly, match aggregator label to drain_valve_label
             if (rLabel && rLabel === drainLabel) {
               document.getElementById("local-drain-status").textContent = (rStatus === "on") ? "On" : "Off";
               updateLocalValveButtons("drain", rStatus);
@@ -196,6 +196,7 @@
           }
         }
       });
+
 
       // 3) Optionally fetch /api/settings to discover remote zones
       fetch("/api/settings")
