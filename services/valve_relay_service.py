@@ -142,43 +142,54 @@ def stop_valve_thread():
     close_valve_serial()
 
 def turn_on_valve(valve_id):
-    """
-    Sends the ON command for the given valve channel immediately over the persistent connection.
-    Then queries the device for updated status.
-    """
     global valve_ser
     if valve_id < 1 or valve_id > 8:
         raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
     if valve_ser is None:
         raise RuntimeError("Valve serial port is not open.")
+
     with serial_lock:
+        # 1) Send the ON command
         valve_ser.write(VALVE_ON_COMMANDS[valve_id])
-        # Optionally query the updated state immediately:
+        # 2) Poll the board to see if it really turned on
         valve_ser.write(b'\xFF')
         eventlet.sleep(0.05)
         response = valve_ser.read(10)
         parse_hardware_response(response)
-    valve_status[valve_id] = "on"
-    print(f"[Valve] Valve {valve_id} turned ON.")
+
+    # 3) parse_hardware_response(...) sets valve_status[i] = "on" if successful
+    #    But if the board didn't respond or returned some unexpected data,
+    #    parse_hardware_response might leave it as "off" or "unknown".
+    #    So we check the final outcome:
+    final_state = valve_status.get(valve_id, "unknown")
+    print(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested ON).")
+
+    # 4) Now let the rest of the system see the new state:
+    from status_namespace import emit_status_update
+    emit_status_update()
+
 
 def turn_off_valve(valve_id):
-    """
-    Sends the OFF command for the given valve channel immediately over the persistent connection.
-    Then queries the device for updated status.
-    """
     global valve_ser
     if valve_id < 1 or valve_id > 8:
         raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
     if valve_ser is None:
         raise RuntimeError("Valve serial port is not open.")
+
     with serial_lock:
         valve_ser.write(VALVE_OFF_COMMANDS[valve_id])
+        # Poll for actual hardware state
         valve_ser.write(b'\xFF')
         eventlet.sleep(0.05)
         response = valve_ser.read(10)
         parse_hardware_response(response)
-    valve_status[valve_id] = "off"
-    print(f"[Valve] Valve {valve_id} turned OFF.")
+
+    final_state = valve_status.get(valve_id, "unknown")
+    print(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested OFF).")
+
+    from status_namespace import emit_status_update
+    emit_status_update()
+
 
 def get_valve_status(valve_id):
     return valve_status.get(valve_id, "unknown")
