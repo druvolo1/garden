@@ -158,10 +158,6 @@ def close_host_connection(host_ip):
         log(f"Closed socketio connection for {host_ip}")
 
 def reevaluate_all_outlets():
-    """
-    For each configured outlet in power_controls, if ANY tracked valve is "on",
-    turn Shelly "on". Otherwise set it "off".
-    """
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
@@ -172,6 +168,8 @@ def reevaluate_all_outlets():
             log(f"  Key={k}, state='{v}'")
     else:
         log("No entries in remote_valve_states yet.")
+
+    changed_any_outlet = False  # track if we changed an outlet's state
 
     for pc in power_controls:
         outlet_ip = pc.get("outlet_ip")
@@ -184,17 +182,13 @@ def reevaluate_all_outlets():
 
         any_on = False
         for tv in tracked_valves:
-            # Standardize the host IP so it matches what we used in open_host_connection
             fixed_host_ip = standardize_host_ip(tv["host_ip"])
             valve_id = tv["valve_id"]
-
-            # Now look up remote_valve_states with the fixed host
             current_valve_state = remote_valve_states.get((fixed_host_ip, valve_id), "off")
             log(f"       Found remote_valve_states[({fixed_host_ip}, {valve_id})] => '{current_valve_state}'")
 
             if current_valve_state == "on":
                 any_on = True
-                log("       => Valve is on, so we want the outlet on.")
                 break
 
         desired = "on" if any_on else "off"
@@ -204,8 +198,15 @@ def reevaluate_all_outlets():
             log(f"    -> Setting outlet {outlet_ip} from '{old_state}' to '{desired}'")
             set_shelly_state(outlet_ip, desired)
             last_outlet_states[outlet_ip] = desired
+            changed_any_outlet = True
         else:
             log(f"    -> Outlet {outlet_ip} is already '{old_state}', no change.")
+
+    # If we changed ANY Shelly outlet, we can now emit a status update:
+    if changed_any_outlet:
+        from status_namespace import emit_status_update
+        emit_status_update()
+
 
 def set_shelly_state(outlet_ip, state):
     """

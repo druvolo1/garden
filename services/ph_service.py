@@ -26,6 +26,8 @@ last_sent_command = None
 COMMAND_TIMEOUT = 10
 MAX_BUFFER_LENGTH = 100
 
+old_ph_value = None #stores the previous ph value so we only process changes
+
 ser = None  # Global variable to track the serial connection
 
 def log_with_timestamp(message):
@@ -48,34 +50,30 @@ def send_command_to_probe(ser, command):
 
 def parse_buffer(ser):
     global buffer, latest_ph_value, last_sent_command
+    global old_ph_value  # track old reading
 
-    ################### NEW LOGIC ###################
-    # If we don't currently have a command in progress
-    # but the queue is NOT empty, immediately send the first command.
+    # If we have a queued command but no active command
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
         last_sent_command = next_cmd["command"]
         log_with_timestamp(f"[DEBUG] No active command. Sending first queued command: {last_sent_command}")
         send_command_to_probe(ser, next_cmd["command"])
-    ################### END NEW LOGIC ###################
 
     while '\r' in buffer:
         line, buffer = buffer.split('\r', 1)
         line = line.strip()
-
         if not line:
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
-
-        #log_with_timestamp(f"[DEBUG] parse_buffer line: {line!r}")
 
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
                 last_sent_command = None
             else:
-                log_with_timestamp(f"Unexpected response: {line} (no command in progress)")
+                log_with_timestamp(f"Unexpected response '{line}' (no command in progress)")
 
+            # If queue is not empty, send the next command
             if not command_queue.empty():
                 next_cmd = command_queue.get()
                 last_sent_command = next_cmd["command"]
@@ -91,9 +89,17 @@ def parse_buffer(ser):
             with ph_lock:
                 latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
+
+            # --- CHANGE-BASED BROADCAST ---
+            if old_ph_value is None or abs(ph_value - old_ph_value) >= 0.01:
+                old_ph_value = ph_value
+                from status_namespace import emit_status_update
+                emit_status_update()
+
         except ValueError as e:
             log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
 
+    # If leftover buffer remains (no \r inside), do nothing
     if buffer:
         log_with_timestamp(f"[DEBUG] parse_buffer leftover buffer: {buffer!r}")
 

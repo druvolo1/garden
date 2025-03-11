@@ -50,20 +50,35 @@ def turn_on_relay(relay_id):
         device_path = get_relay_device_path()
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_ON_COMMANDS[relay_id])
-        print(f"Dosing Relay {relay_id} turned ON.")
+
+        old_state = relay_status[relay_id]
         relay_status[relay_id] = "on"
+        print(f"Dosing Relay {relay_id} turned ON.")
+
+        if old_state != "on":
+            from status_namespace import emit_status_update
+            emit_status_update()
+
         clear_error("PUMP_RELAY_OFFLINE")
     except Exception as e:
         print(f"Error turning on dosing relay {relay_id}: {e}")
         set_error("PUMP_RELAY_OFFLINE")
+
 
 def turn_off_relay(relay_id):
     try:
         device_path = get_relay_device_path()
         with serial.Serial(device_path, baudrate=9600, timeout=1) as ser:
             ser.write(RELAY_OFF_COMMANDS[relay_id])
-        print(f"Dosing Relay {relay_id} turned OFF.")
+
+        old_state = relay_status[relay_id]
         relay_status[relay_id] = "off"
+        print(f"Dosing Relay {relay_id} turned OFF.")
+
+        if old_state != "off":
+            from status_namespace import emit_status_update
+            emit_status_update()
+
         clear_error("PUMP_RELAY_OFFLINE")
     except Exception as e:
         print(f"Error turning off dosing relay {relay_id}: {e}")

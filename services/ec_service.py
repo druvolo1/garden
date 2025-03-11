@@ -22,6 +22,8 @@ ec_buffer = ""
 latest_ec_value = None
 last_ec_command = None
 
+old_ec_value = None #keeps track so it only sends updates
+
 MAX_BUFFER_LENGTH = 100
 ec_ser = None  # The serial connection for the EC meter
 
@@ -30,7 +32,9 @@ def log_with_timestamp(msg):
 
 def parse_ec_buffer():
     global ec_buffer, latest_ec_value, last_ec_command
+    global old_ec_value
 
+    # If no active command, but queue not empty, send next
     if last_ec_command is None and not ec_command_queue.empty():
         next_cmd = ec_command_queue.get()
         last_ec_command = next_cmd
@@ -44,30 +48,34 @@ def parse_ec_buffer():
             log_with_timestamp("Skipping empty line from EC parse.")
             continue
 
-        # If we see '*OK' or '*ER', handle command ack
         if line in ("*OK", "*ER"):
             if last_ec_command:
                 log_with_timestamp(f"EC meter response '{line}' to command: {last_ec_command}")
                 last_ec_command = None
             else:
-                log_with_timestamp(f"EC meter got response {line}, but no command was pending.")
+                log_with_timestamp(f"EC meter got '{line}', but no command pending.")
 
+            # If queue has more commands, send next
             if not ec_command_queue.empty():
                 next_cmd = ec_command_queue.get()
                 last_ec_command = next_cmd
                 send_ec_command(next_cmd)
             continue
 
-        # Attempt to parse a numeric EC reading (µS/cm)
+        # Attempt to parse numeric EC reading
         try:
-            ec_val_uS = float(line)
-            # Convert from µS/cm → mS/cm
-            ec_val_mS = round(ec_val_uS / 1000.0, 2)
+            ec_val_uS = float(line)  # raw in µS/cm
+            ec_val_mS = round(ec_val_uS / 1000.0, 2)  # convert to mS/cm
 
             with ec_lock:
                 latest_ec_value = ec_val_mS
-
             log_with_timestamp(f"Updated latest EC value (mS/cm): {latest_ec_value}")
+
+            # --- CHANGE-BASED BROADCAST ---
+            if old_ec_value is None or abs(ec_val_mS - old_ec_value) >= 0.01:
+                old_ec_value = ec_val_mS
+                from status_namespace import emit_status_update
+                emit_status_update()
 
         except ValueError as e:
             log_with_timestamp(f"Discarding invalid EC line: '{line}' ({e})")
