@@ -21,7 +21,7 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.46"
+PROGRAM_VERSION = "1.0.47"
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
@@ -38,15 +38,16 @@ if not os.path.exists(SETTINGS_FILE):
             "auto_dosing_enabled": True,
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
-            # Add "ec_meter": None in usb_roles
             "usb_roles": {
                 "ph_probe": None,
                 "relay": None,
                 "valve_relay": None,
-                "ec_meter": None  # <--- NEW
+                "ec_meter": None
             },
             "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
+
+            # The local usb-based labels for a physically attached relay board
             "valve_labels": {
                 "1": "Valve #1",
                 "2": "Valve #2",
@@ -57,6 +58,8 @@ if not os.path.exists(SETTINGS_FILE):
                 "7": "Valve #7",
                 "8": "Valve #8"
             },
+
+            # Water-level sensors
             "water_level_sensors": {
                 "sensor1": {"label": "Full",  "pin": 17},
                 "sensor2": {"label": "3 Gal", "pin": 18},
@@ -64,18 +67,29 @@ if not os.path.exists(SETTINGS_FILE):
             },
             "plant_info": {},
             "additional_plants": [],
-            # NEW: Default empty array for power_controls
+
+            # Let them store fill_valve_ip, fill_valve, fill_valve_label, etc.
+            "fill_valve_ip": "",
+            "fill_valve": "",
+            "fill_valve_label": "",      # <--- newly introduced
+            "drain_valve_ip": "",
+            "drain_valve": "",
+            "drain_valve_label": "",     # <--- newly introduced
+            "fill_sensor": "",
+            "drain_sensor": "",
+
+            # For Shelly or other power outlets
             "power_controls": []
         }, f, indent=4)
 
 
-# API endpoint: Get all settings
 @settings_blueprint.route('/', methods=['GET'])
 def get_settings():
     settings = load_settings()
     # Inject our code-based version
     settings["program_version"] = PROGRAM_VERSION
     return jsonify(settings)
+
 
 def ensure_script_executable(script_path: str):
     """Check if script is executable by the owner; if not, chmod +x."""
@@ -87,16 +101,16 @@ def ensure_script_executable(script_path: str):
         print(f"[INFO] Making {script_path} executable (chmod +x)")
         subprocess.run(["chmod", "+x", script_path], check=True)
 
-# API endpoint: Update settings
+
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
+    """ Merge new settings into current_settings.json and emit a status update. """
     new_settings = request.get_json() or {}
     current_settings = load_settings()
 
-    # Use "Garden" as a fallback if system_name is missing
     old_system_name = current_settings.get("system_name", "Garden")
 
-    # Detect whether auto-dosing settings changed (to reset timers if needed)
+    # Check if auto-dosing changed, so we can reset timers
     auto_dosing_changed = (
         "auto_dosing_enabled" in new_settings or
         "dosing_interval" in new_settings
@@ -126,7 +140,7 @@ def update_settings():
         current_settings["power_controls"] = new_settings["power_controls"]
         del new_settings["power_controls"]
 
-    # 4) Merge everything else (system_name, ph_range, etc.)
+    # 4) Merge everything else (system_name, fill_valve, fill_valve_label, etc.)
     current_settings.update(new_settings)
     save_settings(current_settings)
 
@@ -139,15 +153,13 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # Check if system_name changed
+    # If system_name changed, do your rename logic
     new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
         print(f"System name changed from {old_system_name} to {new_system_name}.")
 
-        # We'll append "-pc" to the OS hostname
         appended_hostname = f"{new_system_name}-pc"
 
-        # 1) Run your change_hostname.sh script with appended_hostname
         script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
         ensure_script_executable(script_path)
 
@@ -157,35 +169,30 @@ def update_settings():
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # 2) Update mDNS registration for the PC hostname
-        from services.mdns_service import register_mdns_pc_hostname
+        # Re-register mDNS for both appended and pure names
         try:
             register_mdns_pc_hostname(new_system_name, service_port=8000)
             print(f"[mDNS] Re-registered new system name: {appended_hostname}.local")
         except Exception as e:
             print(f"[mDNS] Error re-registering name: {e}")
 
-        # 3) Also register the pure system name without "-pc"
-        from services.mdns_service import register_mdns_pure_system_name
         try:
             register_mdns_pure_system_name(new_system_name, service_port=8000)
             print(f"[mDNS] Also broadcasting pure name: {new_system_name}.local")
         except Exception as e:
             print(f"[mDNS] Error registering pure system name: {e}")
 
-        # Notify any connected clients that settings changed
         emit_status_update()
         return jsonify({"status": "success", "settings": current_settings})
 
-    # If the system name didn't change, just emit status and return
+    # Otherwise, just emit status
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
 
 
-
-# API endpoint: Reset settings to defaults
 @settings_blueprint.route('/reset', methods=['POST'])
 def reset_settings():
+    """Reset all settings to defaults, including fill_valve_label, etc."""
     default_settings = {
         "system_name": "Garden",
         "ph_range": {"min": 5.5, "max": 6.5},
@@ -205,9 +212,17 @@ def reset_settings():
         },
         "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
         "relay_ports": {"ph_up": 1, "ph_down": 2},
+
+        # water valve assignment
         "fill_valve_ip": "",
         "fill_valve": "",
+        "fill_valve_label": "",
         "fill_sensor": "",
+        "drain_valve_ip": "",
+        "drain_valve": "",
+        "drain_valve_label": "",
+        "drain_sensor": "",
+
         "valve_labels": {
             "1": "Valve #1",
             "2": "Valve #2",
@@ -225,19 +240,17 @@ def reset_settings():
         },
         "plant_info": {},
         "additional_plants": [],
-        "power_controls": []  # <<-- reset to empty by default
+        "power_controls": []
     }
     save_settings(default_settings)
 
-    # Emit a status_update event
     emit_status_update()
-
     return jsonify({"status": "success", "settings": default_settings})
 
 
-# API endpoint: List USB devices
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
+    """List local USB devices, remove invalid assignments, emit status."""
     devices = []
     try:
         print("Executing command: ls /dev/serial/by-path")
@@ -251,58 +264,50 @@ def list_usb_devices():
         print(f"Unexpected error: {e}")
         devices = []
 
-    # 1) Load settings
+    # If an assigned device is missing, clear it out
     settings = load_settings()
-
-    # 2) Get the current usb_roles from settings
     usb_roles = settings.get("usb_roles", {})
-
-    # 3) Figure out which paths are actually connected
-    connected_paths = [dev["device"] for dev in devices]
-
-    # 4) Only remove assignments that no longer match an existing path
+    connected_paths = [d["device"] for d in devices]
     modified = False
     for role, assigned_device in list(usb_roles.items()):
-        if assigned_device not in connected_paths and assigned_device is not None:
+        if assigned_device and assigned_device not in connected_paths:
             usb_roles[role] = None
             modified = True
 
-    # 5) If something changed, save the settings
     if modified:
         settings["usb_roles"] = usb_roles
         save_settings(settings)
 
-    # 6) Emit a status update and return the devices list
     emit_status_update()
     return jsonify(devices)
 
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
+    """Assign or clear a USB device for pH probe, dosing relay, valve relay, or ec_meter."""
     from services.valve_relay_service import init_valve_thread, stop_valve_thread
 
     data = request.get_json()
     role = data.get("role")
     device = data.get("device")
 
-    # Now we allow "ec_meter" as well
     if role not in ["ph_probe", "relay", "valve_relay", "ec_meter"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
     settings = load_settings()
     old_device = settings.get("usb_roles", {}).get(role)
 
-    # If changing valve_relay, we stop the old thread
+    # If switching valve_relay devices, stop old thread
     if role == "valve_relay" and old_device != device:
         stop_valve_thread()
 
-    # Assign or clear the role
+    # Clear or set
     if not device:
         settings["usb_roles"][role] = None
     else:
         # Ensure no duplication
-        for other_role, assigned_device in settings.get("usb_roles", {}).items():
-            if assigned_device == device and other_role != role:
+        for other_role, assigned_dev in settings["usb_roles"].items():
+            if assigned_dev == device and other_role != role:
                 return jsonify({
                     "status": "failure",
                     "error": f"Device already assigned to {other_role}"
@@ -320,21 +325,18 @@ def assign_usb_device():
         reinitialize_relay_service()
     elif role == "valve_relay" and device:
         init_valve_thread()
-
-    # For ec_meter, we might not have extra logic yet, so do nothing special
+    # ec_meter has no special logic yet
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
 
 
-# API endpoint: Get System Name
 @settings_blueprint.route('/system_name', methods=['GET'])
 def get_system_name():
     settings = load_settings()
     return jsonify({"system_name": settings.get("system_name", "Garden")})
 
 
-# API endpoint: Set System Name
 @settings_blueprint.route('/system_name', methods=['POST'])
 def set_system_name():
     data = request.get_json() or {}
@@ -344,52 +346,44 @@ def set_system_name():
     if system_name:
         settings["system_name"] = system_name
         save_settings(settings)
-        # Emit a status_update event
         emit_status_update()
 
     return jsonify({"system_name": settings.get("system_name", "Garden")})
 
+
 @settings_blueprint.route('/export', methods=['GET'])
 def export_settings():
+    """Download the current settings.json file."""
     return send_file(
         SETTINGS_FILE,
         mimetype='application/json',
         as_attachment=True,
-        download_name='settings.json'   # <-- Use download_name (Flask 2.0+)
+        download_name='settings.json'
     )
 
 
 @settings_blueprint.route('/import', methods=['POST'])
 def import_settings():
+    """Upload a settings.json to replace existing, then re-init services."""
     if 'file' not in request.files:
-        return jsonify({
-            "status": "failure",
-            "error": "No file part in request."
-        }), 400
-    
+        return jsonify({"status": "failure", "error": "No file part in request."}), 400
+
     file = request.files['file']
     if file.filename == '':
-        return jsonify({
-            "status": "failure",
-            "error": "No selected file."
-        }), 400
+        return jsonify({"status": "failure", "error": "No selected file."}), 400
 
     try:
-        # 1) Parse the uploaded file to ensure valid JSON
         data = json.load(file)
-
-        # 2) Overwrite the existing settings.json
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(data, f, indent=4)
 
-        # 3) (Optional) Perform additional checks, migrations, etc.
         if "system_name" not in data:
             return jsonify({
                 "status": "failure",
                 "error": "Missing 'system_name' in imported settings."
             }), 400
 
-        # 4) Attempt to re-init services that depend on the settings
+        # Try re-init logic
         try:
             from services.ph_service import restart_serial_reader
             from services.pump_relay_service import reinitialize_relay_service
@@ -398,40 +392,25 @@ def import_settings():
 
             restart_serial_reader()
             reinitialize_relay_service()
-
             stop_valve_thread()
             init_valve_thread()
-
             reset_auto_dose_timer()
 
             print("[IMPORT] Successfully re-initialized dependent services.")
-
         except Exception as ex:
-            # If a re-init fails, print the error...
             print(f"[IMPORT] Service re-init failed: {ex}")
-
-            # ...and trigger the same service restart logic as your "Restart Service" button:
+            # Possibly restart the entire system:
             import subprocess
             try:
                 subprocess.run(["sudo", "systemctl", "restart", "garden.service"], check=True)
                 print("[IMPORT] Triggered service restart due to re-init failure.")
             except Exception as restart_err:
                 print(f"[IMPORT] Could not restart garden.service: {restart_err}")
-                # You might return an error response or proceed as you see fit.
 
-        # 5) (Optional) Notify the rest of the system that settings changed
-        from status_namespace import emit_status_update
         emit_status_update()
-
         return jsonify({"status": "success"}), 200
 
     except json.JSONDecodeError:
-        return jsonify({
-            "status": "failure",
-            "error": "Invalid JSON in uploaded file."
-        }), 400
+        return jsonify({"status": "failure", "error": "Invalid JSON in uploaded file."}), 400
     except Exception as e:
-        return jsonify({
-            "status": "failure",
-            "error": str(e)
-        }), 500
+        return jsonify({"status": "failure", "error": str(e)}), 500

@@ -1,5 +1,3 @@
-# File: status_namespace.py
-
 import socketio  # for python-socketio (used by aggregator to connect to remote IPs)
 from flask_socketio import Namespace
 from datetime import datetime
@@ -22,14 +20,14 @@ def set_socketio_instance(sio):
     global _socketio
     _socketio = sio
 
-REMOTE_STATES = {}   # remote_ip -> last-known JSON
+REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_update"
 REMOTE_CLIENTS = {}  # remote_ip -> python-socketio.Client instance
 
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def is_local_host(host: str, local_names=None):
-    """ Decide if `host` is 'local' or truly remote. """
+    """ Decide if `host` is local or truly remote. """
     if not host or host.lower() in ("localhost", "127.0.0.1"):
         log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
         return True
@@ -37,6 +35,7 @@ def is_local_host(host: str, local_names=None):
         host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
+            # e.g. host="zone1.local" => matches "Zone1"
             if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
                 log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")
                 return True
@@ -44,11 +43,11 @@ def is_local_host(host: str, local_names=None):
     return False
 
 def connect_to_remote_if_needed(remote_ip):
-    """ Create or reuse a python-socketio.Client to connect to remote_ip:8000. """
+    """Create (or reuse) a python-socketio.Client to connect to remote_ip:8000."""
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
-    
+
     if remote_ip in REMOTE_CLIENTS:
         log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
         return
@@ -86,6 +85,7 @@ def connect_to_remote_if_needed(remote_ip):
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
 
 def get_cached_remote_states(remote_ip):
+    """Return the last-known status data from remote_ip."""
     data = REMOTE_STATES.get(remote_ip, {})
     if data:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found keys: {list(data.keys())}")
@@ -95,15 +95,17 @@ def get_cached_remote_states(remote_ip):
 
 def emit_status_update():
     """
-    Merges local + remote states, but only keeps the fill_valve/drain_valve
-    that match the user-specified valve IDs. 
+    Merges local + remote states. The user sets fill_valve_ip, fill_valve_label, etc.
+    We only keep the remote valves that match fill_valve_label / drain_valve_label.
+    If there's a local USB valve, you'd need separate logic – but for purely remote, 
+    we rely on fill_valve_ip + fill_valve_label to filter the aggregator.
     """
     try:
         if not _socketio:
             log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
             return
 
-        # 1) Load settings
+        # 1) Load main settings
         settings = load_settings()
         log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
@@ -126,60 +128,30 @@ def emit_status_update():
         # 4) Water level
         water_level_info = get_water_level_status()
 
-        # 5) Fill/drain IDs (e.g. "1")
-        fill_valve_ip   = (settings.get("fill_valve_ip") or "").strip()
-        fill_valve_id   =  settings.get("fill_valve", "")  
+        # 5) Fill/drain IP + label from settings
+        fill_valve_ip   = (settings.get("fill_valve_ip")   or "").strip()
+        fill_valve_label=  settings.get("fill_valve_label", "")  # Key difference: we rely on the label
         drain_valve_ip  = (settings.get("drain_valve_ip") or "").strip()
-        drain_valve_id  =  settings.get("drain_valve", "")
+        drain_valve_label= settings.get("drain_valve_label", "")
 
         log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
+        log_with_timestamp(f"[DEBUG] fill_valve_label={fill_valve_label}, drain_valve_label={drain_valve_label}")
 
-        # This is your dictionary of known IDs -> label strings, e.g. "1" -> "Zone 1 Fill"
-        valve_labels = settings.get("valve_labels", {})
-        log_with_timestamp(f"[DEBUG] valve_labels={valve_labels}")
-
-        # 6) We create the final label for fill_valve_id/drain_valve_id:
-        # If the user has valve_labels["1"] = "Zone 1 Fill", we use that; otherwise "Valve #1"
-        fill_label = ""
-        if fill_valve_id:
-            fill_label = valve_labels.get(fill_valve_id, f"Valve #{fill_valve_id}")
-        drain_label = ""
-        if drain_valve_id:
-            drain_label = valve_labels.get(drain_valve_id, f"Valve #{drain_valve_id}")
-
-        # We'll only keep these 1–2 labels
+        # 6) Decide which labels to keep
         keep_labels = set()
-        if fill_label:
-            keep_labels.add(fill_label)
-        if drain_label:
-            keep_labels.add(drain_label)
+        if fill_valve_label:
+            keep_labels.add(fill_valve_label)
+        if drain_valve_label:
+            keep_labels.add(drain_valve_label)
 
-        # 7) Gather local label->status from the local valve_relay
-        from services.valve_relay_service import get_valve_status
-        valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
+        # 7) We'll gather aggregator_map from remote states. 
+        # (If you also had a local valve_relay_device, you'd do that here.)
+        aggregator_map = {}
 
-        label_map_local = {}
-        if valve_relay_device:
-            log_with_timestamp(f"[DEBUG] local valve_relay_device={valve_relay_device}")
-            # Loop over all known valve IDs in settings["valve_labels"]
-            for valve_id_str, label_text in valve_labels.items():
-                try:
-                    valve_id_int = int(valve_id_str)
-                except:
-                    continue
-                st = get_valve_status(valve_id_int)
-                log_with_timestamp(f"[DEBUG] local valve_id={valve_id_int}, label={label_text}, status={st}")
-                label_map_local[label_text] = {"label": label_text, "status": st}
-        else:
-            log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
-
-        # Start aggregator map with local statuses
-        aggregator_map = dict(label_map_local)
-
-        # 8) Merge remote states if fill_valve_ip / drain_valve_ip are defined
         local_system_name = settings.get("system_name", "Garden")
         local_names = [local_system_name]
 
+        # For fill & drain IP, connect and get the remote states
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
             if not ip_addr:
                 log_with_timestamp("[DEBUG] skip empty ip_addr")
@@ -187,36 +159,41 @@ def emit_status_update():
 
             if is_local_host(ip_addr, local_names):
                 log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")
-            else:
-                connect_to_remote_if_needed(ip_addr)
-                remote_data = get_cached_remote_states(ip_addr)
-                remote_valve_info = remote_data.get("valve_info", {})
-                remote_relays = remote_valve_info.get("valve_relays", {})
-                log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_relays)} label_keys")
+                continue
 
-                for label_key, label_obj in remote_relays.items():
-                    aggregator_map[label_key] = {
-                        "label":  label_obj.get("label", label_key),
-                        "status": label_obj.get("status", "unknown")
-                    }
+            # Connect to remote if needed
+            connect_to_remote_if_needed(ip_addr)
+            remote_data = get_cached_remote_states(ip_addr)
+            remote_valve_info = remote_data.get("valve_info", {})
+            remote_relays = remote_valve_info.get("valve_relays", {})
 
-        # 9) Filter aggregator_map so we only keep fill_label / drain_label
+            log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_relays)} label_keys")
+
+            for label_key, label_obj in remote_relays.items():
+                aggregator_map[label_key] = {
+                    "label":  label_obj.get("label", label_key),
+                    "status": label_obj.get("status", "unknown")
+                }
+
+        # 8) Filter aggregator_map so we only keep fill_valve_label / drain_valve_label
         filtered_map = {}
         for label_key, data_obj in aggregator_map.items():
             if label_key in keep_labels:
                 filtered_map[label_key] = data_obj
 
-        # 10) Build final valve_info
+        # 9) Build final valve_info 
+        # We'll store fill_valve, drain_valve, etc. if you want numeric IDs, do so. But the aggregator uses label.
         valve_info = {
             "fill_valve_ip":  fill_valve_ip,
-            "fill_valve":     fill_valve_id,
+            "fill_valve":     settings.get("fill_valve", ""),   # numeric ID
+            "fill_valve_label": fill_valve_label,               # new
             "drain_valve_ip": drain_valve_ip,
-            "drain_valve":    drain_valve_id,
-            "valve_labels":   valve_labels,
-            "valve_relays":   filtered_map
+            "drain_valve":    settings.get("drain_valve", ""),  # numeric ID
+            "drain_valve_label": drain_valve_label,             # new
+            "valve_relays":   filtered_map,
         }
 
-        # 11) Final payload
+        # 10) Final payload
         status_payload = {
             "settings":       settings,
             "current_ph":     get_latest_ph_reading(),
@@ -228,7 +205,6 @@ def emit_status_update():
             "errors":         []
         }
 
-        # 12) Emit the update
         _socketio.emit("status_update", status_payload, namespace="/status")
         log_with_timestamp("Status update emitted successfully (filtered for local zone only).")
 
@@ -236,6 +212,7 @@ def emit_status_update():
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
