@@ -106,6 +106,8 @@ def ensure_script_executable(script_path: str):
 def update_settings():
     """ Merge new settings into current_settings.json and emit a status update. """
     new_settings = request.get_json() or {}
+    print(f"[DEBUG] update_settings received new_settings = {new_settings}")  # <-- optional debug line
+
     current_settings = load_settings()
 
     old_system_name = current_settings.get("system_name", "Garden")
