@@ -49,8 +49,16 @@ def send_command_to_probe(ser, command):
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
 def parse_buffer(ser):
+    """
+    Reads data from the global `buffer`, splits on '\r', 
+    attempts to parse numeric pH readings, and filters out 
+    obviously noisy or implausible readings:
+      - if pH < 1.0, skip
+      - if abs(delta) > 2.0 from last good reading, skip
+    On success, update latest_ph_value & possibly emit status_update.
+    """
     global buffer, latest_ph_value, last_sent_command
-    global old_ph_value  # track old reading
+    global old_ph_value  # track our last "good" reading
 
     # If we have a queued command but no active command
     if last_sent_command is None and not command_queue.empty():
@@ -66,6 +74,7 @@ def parse_buffer(ser):
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
+        # Check for "*OK" or "*ER" responses
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
@@ -73,7 +82,7 @@ def parse_buffer(ser):
             else:
                 log_with_timestamp(f"Unexpected response '{line}' (no command in progress)")
 
-            # If queue is not empty, send the next command
+            # Send next command if queue is not empty
             if not command_queue.empty():
                 next_cmd = command_queue.get()
                 last_sent_command = next_cmd["command"]
@@ -81,27 +90,44 @@ def parse_buffer(ser):
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
-        # Attempt to parse a numeric pH reading
+        # Try to parse a numeric pH reading
         try:
             ph_value = round(float(line), 2)
-            if not (0.0 <= ph_value <= 14.0):
-                raise ValueError(f"pH out of range: {ph_value}")
+            # 1) If < 1.0, likely an error or “0.x” noise -> ignore
+            if ph_value < 1.0:
+                raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
+
+            # 2) If old_ph_value is not None AND delta > 2.0, skip as improbable
+            if old_ph_value is not None:
+                if abs(ph_value - old_ph_value) > 2.0:
+                    raise ValueError(
+                        f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
+                    )
+
+            # If we pass both filters, we accept the new pH
             with ph_lock:
                 latest_ph_value = ph_value
                 log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
 
-            # --- CHANGE-BASED BROADCAST ---
-            if old_ph_value is None or abs(ph_value - old_ph_value) >= 0.01:
-                old_ph_value = ph_value
-                from status_namespace import emit_status_update
-                emit_status_update()
+            # Also update old_ph_value (the last “good” reading)
+            old_ph_value = ph_value
+
+            # We can decide on how big a difference triggers a re-broadcast.
+            # For example, if the difference is >= 0.01, then broadcast:
+            # (Feel free to adjust this threshold to your preference.)
+            #   if we *always* want to broadcast on every good reading, remove the condition
+            #   or set the threshold to zero.
+            # For demonstration:
+            from status_namespace import emit_status_update
+            emit_status_update()
 
         except ValueError as e:
-            log_with_timestamp(f"Discarding unexpected response: '{line}' ({e})")
+            log_with_timestamp(f"Ignoring line '{line}': {e}")
 
-    # If leftover buffer remains (no \r inside), do nothing
+    # If leftover buffer remains (no '\r' found), do nothing
     if buffer:
         log_with_timestamp(f"[DEBUG] parse_buffer leftover buffer: {buffer!r}")
+
 
 
 def serial_reader():
