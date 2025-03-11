@@ -16,9 +16,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- NOTE: This index.html still has local + remote zone logic.
-       The aggregator in status_namespace.py now merges by valve label. -->
-
   <!-- Navigation Menu -->
   <nav>
     <ul>
@@ -95,14 +92,8 @@
 
     <!-- REMOTE ZONES -->
     <div id="remote-zones"></div>
-
-    <!-- NEW: Render all valves in a single table/section -->
-    <section class="data-container" style="margin-top:20px;">
-      <h2>All Merged Valves</h2>
-      <div id="all-valves-container"></div>
-    </section>
-    <!-- END NEW -->
-
+    <!-- (Removed “All Merged Valves” section) -->
+    
   </main>
 
   <script>
@@ -201,9 +192,6 @@
               updateLocalValveButtons("drain", rStatus);
             }
           }
-
-          // NEW: Render all merged valves in a big list
-          renderAllValves(relays);
         }
       });
 
@@ -231,6 +219,7 @@
         if (triggered === null) {
           displayEl.textContent = `${labelKey}: No Data`;
         } else {
+          // If triggered = false => "Present", true => "Not Present" (or whichever icon/text you prefer)
           displayEl.textContent = `${labelKey}: ` + (triggered ? "⚠️ Not Present" : "✅ Present");
         }
       }
@@ -279,94 +268,6 @@
         onBtn.classList.add("btn-inactive");
         offBtn.classList.add("btn-off-active");
       }
-    }
-
-    // NEW: Renders all aggregator valves in a list, with On/Off
-    function renderAllValves(relays) {
-      const container = document.getElementById("all-valves-container");
-      container.innerHTML = ""; // clear old content each update
-
-      for (let labelKey in relays) {
-        const rInfo   = relays[labelKey];
-        const rLabel  = rInfo.label || labelKey;
-        const rStatus = (rInfo.status || "").toLowerCase();
-
-        // Create a row for this valve
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.alignItems = "center";
-        row.style.marginBottom = "8px";
-
-        // Valve label
-        const labelSpan = document.createElement("span");
-        labelSpan.textContent = rLabel;
-        labelSpan.style.width = "150px";
-        row.appendChild(labelSpan);
-
-        // Status text
-        const statusSpan = document.createElement("span");
-        statusSpan.id = `valve-status-${rLabel.replace(/\s+/g, "_")}`;
-        statusSpan.textContent = (rStatus === "on" ? "On" : "Off");
-        statusSpan.style.margin = "0 8px";
-        row.appendChild(statusSpan);
-
-        // On button
-        const onBtn = document.createElement("button");
-        onBtn.textContent = "On";
-        if (rStatus === "on") {
-          onBtn.classList.add("btn-on-active");
-        } else {
-          onBtn.classList.add("btn-inactive");
-        }
-        onBtn.onclick = () => setValveGlobal(rLabel, "on", statusSpan.id, onBtn, offBtn);
-        row.appendChild(onBtn);
-
-        // Off button
-        const offBtn = document.createElement("button");
-        offBtn.textContent = "Off";
-        if (rStatus === "off") {
-          offBtn.classList.add("btn-off-active");
-        } else {
-          offBtn.classList.add("btn-inactive");
-        }
-        offBtn.onclick = () => setValveGlobal(rLabel, "off", statusSpan.id, onBtn, offBtn);
-        row.appendChild(offBtn);
-
-        container.appendChild(row);
-      }
-    }
-
-    // NEW: Calls aggregator route so aggregator can forward to local or remote
-    function setValveGlobal(valveLabel, action, statusSpanId, onBtn, offBtn) {
-      // We assume aggregator route: POST /api/valve_relay/<label>/on|off
-      const url = `/api/valve_relay/${encodeURIComponent(valveLabel)}/${action}`;
-
-      fetch(url, { method: "POST" })
-        .then(r => r.json())
-        .then(data => {
-          if (data.status === "success") {
-            // Update UI text
-            document.getElementById(statusSpanId).textContent = (action === "on") ? "On" : "Off";
-
-            // Button classes
-            if (action === "on") {
-              onBtn.classList.remove("btn-inactive");
-              onBtn.classList.add("btn-on-active");
-              offBtn.classList.remove("btn-off-active");
-              offBtn.classList.add("btn-inactive");
-            } else {
-              onBtn.classList.remove("btn-on-active");
-              onBtn.classList.add("btn-inactive");
-              offBtn.classList.remove("btn-inactive");
-              offBtn.classList.add("btn-off-active");
-            }
-          } else {
-            console.error("Valve error:", data.error);
-          }
-        })
-        .catch(err => {
-          console.error("Valve fetch error:", err);
-        });
     }
 
     // ================ REMOTE ZONE SETUP ===================
@@ -486,7 +387,7 @@
           drainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveName,`${zoneId}-drain-status`, "off", zoneId, "drain");
         }
 
-        // ---------- ADDED / CHANGED: label-based iteration ----------
+        // Update remote fill/drain status if provided
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
           const fillLabel  = data.settings?.valve_labels?.[fillValveName]  || fillValveName;
