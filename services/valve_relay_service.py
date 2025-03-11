@@ -6,6 +6,7 @@ import eventlet
 import serial
 from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
+from status_namespace import emit_status_update
 
 # 8-channel ON commands
 VALVE_ON_COMMANDS = {
@@ -87,26 +88,48 @@ def parse_hardware_response(response):
         idx = i - 1
         valve_status[i] = "on" if idx < len(data) and data[idx] == 1 else "off"
 
+# 1) At the top, import emit_status_update so we can call it:
+from status_namespace import emit_status_update
+
 def valve_polling_loop():
-    """
-    Runs continuously in a background thread:
-      - Uses the persistent valve_ser to poll the device every second (by sending 0xFF).
-      - Reads and parses the response to update valve_status.
-    """
     global valve_ser
     print("[Valve] Polling loop started.")
+
+    # Keep a snapshot of what valve_status was last time
+    old_status_snapshot = dict(valve_status)
+
     while not stop_event_instance.ready():
         with serial_lock:
             try:
                 valve_ser.write(b'\xFF')
                 eventlet.sleep(0.05)
-                response = valve_ser.read(10)  # read up to 10 bytes
+                response = valve_ser.read(10)
+                
+                # Keep a copy of the old statuses:
+                old_status_snapshot_before = dict(valve_status)
+                
+                # parse the new response
                 parse_hardware_response(response)
+
+                # Compare old vs. new
+                something_changed = False
+                for i in range(1, 9):
+                    if valve_status[i] != old_status_snapshot_before[i]:
+                        something_changed = True
+                        break
+
+                if something_changed:
+                    print("[Valve] Detected a local valve status change. Emitting status update.")
+                    emit_status_update()
+
             except Exception as e:
                 print(f"[Valve] Polling error: {e}")
                 set_error("VALVE_RELAY_OFFLINE")
+
         eventlet.sleep(1)
+
     print("[Valve] Polling loop exiting.")
+
 
 def init_valve_thread():
     """

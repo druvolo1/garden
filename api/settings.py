@@ -21,7 +21,7 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.48"
+PROGRAM_VERSION = "1.0.49"
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
