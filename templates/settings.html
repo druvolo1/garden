@@ -780,19 +780,28 @@
     // Water Valve IP/Valves
     document.getElementById('water-valve-form').addEventListener('submit', e => {
       e.preventDefault();
+      const fillValSelect = document.getElementById('fill-valve');
+      const fillValveId   = fillValSelect.value; // e.g. "1"
+      const fillValveLbl  = fillValSelect.options[fillValSelect.selectedIndex]?.text || "";
+
+      const drainValSelect= document.getElementById('drain-valve');
+      const drainValveId  = drainValSelect.value;
+      const drainValveLbl = drainValSelect.options[drainValSelect.selectedIndex]?.text || "";
+
       const payload = {
-        // Fill
         fill_valve_ip:   document.getElementById('fill-valve-ip').value,
-        fill_valve:      document.getElementById('fill-valve').value,
+        fill_valve:      fillValveId,
+        fill_valve_label: fillValveLbl,
         fill_sensor:     document.getElementById('fill-sensor').value,
 
-        // Drain
         drain_valve_ip:  document.getElementById('drain-valve-ip').value,
-        drain_valve:     document.getElementById('drain-valve').value,
-        drain_sensor:    document.getElementById('drain-sensor').value,
+        drain_valve:     drainValveId,
+        drain_valve_label: drainValveLbl,
+        drain_sensor:    document.getElementById('drain-sensor').value
       };
       saveSettings("/api/settings/", payload);
     });
+
 
     // pH Range
     document.getElementById('ph-range-form').addEventListener('submit', e => {
