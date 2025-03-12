@@ -95,7 +95,7 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-def emit_status_update():
+def emit_status_update(force_emit=False):
     """
     Collects all valve statuses from local and remote sources and emits only when there are changes.
     """
@@ -198,8 +198,8 @@ def emit_status_update():
             "errors": []
         }
 
-        # **Force emit if LAST_EMITTED_STATUS is None (first connection)**
-        force_emit = LAST_EMITTED_STATUS is None
+        # **Force emit if this is the first connection**
+        force_emit = force_emit or LAST_EMITTED_STATUS is None
 
         if not force_emit and LAST_EMITTED_STATUS:
             changes = {}
@@ -218,15 +218,11 @@ def emit_status_update():
         LAST_EMITTED_STATUS = status_payload  # ✅ Store the last known status
         log_with_timestamp("Status update emitted successfully (including forced emit on connection).")
 
-    except Exception as e:
-        log_with_timestamp(f"Error in emit_status_update: {e}")
-        import traceback
-        traceback.print_exc()
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
         log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
-        emit_status_update()
+        emit_status_update(force_emit=True)
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
