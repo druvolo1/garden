@@ -9,8 +9,8 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
-from services.mdns_service import register_mdns_pc_hostname
-from services.mdns_service import register_mdns_pure_system_name
+#from services.mdns_service import register_mdns_pc_hostname
+#from services.mdns_service import register_mdns_pure_system_name
 
 from flask import send_file
 
@@ -155,37 +155,39 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # If system_name changed, do your rename logic
+    # If system_name changed, rename the OS to exactly "new_system_name"
     new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
         print(f"System name changed from {old_system_name} to {new_system_name}.")
-
-        appended_hostname = f"{new_system_name}-pc"
 
         script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
         ensure_script_executable(script_path)
 
         try:
-            subprocess.run(["sudo", script_path, appended_hostname], check=True)
-            print(f"Successfully updated system hostname to {appended_hostname}.")
+            # Pass the system name exactly (no "-pc" appended)
+            subprocess.run(["sudo", script_path, new_system_name], check=True)
+            print(f"Successfully updated system hostname to {new_system_name}.")
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # Re-register mDNS for both appended and pure names
-        try:
-            register_mdns_pc_hostname(new_system_name, service_port=8000)
-            print(f"[mDNS] Re-registered new system name: {appended_hostname}.local")
-        except Exception as e:
-            print(f"[mDNS] Error re-registering name: {e}")
+        # Comment out or remove the extra mDNS calls
+        # Avahi will automatically advertise "new_system_name.local"
+        # so we don't need to manually register an extra service:
+        # try:
+        #     register_mdns_pc_hostname(new_system_name, 8000)
+        #     print(f"[mDNS] Registered service for {new_system_name}.local")
+        # except:
+        #     pass
 
-        try:
-            register_mdns_pure_system_name(new_system_name, service_port=8000)
-            print(f"[mDNS] Also broadcasting pure name: {new_system_name}.local")
-        except Exception as e:
-            print(f"[mDNS] Error registering pure system name: {e}")
+        # try:
+        #     register_mdns_pure_system_name(new_system_name, 8000)
+        #     print(f"[mDNS] Also pure name: {new_system_name}.local")
+        # except:
+        #     pass
 
         emit_status_update()
         return jsonify({"status": "success", "settings": current_settings})
+
 
     # Otherwise, just emit status
     emit_status_update()

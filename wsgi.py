@@ -5,11 +5,7 @@ import os, stat
 
 from app import app, start_threads
 from utils.settings_utils import load_settings
-from services.mdns_service import (
-    register_mdns_pc_hostname,
-    register_mdns_pure_system_name,
-    close_mdns
-)
+
 
 def ensure_script_executable(script_path: str):
     """Check if script is executable by the owner; if not, chmod +x."""
@@ -50,10 +46,10 @@ try:
     system_name = s.get("system_name", "Garden")
 
     # 1) Register the system_name-pc mDNS (hostname-based)
-    register_mdns_pc_hostname(system_name, service_port=8000)
+    #register_mdns_pc_hostname(system_name, service_port=8000)
 
     # 2) Also register the pure system name
-    register_mdns_pure_system_name(system_name, service_port=8000)
+    #register_mdns_pure_system_name(system_name, service_port=8000)
 
     print(f"[WSGI] Completed mDNS registration for '{system_name}'.")
 except Exception as e:
