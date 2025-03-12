@@ -1,5 +1,7 @@
-/* Global Styles */
-body {
+/* =========================
+   GLOBAL & BODY STYLES
+   ========================= */
+   body {
     font-family: 'Poppins', sans-serif;
     background-color: #121212;
     color: #e0e0e0;
@@ -7,7 +9,9 @@ body {
     padding: 0;
 }
 
-/* Navigation Bar */
+/* =========================
+   NAVIGATION BAR
+   ========================= */
 nav {
     background-color: #1e1e1e;
     padding: 15px;
@@ -37,7 +41,9 @@ nav ul li a.active {
     color: #ffffff;
 }
 
-/* Main Content */
+/* =========================
+   MAIN & HEADINGS
+   ========================= */
 main {
     max-width: 90vw;
     margin: 40px auto;
@@ -56,8 +62,11 @@ h1 {
     margin-bottom: 30px;
 }
 
-/* Data Containers */
+/* =========================
+   DATA CONTAINERS
+   ========================= */
 .data-container {
+    position: relative;  /* needed for .last-updated absolute positioning */
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
@@ -65,9 +74,26 @@ h1 {
     margin-bottom: 20px;
     box-shadow: 0px 4px 10px rgba(255, 204, 0, 0.2);
     text-align: left;
+
+    /* Ensure enough vertical space so .last-updated isn't clipped */
+    min-height: 120px;  
+    overflow: visible;   
 }
 
-/* =========== RESPONSIVE FLEX ROW =========== */
+/* Show the .last-updated pinned at the bottom left */
+.last-updated {
+    position: absolute;
+    bottom: 8px;
+    left: 10px;
+    z-index: 999;        /* ensures it’s on top if overlapping occurs */
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+/* =========================
+   RESPONSIVE FLEX ROW
+   ========================= */
 .row-flex {
     display: flex;
     flex-wrap: nowrap; /* horizontally by default */
@@ -78,14 +104,15 @@ h1 {
     flex: 1;
     min-width: 120px;
 }
-/* On narrower screens, allow wrapping so columns stack. */
 @media (max-width: 768px) {
     .row-flex {
         flex-wrap: wrap;
     }
 }
 
-/* Input Fields */
+/* =========================
+   FORMS & INPUTS
+   ========================= */
 input,
 select {
     width: 100%;
@@ -103,18 +130,18 @@ select {
     color: #f8f8f8;
     border: 1px solid #444;
 }
-
 select option {
     background-color: #2a2a2a;
     color: #f8f8f8;
 }
-
 input:focus,
 select:focus {
     outline: 2px solid #f4c531;
 }
 
-/* Buttons */
+/* =========================
+   BUTTONS
+   ========================= */
 button {
     background: linear-gradient(to right, #f4c531, #e2a600);
     color: #121212;
@@ -139,55 +166,58 @@ button:hover {
     background: linear-gradient(to right, #b0b0b0, #757575);
     color: white;
 }
-
 .secondary-btn:hover {
     background: linear-gradient(to right, #757575, #505050);
 }
 
-/* Checkboxes */
+/* =========================
+   CHECKBOXES
+   ========================= */
 .checkbox-container {
     display: flex;
     align-items: center;
     gap: 10px;
 }
-
 .checkbox-container input {
     width: auto;
 }
 
-/* Static Config Visibility */
+/* =========================
+   STATIC CONFIG
+   ========================= */
 .static-config {
     display: none;
     padding: 10px;
     border-radius: 5px;
     margin-top: 10px;
 }
-
 .static-config input {
     margin-bottom: 5px;
 }
 
-/* Error Message */
+/* =========================
+   ERROR MESSAGE
+   ========================= */
 .error-message {
     color: #ff4c4c;
     font-size: 16px;
     font-weight: bold;
 }
 
-/* Fieldsets for Forms */
+/* =========================
+   FIELDSETS
+   ========================= */
 fieldset {
     border: 1px solid rgba(255, 255, 255, 0.2);
     padding: 15px;
     margin-bottom: 15px;
     border-radius: 5px;
 }
-
 legend {
     font-size: 18px;
     font-weight: 600;
     color: #f4c531;
 }
-
 .settings-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -197,35 +227,35 @@ legend {
     padding: 20px;
 }
 
-/* On/Off Button Colors */
+/* =========================
+   ON/OFF BUTTON COLORS
+   ========================= */
 .btn-on-active {
     background: #28a745 !important; /* force green */
     color: white !important;
 }
-
 .btn-off-active {
     background: #dc3545 !important; /* force red */
     color: white !important;
 }
-
 .btn-inactive {
     background: #ccc !important;    /* force grey */
     color: #000 !important;
 }
 
-/* For the dosage page layout, optional */
+/* =========================
+   DOSAGE PAGE LAYOUT
+   ========================= */
 .dosage-section {
     display: flex;
     gap: 20px;
     align-items: stretch; 
 }
-
 .dosage-section .data-container {
     flex: 1;
     display: flex;
     flex-direction: column;
 }
-
 #valve-table {
     width: 80%;
     margin: 0 auto;
