@@ -110,12 +110,17 @@ def emit_status_update():
         settings = load_settings()
         log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
-        # 2) Convert auto_dose_state times
+        # 2) Convert auto_dose_state times and prevent unnecessary updates
         auto_dose_copy = dict(auto_dose_state)
         if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
             auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
+
+        # **Ignore `last_dose_time` if no dose actually occurred**
+        if auto_dose_copy["last_dose_type"] is None and auto_dose_copy["last_dose_amount"] == 0:
+            auto_dose_copy["last_dose_time"] = None  # Don't trigger an update if nothing happened
+
 
         # 3) Plant info
         plant_info_raw = settings.get("plant_info", {})
