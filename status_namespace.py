@@ -95,7 +95,7 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-def emit_status_update():
+def emit_status_update(force_emit=False):
     """
     Collects all valve statuses from local and remote sources and emits only when there are changes.
     """
@@ -198,22 +198,26 @@ def emit_status_update():
             "errors": []
         }
 
-        # **Force emit if LAST_EMITTED_STATUS is None (first connection)**
-        force_emit = LAST_EMITTED_STATUS is None
+        # **Force emit if first connection**
+        if force_emit or LAST_EMITTED_STATUS is None:
+            log_with_timestamp("[DEBUG] Forcing status update emit on first connection.")
+            _socketio.emit("status_update", status_payload, namespace="/status")
+            LAST_EMITTED_STATUS = status_payload
+            return
 
-        if not force_emit and LAST_EMITTED_STATUS:
-            changes = {}
-            for key in status_payload:
-                if status_payload[key] != LAST_EMITTED_STATUS[key]:
-                    changes[key] = (LAST_EMITTED_STATUS[key], status_payload[key])
+        # **Only emit if changes are detected**
+        changes = {}
+        for key in status_payload:
+            if status_payload[key] != LAST_EMITTED_STATUS[key]:
+                changes[key] = (LAST_EMITTED_STATUS[key], status_payload[key])
 
-            if not changes:
-                log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
-                return  # ✅ Skip emitting if nothing changed
+        if not changes:
+            log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
+            return  # ✅ Skip emitting if nothing changed
 
-            log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
+        log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
 
-        # ✅ Emit the first update always, and future updates only when needed
+        # ✅ Emit the status update and store it
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload  # ✅ Store the last known status
         log_with_timestamp("Status update emitted successfully (including forced emit on connection).")
@@ -223,12 +227,12 @@ def emit_status_update():
         import traceback
         traceback.print_exc()
 
-
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
         log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
-        LAST_EMITTED_STATUS= None #clear last emitted status so connection gets full status
-        emit_status_update()
+        global LAST_EMITTED_STATUS
+        LAST_EMITTED_STATUS = None  # Force first update when a client connects
+        emit_status_update(force_emit=True)  # Explicitly force emit
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
