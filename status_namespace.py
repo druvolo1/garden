@@ -23,6 +23,8 @@ def set_socketio_instance(sio):
 REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_update"
 REMOTE_CLIENTS = {}  # remote_ip -> python-socketio.Client instance
 
+LAST_EMITTED_STATUS = None  # Stores the last sent status update
+
 def log_with_timestamp(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
@@ -95,14 +97,10 @@ def get_cached_remote_states(remote_ip):
 
 def emit_status_update():
     """
-    Collects all valve statuses from:
-      - Local USB device (if assigned in usb_roles["valve_relay"])
-      - Remote fill_valve_ip, drain_valve_ip (if assigned)
-    Then merges them all (local + remote) into valve_info["valve_relays"].
-
-    The front end can look at fill_valve_label/drain_valve_label to highlight
-    which ones are 'their' fill or drain channels, but we always include all channels.
+    Collects all valve statuses from local and remote sources and emits only when there are changes.
     """
+    global LAST_EMITTED_STATUS
+
     try:
         if not _socketio:
             log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
@@ -146,15 +144,12 @@ def emit_status_update():
                 except:
                     continue
                 st = get_valve_status(valve_id)
-                aggregator_map[label] = {
-                    "label": label,
-                    "status": st
-                }
+                aggregator_map[label] = {"label": label, "status": st}
         else:
             log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
 
         # 6) If fill_valve_ip or drain_valve_ip is assigned, gather remote states
-        fill_valve_ip  = (settings.get("fill_valve_ip")   or "").strip()
+        fill_valve_ip = (settings.get("fill_valve_ip") or "").strip()
         drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
 
         log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
@@ -176,43 +171,47 @@ def emit_status_update():
             remote_relays = remote_valve_info.get("valve_relays", {})
             log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_relays)} label_keys")
 
-            # Merge all remote channels into aggregator_map
             for label_key, label_obj in remote_relays.items():
-                aggregator_map[label_key] = {
-                    "label":  label_obj.get("label", label_key),
-                    "status": label_obj.get("status", "unknown")
-                }
+                aggregator_map[label_key] = {"label": label_obj.get("label", label_key), "status": label_obj.get("status", "unknown")}
 
         # 7) Build final valve_info with no filtering
         valve_info = {
-            "fill_valve_ip":   fill_valve_ip,
-            "fill_valve":      settings.get("fill_valve", ""),
+            "fill_valve_ip": fill_valve_ip,
+            "fill_valve": settings.get("fill_valve", ""),
             "fill_valve_label": settings.get("fill_valve_label", ""),
-            "drain_valve_ip":  drain_valve_ip,
-            "drain_valve":     settings.get("drain_valve", ""),
+            "drain_valve_ip": drain_valve_ip,
+            "drain_valve": settings.get("drain_valve", ""),
             "drain_valve_label": settings.get("drain_valve_label", ""),
-            "valve_relays":    aggregator_map  # everything
+            "valve_relays": aggregator_map  # everything
         }
 
         # 8) Final payload
         status_payload = {
-            "settings":       settings,
-            "current_ph":     get_latest_ph_reading(),
-            "current_ec":     get_latest_ec_reading(),
+            "settings": settings,
+            "current_ph": get_latest_ph_reading(),
+            "current_ec": get_latest_ec_reading(),
             "auto_dose_state": auto_dose_copy,
-            "plant_info":     plant_info,
-            "water_level":    water_level_info,
-            "valve_info":     valve_info,
-            "errors":         []
+            "plant_info": plant_info,
+            "water_level": water_level_info,
+            "valve_info": valve_info,
+            "errors": []
         }
 
+        # **Compare current payload to the last emitted one**
+        if LAST_EMITTED_STATUS and status_payload == LAST_EMITTED_STATUS:
+            log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
+            return  # **Skip emitting if nothing has changed**
+
+        # **If there are changes, emit the update and store it**
         _socketio.emit("status_update", status_payload, namespace="/status")
+        LAST_EMITTED_STATUS = status_payload  # **Store the new emitted status**
         log_with_timestamp("Status update emitted successfully (including all valves).")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
