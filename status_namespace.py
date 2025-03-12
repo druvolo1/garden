@@ -121,7 +121,6 @@ def emit_status_update():
         if auto_dose_copy["last_dose_type"] is None and auto_dose_copy["last_dose_amount"] == 0:
             auto_dose_copy["last_dose_time"] = None  # Don't trigger an update if nothing happened
 
-
         # 3) Plant info
         plant_info_raw = settings.get("plant_info", {})
         weeks = get_weeks_since_start(plant_info_raw)
@@ -199,8 +198,10 @@ def emit_status_update():
             "errors": []
         }
 
-        # **Check what has changed**
-        if LAST_EMITTED_STATUS:
+        # **Force emit if LAST_EMITTED_STATUS is None (first connection)**
+        force_emit = LAST_EMITTED_STATUS is None
+
+        if not force_emit and LAST_EMITTED_STATUS:
             changes = {}
             for key in status_payload:
                 if status_payload[key] != LAST_EMITTED_STATUS[key]:
@@ -208,21 +209,19 @@ def emit_status_update():
 
             if not changes:
                 log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
-                return  # Skip emitting if nothing changed
+                return  # ✅ Skip emitting if nothing changed
 
             log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
 
-        # **Emit new status update**
+        # ✅ Emit the first update always, and future updates only when needed
         _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload  # Update last known status
-        log_with_timestamp("Status update emitted successfully.")
+        LAST_EMITTED_STATUS = status_payload  # ✅ Store the last known status
+        log_with_timestamp("Status update emitted successfully (including forced emit on connection).")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
-
-
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
