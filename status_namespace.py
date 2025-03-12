@@ -178,11 +178,18 @@ def emit_status_update(force_emit=False):
         # 7) Build final valve_info
         fill_valve_label = settings.get("fill_valve_label", "")
         drain_valve_label = settings.get("drain_valve_label", "")
+        valve_relay_device = settings.get("usb_roles", {}).get("valve_relay", "")
 
         filtered_relays = {}
-        for label, relay in aggregator_map.items():
-            if label in (fill_valve_label, drain_valve_label):
-                filtered_relays[label] = relay
+
+        if valve_relay_device:  # ✅ If valve relay is assigned via USB, send all relays
+            log_with_timestamp(f"[DEBUG] Local valve relay detected via USB: {valve_relay_device}. Including all relays.")
+            filtered_relays = aggregator_map  # Send all valves
+        else:  # ✅ Otherwise, filter to only include assigned fill/drain valves
+            log_with_timestamp(f"[DEBUG] Filtering valves. Only sending assigned fill/drain valves.")
+            for label, relay in aggregator_map.items():
+                if label in (fill_valve_label, drain_valve_label):
+                    filtered_relays[label] = relay
 
         valve_info = {
             "fill_valve_ip": fill_valve_ip,
@@ -191,8 +198,9 @@ def emit_status_update(force_emit=False):
             "drain_valve_ip": drain_valve_ip,
             "drain_valve": settings.get("drain_valve", ""),
             "drain_valve_label": drain_valve_label,
-            "valve_relays": filtered_relays  # ✅ Only send assigned valves
+            "valve_relays": filtered_relays  # ✅ Only send assigned valves unless it's a USB relay host
         }
+
 
         # 8) Build final status payload
         status_payload = {
