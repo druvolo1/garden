@@ -227,7 +227,7 @@ def emit_status_update():
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
         log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
-        LAST_EMITTED_STATUS="" #clear last emitted status so connection gets full status
+        LAST_EMITTED_STATUS= None #clear last emitted status so connection gets full status
         emit_status_update()
 
     def on_disconnect(self):
