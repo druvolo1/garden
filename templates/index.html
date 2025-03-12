@@ -29,8 +29,8 @@
   </nav>
 
   <main>
-    <h1>pH Dosing System</h1>
-    <p class="subtitle">Monitor &amp; adjust your garden’s pH with precision.</p>
+    <h1>Automated DWC Helper</h1>
+    <p class="subtitle">Monitor &amp; adjust your garden with confidence.</p>
 
     <!-- LOCAL ZONE -->
     <section class="data-container">
@@ -120,10 +120,16 @@
         console.error("[LOCAL] connect_error:", err);
       });
   
-      // 2) When we receive a status_update, refresh local zone UI
-      localSocket.on("status_update", (data) => {
-        console.log("[LOCAL] status_update:", data);
-  
+        // 2) When we receive a status_update, refresh local zone UI
+        localSocket.on("status_update", (data) => {
+          console.log("[LOCAL] status_update:", data);
+          
+        // If the local zone provides a system_name, update the <title>:
+        if (data.settings?.system_name) {
+          document.title = data.settings.system_name;
+        }
+
+
         // (A) Basic system info
         document.getElementById("local-system-name").textContent =
           data.settings?.system_name || "N/A";
