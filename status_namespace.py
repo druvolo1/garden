@@ -176,14 +176,22 @@ def emit_status_update(force_emit=False):
                 aggregator_map[label_key] = {"label": label_obj.get("label", label_key), "status": label_obj.get("status", "unknown")}
 
         # 7) Build final valve_info
+        fill_valve_label = settings.get("fill_valve_label", "")
+        drain_valve_label = settings.get("drain_valve_label", "")
+
+        filtered_relays = {}
+        for label, relay in aggregator_map.items():
+            if label in (fill_valve_label, drain_valve_label):
+                filtered_relays[label] = relay
+
         valve_info = {
             "fill_valve_ip": fill_valve_ip,
             "fill_valve": settings.get("fill_valve", ""),
-            "fill_valve_label": settings.get("fill_valve_label", ""),
+            "fill_valve_label": fill_valve_label,
             "drain_valve_ip": drain_valve_ip,
             "drain_valve": settings.get("drain_valve", ""),
-            "drain_valve_label": settings.get("drain_valve_label", ""),
-            "valve_relays": aggregator_map  # everything
+            "drain_valve_label": drain_valve_label,
+            "valve_relays": filtered_relays  # ✅ Only send assigned valves
         }
 
         # 8) Build final status payload
