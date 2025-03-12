@@ -100,9 +100,13 @@ def parse_buffer(ser):
             # 2) If old_ph_value is not None AND delta > 2.0, skip as improbable
             if old_ph_value is not None:
                 if abs(ph_value - old_ph_value) > 2.0:
-                    raise ValueError(
-                        f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
-                    )
+                    # If the last reading was invalid (e.g., >14 or clearly erroneous), accept the new reading
+                    if old_ph_value > 14 or old_ph_value < 1:  
+                        log_with_timestamp(f"Accepting pH correction from {old_ph_value} -> {ph_value}")
+                    else:
+                        raise ValueError(
+                            f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
+                        )
 
             # If we pass both filters, we accept the new pH
             with ph_lock:
