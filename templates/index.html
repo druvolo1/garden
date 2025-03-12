@@ -100,8 +100,8 @@
       // 1) Connect to local /status namespace
       const localSocket = io("/status", {
         transports: ["websocket"],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000
       });
 
       localSocket.on("connect", () => {
@@ -271,39 +271,27 @@
     }
 
     // ===================== REMOTE ZONES ======================
+
+    const remoteSockets = {};  // Track active WebSocket connections
+
     function setupRemoteZone(host) {
-      // This code remains similar to your old version, 
-      // so remote zones can show their own fill/drain if they have them.
+      if (remoteSockets[host]) {
+        console.log(`[REMOTE ${host}] Already connected`);
+        return;  // Skip if already connected
+      }
+
       const zoneId = host.replace(/[^a-zA-Z0-9]/g, "_");
       const container = document.createElement("section");
       container.className = "data-container";
       container.innerHTML = `
         <h2>Remote Zone: <a href="http://${host}:8000" target="_blank">${host}</a></h2>
         <div class="row-flex" id="${zoneId}-row">
-          <div>
-            <label>System Name</label>
-            <div id="${zoneId}-system-name">Loading...</div>
-          </div>
-          <div>
-            <label>pH</label>
-            <div id="${zoneId}-ph-display">Loading...</div>
-          </div>
-          <div>
-            <label>EC (mS/cm)</label>
-            <div id="${zoneId}-ec-display">N/A</div>
-          </div>
-          <div>
-            <label>Sensor 1</label>
-            <div id="${zoneId}-sensor1-display">Loading...</div>
-          </div>
-          <div>
-            <label>Sensor 2</label>
-            <div id="${zoneId}-sensor2-display">Loading...</div>
-          </div>
-          <div>
-            <label>Sensor 3</label>
-            <div id="${zoneId}-sensor3-display">Loading...</div>
-          </div>
+          <div><label>System Name</label><div id="${zoneId}-system-name">Loading...</div></div>
+          <div><label>pH</label><div id="${zoneId}-ph-display">Loading...</div></div>
+          <div><label>EC (mS/cm)</label><div id="${zoneId}-ec-display">N/A</div></div>
+          <div><label>Sensor 1</label><div id="${zoneId}-sensor1-display">Loading...</div></div>
+          <div><label>Sensor 2</label><div id="${zoneId}-sensor2-display">Loading...</div></div>
+          <div><label>Sensor 3</label><div id="${zoneId}-sensor3-display">Loading...</div></div>
           <div style="display:none;" id="${zoneId}-fill-container">
             <label>Fill Valve: <span id="${zoneId}-fill-status">Off</span></label>
             <div style="display:flex; gap:8px; margin-top:4px;">
@@ -324,57 +312,61 @@
 
       const remoteUrl = `http://${host}:8000/status`;
       console.log(`[REMOTE] Connecting to ${remoteUrl}`);
-      const remoteSocket = io(remoteUrl, {
+
+      const socket = io(remoteUrl, {
         transports: ["websocket"],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000
+        reconnectionAttempts: Infinity,  // Ensures the connection never stops retrying
+        reconnectionDelay: 1000,         // Retry every 1 second
+        reconnectionDelayMax: 1000       // Cap max delay at 1 second
       });
 
-      remoteSocket.on("connect", () => {
+      remoteSockets[host] = socket; // Store reference to avoid duplicate connections
+
+      let reconnectAttempts = 0;  // Track reconnect attempts
+
+      socket.on("connect", () => {
         console.log(`[REMOTE ${host}] connected`);
-      });
-      remoteSocket.on("disconnect", () => {
-        console.log(`[REMOTE ${host}] disconnected`);
-      });
-      remoteSocket.on("connect_error", (err) => {
-        console.error(`[REMOTE ${host}] connect_error:`, err);
+        reconnectAttempts = 0;  // Reset attempts on successful connection
       });
 
-      remoteSocket.on("status_update", (data) => {
+      socket.on("disconnect", () => {
+        console.log(`[REMOTE ${host}] disconnected`);
+        delete remoteSockets[host];  // Remove from tracking so it can reconnect later
+      });
+
+      socket.on("connect_error", (err) => {
+        reconnectAttempts++;
+        if (reconnectAttempts % 10 === 0) {  // Log only every 10th failure to avoid spam
+          console.error(`[REMOTE ${host}] connect_error (attempt ${reconnectAttempts}):`, err);
+        }
+        delete remoteSockets[host];  // Remove stale connection on repeated errors
+      });
+
+      socket.on("status_update", (data) => {
         console.log(`[REMOTE ${host}] status_update:`, data);
 
-        // Basic system info
         if (data.settings?.system_name) {
           document.getElementById(`${zoneId}-system-name`).textContent = data.settings.system_name;
         }
-        if (data.current_ph !== undefined) {
-          document.getElementById(`${zoneId}-ph-display`).textContent = parseFloat(data.current_ph).toFixed(2);
-        } else {
-          document.getElementById(`${zoneId}-ph-display`).textContent = "N/A";
-        }
-        if (data.current_ec !== undefined) {
-          document.getElementById(`${zoneId}-ec-display`).textContent = parseFloat(data.current_ec).toFixed(2);
-        } else {
-          document.getElementById(`${zoneId}-ec-display`).textContent = "N/A";
-        }
+        document.getElementById(`${zoneId}-ph-display`).textContent = data.current_ph !== undefined
+          ? parseFloat(data.current_ph).toFixed(2)
+          : "N/A";
+        document.getElementById(`${zoneId}-ec-display`).textContent = data.current_ec !== undefined
+          ? parseFloat(data.current_ec).toFixed(2)
+          : "N/A";
+
         if (data.settings?.water_level_sensors && data.water_level) {
           renderSensors(zoneId, data.settings.water_level_sensors, data.water_level);
         }
 
-        // Grab the numeric IDs
+        // Handle fill and drain valves
         const fillValveId  = data.settings?.fill_valve;
         const drainValveId = data.settings?.drain_valve;
-        // Also, the user-chosen labels
-        const fillValveLabel  = data.settings?.fill_valve_label  || "";
-        const drainValveLabel = data.settings?.drain_valve_label || "";
-
-        // We'll default the IPs to the remote host for controlling them
         const fillValveIp  = data.valve_info?.fill_valve_ip  || host;
         const drainValveIp = data.valve_info?.drain_valve_ip || host;
 
-        // Show/hide fill & drain controls
         document.getElementById(`${zoneId}-fill-container`).style.display = fillValveId ? "block" : "none";
-        document.getElementById(`${zoneId}-drain-container`).style.display= drainValveId ? "block" : "none";
+        document.getElementById(`${zoneId}-drain-container`).style.display = drainValveId ? "block" : "none";
 
         const fillOnBtn  = document.getElementById(`${zoneId}-fill-on`);
         const fillOffBtn = document.getElementById(`${zoneId}-fill-off`);
@@ -386,38 +378,40 @@
         drainOnBtn.disabled  = !drainValveId;
         drainOffBtn.disabled = !drainValveId;
 
-        // Wire up the remote on/off
-        if (!fillOnBtn.onclick) {
-          fillOnBtn.onclick   = () => remoteSetValve(fillValveIp,  fillValveId,  `${zoneId}-fill-status`,  "on",  zoneId, "fill");
-          fillOffBtn.onclick  = () => remoteSetValve(fillValveIp,  fillValveId,  `${zoneId}-fill-status`,  "off", zoneId, "fill");
-          drainOnBtn.onclick  = () => remoteSetValve(drainValveIp, drainValveId, `${zoneId}-drain-status`, "on",  zoneId, "drain");
-          drainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveId,`${zoneId}-drain-status`, "off", zoneId, "drain");
-        }
+        // Remove existing event listeners before adding new ones
+        fillOnBtn.replaceWith(fillOnBtn.cloneNode(true));
+        fillOffBtn.replaceWith(fillOffBtn.cloneNode(true));
+        drainOnBtn.replaceWith(drainOnBtn.cloneNode(true));
+        drainOffBtn.replaceWith(drainOffBtn.cloneNode(true));
 
-        // Now read aggregator's 'valve_relays'
+        // Reassign new button references after cloning
+        const newFillOnBtn  = document.getElementById(`${zoneId}-fill-on`);
+        const newFillOffBtn = document.getElementById(`${zoneId}-fill-off`);
+        const newDrainOnBtn = document.getElementById(`${zoneId}-drain-on`);
+        const newDrainOffBtn= document.getElementById(`${zoneId}-drain-off`);
+
+        newFillOnBtn.onclick   = () => remoteSetValve(fillValveIp, fillValveId, `${zoneId}-fill-status`, "on", zoneId, "fill");
+        newFillOffBtn.onclick  = () => remoteSetValve(fillValveIp, fillValveId, `${zoneId}-fill-status`, "off", zoneId, "fill");
+        newDrainOnBtn.onclick  = () => remoteSetValve(drainValveIp, drainValveId, `${zoneId}-drain-status`, "on", zoneId, "drain");
+        newDrainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveId, `${zoneId}-drain-status`, "off", zoneId, "drain");
+
+        // Update valve statuses
         if (data.valve_info?.valve_relays) {
-          const relays = data.valve_info.valve_relays;
-
-          for (let labelKey in relays) {
-            const rInfo   = relays[labelKey];
-            const rLabel  = rInfo.label;   // e.g. "Zone 1 Fill"
-            const rStatus = (rInfo.status || "").toLowerCase();
-
-            // If aggregator label matches fillValveLabel, update fill status
-            if (rLabel && rLabel === fillValveLabel) {
-              document.getElementById(`${zoneId}-fill-status`).textContent = (rStatus === "on" ? "On" : "Off");
-              updateRemoteValveButtons(zoneId, "fill", rStatus);
+          for (let labelKey in data.valve_info.valve_relays) {
+            const relay = data.valve_info.valve_relays[labelKey];
+            const relayStatus = (relay.status || "").toLowerCase();
+            if (relay.label === data.settings?.fill_valve_label) {
+              document.getElementById(`${zoneId}-fill-status`).textContent = relayStatus === "on" ? "On" : "Off";
+              updateRemoteValveButtons(zoneId, "fill", relayStatus);
             }
-            // If aggregator label matches drainValveLabel, update drain status
-            if (rLabel && rLabel === drainValveLabel) {
-              document.getElementById(`${zoneId}-drain-status`).textContent = (rStatus === "on" ? "On" : "Off");
-              updateRemoteValveButtons(zoneId, "drain", rStatus);
+            if (relay.label === data.settings?.drain_valve_label) {
+              document.getElementById(`${zoneId}-drain-status`).textContent = relayStatus === "on" ? "On" : "Off";
+              updateRemoteValveButtons(zoneId, "drain", relayStatus);
             }
           }
         }
       });
     }
-
     function remoteSetValve(host, valveId, statusSpanId, action, zoneId, valvePrefix) {
       const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveId)}/${action}`;
       fetch(url, { method:'POST' })
