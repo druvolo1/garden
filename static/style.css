@@ -82,9 +82,9 @@ h1 {
 
 /* Show the .last-updated pinned at the bottom left */
 .last-updated {
-    position: absolute;
+    /*position: absolute;
     bottom: 8px;
-    left: 10px;
+    left: 10px;*/
     z-index: 999;        /* ensures it’s on top if overlapping occurs */
     color: #e0e0e0;
     font-size: 0.9rem;
