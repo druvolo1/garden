@@ -2,6 +2,7 @@ import socketio  # for python-socketio (used by aggregator to connect to remote 
 from flask_socketio import Namespace
 from datetime import datetime
 import socket
+import subprocess
 
 # Services and logic
 from services.ph_service import get_latest_ph_reading
@@ -46,15 +47,29 @@ def is_local_host(host: str, local_names=None):
     return False
 
 def resolve_mdns(hostname):
-    """ Resolve a .local hostname to an IP address manually using mDNS """
+    """ Try resolving .local using avahi-resolve-host-name first, fallback to socket """
+    try:
+        # Attempt to resolve via avahi (Linux/macOS)
+        result = subprocess.run(["avahi-resolve-host-name", "-4", hostname], capture_output=True, text=True)
+        if result.returncode == 0:
+            ip_address = result.stdout.strip().split()[-1]  # Extract the IP
+            print(f"[DEBUG] Resolved {hostname} via Avahi: {ip_address}")
+            return ip_address
+    except Exception as e:
+        print(f"[ERROR] Avahi resolution failed for {hostname}: {e}")
+
+    # Fallback to socket.getaddrinfo()
     try:
         info = socket.getaddrinfo(hostname, None, socket.AF_INET)
         if info:
-            ip_address = info[0][4][0]  # Extract the resolved IP address
+            ip_address = info[0][4][0]
+            print(f"[DEBUG] Resolved {hostname} via socket.getaddrinfo(): {ip_address}")
             return ip_address
     except socket.gaierror as e:
-        print(f"[ERROR] Failed to resolve {hostname}: {e}")
-        return None
+        print(f"[ERROR] Failed to resolve {hostname} via socket: {e}")
+
+    return None  # If both methods fail
+
 
 def connect_to_remote_if_needed(remote_ip):
     """Resolve .local hostnames before connecting"""
