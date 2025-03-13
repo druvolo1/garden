@@ -53,43 +53,50 @@ def resolve_mdns(hostname):
         result = subprocess.run(["avahi-resolve-host-name", "-4", hostname], capture_output=True, text=True)
         if result.returncode == 0:
             ip_address = result.stdout.strip().split()[-1]  # Extract the IP
-            print(f"[DEBUG] Resolved {hostname} via Avahi: {ip_address}")
+            log_with_timestamp(f"[DEBUG] Resolved {hostname} via Avahi: {ip_address}")
             return ip_address
     except Exception as e:
-        print(f"[ERROR] Avahi resolution failed for {hostname}: {e}")
+        log_with_timestamp(f"[ERROR] Avahi resolution failed for {hostname}: {e}")
 
     # Fallback to socket.getaddrinfo()
     try:
         info = socket.getaddrinfo(hostname, None, socket.AF_INET)
         if info:
             ip_address = info[0][4][0]
-            print(f"[DEBUG] Resolved {hostname} via socket.getaddrinfo(): {ip_address}")
+            log_with_timestamp(f"[DEBUG] Resolved {hostname} via socket.getaddrinfo(): {ip_address}")
             return ip_address
     except socket.gaierror as e:
-        print(f"[ERROR] Failed to resolve {hostname} via socket: {e}")
+        log_with_timestamp(f"[ERROR] Failed to resolve {hostname} via socket: {e}")
 
     return None  # If both methods fail
 
 
 def connect_to_remote_if_needed(remote_ip):
-    """Resolve .local hostnames before connecting"""
+    """ Ensure the connection uses the resolved IP rather than the .local name. """
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
 
-    # Try to resolve if it's a .local domain
+    original_name = remote_ip  # Save original hostname for logging
+
+    # Resolve .local names to IPs before connecting
     if remote_ip.endswith(".local"):
         resolved_ip = resolve_mdns(remote_ip)
         if resolved_ip:
-            log_with_timestamp(f"[DEBUG] Resolved {remote_ip} -> {resolved_ip}")
+            log_with_timestamp(f"[DEBUG] Resolved {remote_ip} -> {resolved_ip}, using IP for WebSocket.")
             remote_ip = resolved_ip
         else:
             log_with_timestamp(f"[ERROR] Could not resolve {remote_ip}. Skipping connection.")
             return
 
     if remote_ip in REMOTE_CLIENTS:
-        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
-        return
+        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, checking for updates...")
+        if not get_cached_remote_states(remote_ip):
+            log_with_timestamp(f"[DEBUG] No updates received from {remote_ip}, forcing reconnect.")
+            REMOTE_CLIENTS[remote_ip].disconnect()
+            del REMOTE_CLIENTS[remote_ip]
+        else:
+            return
 
     log_with_timestamp(f"[AGG] Creating new Socket.IO client for remote {remote_ip}")
     sio = socketio.Client(logger=False, engineio_logger=False)
@@ -108,10 +115,10 @@ def connect_to_remote_if_needed(remote_ip):
 
     @sio.on("status_update", namespace="/status")
     def on_remote_status_update(data):
-        REMOTE_STATES[remote_ip] = data
+        REMOTE_STATES[remote_ip] = data  # Store updates using resolved IP
         log_with_timestamp(f"[AGG] on_remote_status_update from {remote_ip}, keys: {list(data.keys())}")
 
-    url = f"http://{remote_ip}:8000"
+    url = f"http://{remote_ip}:8000"  # Use resolved IP for WebSocket connection
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
         sio.connect(url, socketio_path="/socket.io", transports=["websocket", "polling"])
@@ -119,14 +126,18 @@ def connect_to_remote_if_needed(remote_ip):
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
 
+
 def get_cached_remote_states(remote_ip):
-    """Return the last-known status data from remote_ip."""
-    data = REMOTE_STATES.get(remote_ip, {})
+    """Return the last-known status data from remote_ip, checking both .local and resolved IP."""
+    resolved_ip = resolve_mdns(remote_ip) if remote_ip.endswith(".local") else remote_ip
+    data = REMOTE_STATES.get(remote_ip, REMOTE_STATES.get(resolved_ip, {}))
+
     if data:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found keys: {list(data.keys())}")
     else:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
+
 
 def emit_status_update(force_emit=False):
     """
@@ -150,9 +161,9 @@ def emit_status_update(force_emit=False):
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
 
-        # **Ignore `last_dose_time` if no dose actually occurred**
+        # Ignore `last_dose_time` if no dose occurred
         if auto_dose_copy["last_dose_type"] is None and auto_dose_copy["last_dose_amount"] == 0:
-            auto_dose_copy["last_dose_time"] = None  # Don't trigger an update if nothing happened
+            auto_dose_copy["last_dose_time"] = None
 
         # 3) Plant info
         plant_info_raw = settings.get("plant_info", {})
@@ -184,25 +195,35 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
 
         # 6) Check remote valve states
-        fill_valve_ip = (settings.get("fill_valve_ip") or "").strip()
-        drain_valve_ip = (settings.get("drain_valve_ip") or "").strip()
+        fill_valve_ip = settings.get("fill_valve_ip", "").strip()
+        drain_valve_ip = settings.get("drain_valve_ip", "").strip()
+
+        # Ensure `.local` hostnames are resolved before connecting
+        resolved_ips = {}
+        for ip_addr in [fill_valve_ip, drain_valve_ip]:
+            if ip_addr.endswith(".local"):
+                resolved_ip = resolve_mdns(ip_addr)
+                if resolved_ip:
+                    resolved_ips[ip_addr] = resolved_ip
+                    log_with_timestamp(f"[DEBUG] Resolved {ip_addr} -> {resolved_ip}")
+
+        # Replace .local hostnames with resolved IPs
+        fill_valve_ip = resolved_ips.get(fill_valve_ip, fill_valve_ip)
+        drain_valve_ip = resolved_ips.get(drain_valve_ip, drain_valve_ip)
+
         log_with_timestamp(f"[DEBUG] fill_valve_ip={fill_valve_ip}, drain_valve_ip={drain_valve_ip}")
 
-        local_system_name = settings.get("system_name", "Garden")
-        local_names = [local_system_name]
-
+        # Fetch states from remote devices
         for ip_addr in [fill_valve_ip, drain_valve_ip]:
             if not ip_addr:
-                log_with_timestamp("[DEBUG] skip empty ip_addr")
-                continue
-            if is_local_host(ip_addr, local_names):
-                log_with_timestamp(f"[DEBUG] skip connect, {ip_addr} is local")
+                log_with_timestamp("[DEBUG] Skipping empty ip_addr")
                 continue
 
             connect_to_remote_if_needed(ip_addr)
             remote_data = get_cached_remote_states(ip_addr)
             remote_valve_info = remote_data.get("valve_info", {})
             remote_relays = remote_valve_info.get("valve_relays", {})
+
             log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_relays)} label_keys")
 
             for label_key, label_obj in remote_relays.items():
@@ -234,7 +255,6 @@ def emit_status_update(force_emit=False):
             "valve_relays": filtered_relays  # ✅ Only send assigned valves unless it's a USB relay host
         }
 
-
         # 8) Build final status payload
         status_payload = {
             "settings": settings,
@@ -247,7 +267,9 @@ def emit_status_update(force_emit=False):
             "errors": []
         }
 
-        # **Force emit if first connection**
+        # **Force emit if first connection or if .local clients exist**
+        force_emit = force_emit or any(ip.endswith(".local") for ip in REMOTE_CLIENTS.keys())
+
         if force_emit or LAST_EMITTED_STATUS is None:
             log_with_timestamp("[DEBUG] Forcing status update emit on first connection.")
             _socketio.emit("status_update", status_payload, namespace="/status")
@@ -275,6 +297,7 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
