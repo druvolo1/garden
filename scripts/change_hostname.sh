@@ -48,4 +48,4 @@ sudo hostnamectl set-hostname "$NEW_HOSTNAME"
 echo "[$(date)] Hostname change script finished successfully."
 
 #4) Restart Avahi so the new mDNS name registers from the new hostname
-sudo systemctl restart avahi-daemon
+#Ssudo systemctl restart avahi-daemon
