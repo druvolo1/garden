@@ -9,8 +9,6 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
-#from services.mdns_service import register_mdns_pc_hostname
-#from services.mdns_service import register_mdns_pure_system_name
 
 from flask import send_file
 
