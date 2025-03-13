@@ -72,12 +72,12 @@ def resolve_mdns(hostname):
 
 
 def connect_to_remote_if_needed(remote_ip):
-    """Create (or reuse) a python-socketio.Client to connect to remote_ip:8000."""
+    """Resolve .local hostnames before connecting"""
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
 
-    # Resolve .local hostname if needed
+    # Try to resolve if it's a .local domain
     if remote_ip.endswith(".local"):
         resolved_ip = resolve_mdns(remote_ip)
         if resolved_ip:
@@ -87,11 +87,9 @@ def connect_to_remote_if_needed(remote_ip):
             log_with_timestamp(f"[ERROR] Could not resolve {remote_ip}. Skipping connection.")
             return
 
-    # **Force reconnection if using a .local domain**
     if remote_ip in REMOTE_CLIENTS:
-        log_with_timestamp(f"[DEBUG] Forcing reconnection to {remote_ip} (mDNS detected).")
-        REMOTE_CLIENTS[remote_ip].disconnect()  # Force a disconnect
-        del REMOTE_CLIENTS[remote_ip]           # Remove from the cache
+        log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
+        return
 
     log_with_timestamp(f"[AGG] Creating new Socket.IO client for remote {remote_ip}")
     sio = socketio.Client(logger=False, engineio_logger=False)
@@ -120,7 +118,6 @@ def connect_to_remote_if_needed(remote_ip):
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
-
 
 def get_cached_remote_states(remote_ip):
     """Return the last-known status data from remote_ip."""
