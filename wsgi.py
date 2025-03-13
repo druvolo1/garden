@@ -21,14 +21,14 @@ def flush_avahi():
     Stop Avahi, remove stale runtime files, and restart it.
     Ensures the script is executable first.
     """
-    script_path = "/home/dave/garden/scripts/flush_avahi.sh"
-    ensure_script_executable(script_path)
+    #script_path = "/home/dave/garden/scripts/flush_avahi.sh"
+    #ensure_script_executable(script_path)
 
-    try:
-        subprocess.run(["sudo", script_path], check=True)
-        print("[Gunicorn] Avahi has been flushed prior to starting threads.")
-    except subprocess.CalledProcessError as e:
-        print(f"[Gunicorn] Failed to flush Avahi: {e}")
+    #try:
+    #    subprocess.run(["sudo", script_path], check=True)
+    #    print("[Gunicorn] Avahi has been flushed prior to starting threads.")
+    #except subprocess.CalledProcessError as e:
+    #S    print(f"[Gunicorn] Failed to flush Avahi: {e}")
 
 
 # ------------------------------------------------------
@@ -37,7 +37,7 @@ def flush_avahi():
 print("[WSGI] Initializing worker process. Flushing Avahi, starting threads, and registering mDNS...")
 
 try:
-    flush_avahi()
+    #flush_avahi()
     start_threads()
     print("[WSGI] Background threads started successfully.")
 
