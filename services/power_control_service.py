@@ -189,7 +189,19 @@ def reevaluate_all_outlets():
         for tv in tracked_valves:
             fixed_host_ip = standardize_host_ip(tv["host_ip"])
             valve_id = tv["valve_id"]
-            current_valve_state = remote_valve_states.get((fixed_host_ip, valve_id), "off")
+            
+            # Try matching by valve ID
+            current_valve_state = remote_valve_states.get((fixed_host_ip, valve_id), None)
+
+            # If the valve ID doesn't exist, try searching by label
+            if current_valve_state is None:
+                for (host, stored_valve_id), state in remote_valve_states.items():
+                    if host == fixed_host_ip and stored_valve_id.lower() == tv["valve_label"].lower():
+                        current_valve_state = state
+                        break
+
+            # Default to "off" if not found
+            current_valve_state = current_valve_state or "off"
             log(f"       Found remote_valve_states[({fixed_host_ip}, {valve_id})] => '{current_valve_state}'")
 
             if current_valve_state == "on":
@@ -207,12 +219,10 @@ def reevaluate_all_outlets():
         else:
             log(f"    -> Outlet {outlet_ip} is already '{old_state}', no change.")
 
-    # If we changed ANY Shelly outlet, we can now emit a status update:
+    # If we changed ANY Shelly outlet, emit a status update:
     if changed_any_outlet:
         from status_namespace import emit_status_update
         emit_status_update()
-
-
 
 def set_shelly_state(outlet_ip, state):
     """
