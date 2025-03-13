@@ -24,6 +24,8 @@ def set_socketio_instance(sio):
 
 REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_update"
 REMOTE_CLIENTS = {}  # remote_ip -> python-socketio.Client instance
+remote_valve_states = {}  # Stores the latest valve states from remote systems
+
 
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 
