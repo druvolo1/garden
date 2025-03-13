@@ -1,6 +1,7 @@
 import socketio  # for python-socketio (used by aggregator to connect to remote IPs)
 from flask_socketio import Namespace
 from datetime import datetime
+import socket
 
 # Services and logic
 from services.ph_service import get_latest_ph_reading
