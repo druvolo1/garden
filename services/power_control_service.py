@@ -42,6 +42,13 @@ def standardize_host_ip(raw_host_ip):
     system_name = s.get("system_name", "Garden").lower()
     lower_host = raw_host_ip.lower()
 
+    # Resolve .local hostnames
+    if lower_host.endswith(".local"):
+        resolved_ip = resolve_mdns(lower_host)
+        if resolved_ip:
+            log(f"[standardize_host_ip] Resolved '{raw_host_ip}' -> '{resolved_ip}'")
+            return resolved_ip
+
     if lower_host in ["localhost", "127.0.0.1", f"{system_name}.local"]:
         new_ip = get_local_ip_address()
         log(f"[standardize_host_ip] Replacing '{raw_host_ip}' with '{new_ip}'.")
@@ -66,7 +73,6 @@ def power_control_main_loop():
             needed_hosts = set()
             for pc in power_controls:
                 for tv in pc.get("tracked_valves", []):
-                    # Use standardize_host_ip so it's consistent
                     fixed_host = standardize_host_ip(tv["host_ip"])
                     if fixed_host:
                         needed_hosts.add(fixed_host)
@@ -126,16 +132,15 @@ def open_host_connection(raw_host_ip):
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
 
+        # Store the state by the resolved IP
+        resolved_host_ip = standardize_host_ip(host_ip)
+
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
-            label_str  = vinfo.get("label", f"Valve {valve_id_str}")
+            label_str = vinfo.get("label", f"Valve {valve_id_str}")
 
-            # Store the state by the standardized host IP
-            remote_valve_states[(host_ip, valve_id_str)] = status_str
-            log(
-                f"    -> Storing remote_valve_states[({host_ip}, {valve_id_str})] = '{status_str}'"
-                f" (label='{label_str}')"
-            )
+            remote_valve_states[(resolved_host_ip, valve_id_str)] = status_str
+            log(f"    -> Storing remote_valve_states[({resolved_host_ip}, {valve_id_str})] = '{status_str}' (label='{label_str}')")
 
         # Evaluate power states after every update
         reevaluate_all_outlets()
@@ -206,6 +211,7 @@ def reevaluate_all_outlets():
     if changed_any_outlet:
         from status_namespace import emit_status_update
         emit_status_update()
+
 
 
 def set_shelly_state(outlet_ip, state):
