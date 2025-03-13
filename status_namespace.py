@@ -46,6 +46,22 @@ def is_local_host(host: str, local_names=None):
     log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
 
+def standardize_host_ip(hostname):
+    """
+    Ensures that hostnames are stored using their resolved IP.
+    If the hostname is already an IP, return as is.
+    If the hostname ends in .local, resolve it via mDNS.
+    """
+    if hostname.endswith(".local"):
+        resolved_ip = resolve_mdns(hostname)
+        if resolved_ip:
+            log_with_timestamp(f"[standardize_host_ip] Resolved '{hostname}' -> '{resolved_ip}'")
+            return resolved_ip
+        else:
+            log_with_timestamp(f"[standardize_host_ip] Failed to resolve '{hostname}', using as is.")
+    
+    return hostname  # Return as is if already an IP or resolution failed
+
 def resolve_mdns(hostname):
     """ Try resolving .local using avahi-resolve-host-name first, fallback to socket """
     try:
