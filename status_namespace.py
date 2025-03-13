@@ -227,7 +227,10 @@ def emit_status_update(force_emit=False):
             log_with_timestamp(f"[DEBUG] From remote {ip_addr}, found {len(remote_relays)} label_keys")
 
             for label_key, label_obj in remote_relays.items():
-                aggregator_map[label_key] = {"label": label_obj.get("label", label_key), "status": label_obj.get("status", "unknown")}
+                resolved_host = standardize_host_ip(ip_addr)  # Ensure we store using resolved IP
+                remote_valve_states[(resolved_host, label_key)] = label_obj.get("status", "off")
+                log(f"[DEBUG] Storing valve state: {resolved_host} {label_key} -> {remote_valve_states[(resolved_host, label_key)]}")
+
 
         # 7) Build final valve_info
         fill_valve_label = settings.get("fill_valve_label", "")

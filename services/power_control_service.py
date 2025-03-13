@@ -2,6 +2,7 @@
 
 import eventlet
 eventlet.monkey_patch()
+from status_namespace import resolve_mdns
 
 import socketio  # pip install "python-socketio[client]"
 from utils.settings_utils import load_settings
@@ -163,6 +164,11 @@ def close_host_connection(host_ip):
         log(f"Closed socketio connection for {host_ip}")
 
 def reevaluate_all_outlets():
+    
+    log("[DEBUG] Full remote_valve_states dump:")
+    for key, value in remote_valve_states.items():
+        log(f"[DEBUG]   {key} => {value}")
+
     settings = load_settings()
     power_controls = settings.get("power_controls", [])
     log("[reevaluate_all_outlets] Checking each power control config...")
@@ -188,7 +194,11 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked_valves:
             # Ensure hostnames are always resolved before checking
-            fixed_host_ip = standardize_host_ip(tv["host_ip"])
+            fixed_host_ip = resolve_mdns(tv["host_ip"])
+            if not fixed_host_ip:
+                log(f"[ERROR] Unable to resolve {tv['host_ip']} - skipping power control check.")
+                continue
+
             valve_id = tv["valve_id"]
             valve_label = tv.get("valve_label", "").strip()
 
