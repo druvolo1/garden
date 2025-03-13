@@ -46,11 +46,14 @@ def is_local_host(host: str, local_names=None):
     return False
 
 def resolve_mdns(hostname):
-    """ Resolve a .local hostname to an IP address manually """
+    """ Resolve a .local hostname to an IP address manually using mDNS """
     try:
-        ip_address = socket.gethostbyname(hostname)
-        return ip_address
-    except socket.gaierror:
+        info = socket.getaddrinfo(hostname, None, socket.AF_INET)
+        if info:
+            ip_address = info[0][4][0]  # Extract the resolved IP address
+            return ip_address
+    except socket.gaierror as e:
+        print(f"[ERROR] Failed to resolve {hostname}: {e}")
         return None
 
 def connect_to_remote_if_needed(remote_ip):
