@@ -107,7 +107,7 @@ def open_host_connection(raw_host_ip):
         log("[open_host_connection] ERROR: host_ip is empty.")
         return
 
-    # Resolve .local to IPs before connecting
+    # Ensure we use the resolved IP for .local hostnames
     host_ip = standardize_host_ip(raw_host_ip)
     if not host_ip:
         log(f"[open_host_connection] Could not standardize empty host? Skipping.")
@@ -139,7 +139,7 @@ def open_host_connection(raw_host_ip):
             label_str = vinfo.get("label", f"Valve {valve_id_str}")
 
             remote_valve_states[(resolved_host_ip, valve_id_str)] = status_str
-            remote_valve_states[(resolved_host_ip, label_str)] = status_str  # Ensure lookup by label
+            remote_valve_states[(resolved_host_ip, label_str)] = status_str  # Store under both ID & Label
             log(f"    -> Storing remote_valve_states[({resolved_host_ip}, {valve_id_str})] = '{status_str}' (label='{label_str}')")
 
         # Evaluate power states after every update
@@ -187,6 +187,7 @@ def reevaluate_all_outlets():
 
         any_on = False
         for tv in tracked_valves:
+            # Ensure hostnames are always resolved before checking
             fixed_host_ip = standardize_host_ip(tv["host_ip"])
             valve_id = tv["valve_id"]
             valve_label = tv.get("valve_label", "").strip()
@@ -221,7 +222,6 @@ def reevaluate_all_outlets():
     if changed_any_outlet:
         from status_namespace import emit_status_update
         emit_status_update()
-
 
 def set_shelly_state(outlet_ip, state):
     """
