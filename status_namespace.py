@@ -44,11 +44,29 @@ def is_local_host(host: str, local_names=None):
     log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
 
+def resolve_mdns(hostname):
+    """ Resolve a .local hostname to an IP address manually """
+    try:
+        ip_address = socket.gethostbyname(hostname)
+        return ip_address
+    except socket.gaierror:
+        return None
+
 def connect_to_remote_if_needed(remote_ip):
-    """Create (or reuse) a python-socketio.Client to connect to remote_ip:8000."""
+    """Resolve .local hostnames before connecting"""
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
+
+    # Try to resolve if it's a .local domain
+    if remote_ip.endswith(".local"):
+        resolved_ip = resolve_mdns(remote_ip)
+        if resolved_ip:
+            log_with_timestamp(f"[DEBUG] Resolved {remote_ip} -> {resolved_ip}")
+            remote_ip = resolved_ip
+        else:
+            log_with_timestamp(f"[ERROR] Could not resolve {remote_ip}. Skipping connection.")
+            return
 
     if remote_ip in REMOTE_CLIENTS:
         log_with_timestamp(f"[DEBUG] Already connected to {remote_ip}, skipping.")
@@ -77,11 +95,7 @@ def connect_to_remote_if_needed(remote_ip):
     url = f"http://{remote_ip}:8000"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
-        sio.connect(
-            url,
-            socketio_path="/socket.io",
-            transports=["websocket", "polling"]
-        )
+        sio.connect(url, socketio_path="/socket.io", transports=["websocket", "polling"])
         REMOTE_CLIENTS[remote_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {remote_ip}: {e}")
