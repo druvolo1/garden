@@ -101,13 +101,13 @@ def power_control_main_loop():
 def open_host_connection(raw_host_ip):
     """
     Connect to raw_host_ip:8000 via Socket.IO (namespace=/status).
-    If raw_host_ip is 'localhost', '127.0.0.1', or '<system_name>.local',
-    we replace it with get_local_ip_address() to avoid self-DNS issues.
+    Resolve .local hostnames before connecting.
     """
     if not raw_host_ip:
         log("[open_host_connection] ERROR: host_ip is empty.")
         return
 
+    # Resolve .local to IPs before connecting
     host_ip = standardize_host_ip(raw_host_ip)
     if not host_ip:
         log(f"[open_host_connection] Could not standardize empty host? Skipping.")
@@ -128,18 +128,18 @@ def open_host_connection(raw_host_ip):
     def on_status_update(data):
         log(f"[DEBUG] on_status_update from {host_ip} =>\n{json.dumps(data, indent=2)}")
 
-        # Update remote_valve_states for each valve in data
+        # Ensure valve states are stored under the resolved IP
+        resolved_host_ip = standardize_host_ip(host_ip)
+
         valve_relays = data.get("valve_info", {}).get("valve_relays", {})
         log(f"[DEBUG] data['valve_info']['valve_relays'] => {valve_relays}")
-
-        # Store the state by the resolved IP
-        resolved_host_ip = standardize_host_ip(host_ip)
 
         for valve_id_str, vinfo in valve_relays.items():
             status_str = vinfo.get("status", "off").lower()
             label_str = vinfo.get("label", f"Valve {valve_id_str}")
 
             remote_valve_states[(resolved_host_ip, valve_id_str)] = status_str
+            remote_valve_states[(resolved_host_ip, label_str)] = status_str  # Ensure lookup by label
             log(f"    -> Storing remote_valve_states[({resolved_host_ip}, {valve_id_str})] = '{status_str}' (label='{label_str}')")
 
         # Evaluate power states after every update
@@ -189,16 +189,14 @@ def reevaluate_all_outlets():
         for tv in tracked_valves:
             fixed_host_ip = standardize_host_ip(tv["host_ip"])
             valve_id = tv["valve_id"]
-            
-            # Try matching by valve ID
+            valve_label = tv.get("valve_label", "").strip()
+
+            # Try matching by valve ID first
             current_valve_state = remote_valve_states.get((fixed_host_ip, valve_id), None)
 
             # If the valve ID doesn't exist, try searching by label
             if current_valve_state is None:
-                for (host, stored_valve_id), state in remote_valve_states.items():
-                    if host == fixed_host_ip and stored_valve_id.lower() == tv["valve_label"].lower():
-                        current_valve_state = state
-                        break
+                current_valve_state = remote_valve_states.get((fixed_host_ip, valve_label), None)
 
             # Default to "off" if not found
             current_valve_state = current_valve_state or "off"
@@ -223,6 +221,7 @@ def reevaluate_all_outlets():
     if changed_any_outlet:
         from status_namespace import emit_status_update
         emit_status_update()
+
 
 def set_shelly_state(outlet_ip, state):
     """
