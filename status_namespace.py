@@ -247,7 +247,7 @@ def emit_status_update(force_emit=False):
             for label_key, label_obj in remote_relays.items():
                 resolved_host = standardize_host_ip(ip_addr)  # Ensure we store using resolved IP
                 remote_valve_states[(resolved_host, label_key)] = label_obj.get("status", "off")
-                log(f"[DEBUG] Storing valve state: {resolved_host} {label_key} -> {remote_valve_states[(resolved_host, label_key)]}")
+                print(f"[DEBUG] Storing valve state: {resolved_host} {label_key} -> {remote_valve_states[(resolved_host, label_key)]}")
 
 
         # 7) Build final valve_info
