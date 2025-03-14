@@ -12,7 +12,7 @@ def load_debug_settings():
             return json.load(f)
     except FileNotFoundError:
         return {
-            "status_namespace": False,
+            "websocket": False,
             "water_level_service": False,
             "power_control_service": False,
             "valve_relay_service": False
