@@ -10,6 +10,8 @@ except ImportError:
     print("RPi.GPIO not available. Using mock environment.")
 
 from utils.settings_utils import load_settings
+from utils.network_utils import resolve_mdns  # Assuming we have a common DNS resolver function
+from status_namespace import emit_status_update
 
 _pins_lock = threading.Lock()
 _pins_inited = False
@@ -84,8 +86,6 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
-    from status_namespace import emit_status_update
-
     global _last_sensor_state
 
     while True:
@@ -111,17 +111,21 @@ def monitor_water_level_sensors():
                 fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
+                # Resolve DNS before making WebSocket/API calls
+                resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
+                resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
+
                 # Fill logic
                 if fill_sensor_key in current_state:
                     fill_triggered = current_state[fill_sensor_key]["triggered"]
                     if not fill_triggered and fill_valve_label:
-                        turn_off_valve(fill_valve_label, fill_valve_ip)
+                        turn_off_valve(fill_valve_label, resolved_fill_ip)
 
                 # Drain logic
                 if drain_sensor_key in current_state:
                     drain_triggered = current_state[drain_sensor_key]["triggered"]
                     if drain_triggered and drain_valve_label:
-                        turn_off_valve(drain_valve_label, drain_valve_ip)
+                        turn_off_valve(drain_valve_label, resolved_drain_ip)
 
                 emit_status_update()
 
@@ -129,17 +133,6 @@ def monitor_water_level_sensors():
             print(f"Exception in monitor_water_level_sensors: {e}")
 
         time.sleep(0.5)
-
-def get_local_ip_address():
-    """Return the Pi’s primary LAN IP, or '127.0.0.1' on fallback."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except:
-        return "127.0.0.1"
-    finally:
-        s.close()
 
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
@@ -152,18 +145,22 @@ def turn_off_valve(valve_label: str, valve_ip: str):
         print("[ERROR] No valve_label provided.")
         return
 
-    # 1) Enforce that valve_ip is not empty.
     if not valve_ip:
         print("[ERROR] No valve_ip provided (empty). Aborting turn_off_valve call.")
         return
 
     s = load_settings()
     system_name = s.get("system_name", "Garden").lower()
-    # 2) If valve_ip is "localhost", "127.0.0.1", or "<system_name>.local", override with LAN IP.
-    if (valve_ip.lower() == "localhost"
-        or valve_ip.lower() == "127.0.0.1"
-        or valve_ip.lower() == f"{system_name}.local"):
-        
+
+    # Resolve IP for `.local` domains
+    if valve_ip.endswith(".local"):
+        resolved_ip = resolve_mdns(valve_ip)
+        if resolved_ip:
+            print(f"[DEBUG] Resolved '{valve_ip}' to '{resolved_ip}'. Using resolved IP.")
+            valve_ip = resolved_ip
+
+    # Replace localhost references with LAN IP
+    if valve_ip.lower() in ["localhost", "127.0.0.1", f"{system_name}.local"]:
         resolved_ip = get_local_ip_address()
         print(f"[DEBUG] Replacing '{valve_ip}' with local IP '{resolved_ip}'.")
         valve_ip = resolved_ip
@@ -182,4 +179,3 @@ def turn_off_valve(valve_label: str, valve_ip: str):
             print(f"[ERROR] Valve '{valve_label}' off returned HTTP {resp.status_code}")
     except Exception as ex:
         print(f"[ERROR] Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
-
