@@ -10,8 +10,8 @@ except ImportError:
     print("RPi.GPIO not available. Using mock environment.")
 
 from utils.settings_utils import load_settings
-from utils.network_utils import resolve_mdns  # Assuming we have a common DNS resolver function
 from status_namespace import emit_status_update
+from power_control_service import standardize_host_ip, get_local_ip_address
 
 _pins_lock = threading.Lock()
 _pins_inited = False
@@ -111,9 +111,9 @@ def monitor_water_level_sensors():
                 fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
 
-                # Resolve DNS before making WebSocket/API calls
-                resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
-                resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
+                # Standardize host IPs before making WebSocket/API calls
+                resolved_fill_ip = standardize_host_ip(fill_valve_ip)
+                resolved_drain_ip = standardize_host_ip(drain_valve_ip)
 
                 # Fill logic
                 if fill_sensor_key in current_state:
@@ -153,16 +153,9 @@ def turn_off_valve(valve_label: str, valve_ip: str):
     system_name = s.get("system_name", "Garden").lower()
 
     # Resolve IP for `.local` domains
-    if valve_ip.endswith(".local"):
-        resolved_ip = resolve_mdns(valve_ip)
-        if resolved_ip:
-            print(f"[DEBUG] Resolved '{valve_ip}' to '{resolved_ip}'. Using resolved IP.")
-            valve_ip = resolved_ip
-
-    # Replace localhost references with LAN IP
-    if valve_ip.lower() in ["localhost", "127.0.0.1", f"{system_name}.local"]:
-        resolved_ip = get_local_ip_address()
-        print(f"[DEBUG] Replacing '{valve_ip}' with local IP '{resolved_ip}'.")
+    resolved_ip = standardize_host_ip(valve_ip)
+    if resolved_ip:
+        print(f"[DEBUG] Using resolved IP for valve control: '{resolved_ip}'.")
         valve_ip = resolved_ip
 
     url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
