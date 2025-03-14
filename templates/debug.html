@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Control Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .debug-container { max-width: 600px; margin: auto; padding: 20px; }
+        .debug-toggle { display: flex; justify-content: space-between; padding: 10px; border: 1px solid #ddd; margin: 5px 0; }
+        button { padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h2>Debug Control Panel</h2>
+        <div id="debug-controls"></div>
+    </div>
+    
+    <script>
+        async function fetchDebugStatus() {
+            const response = await fetch('/debug_status');
+            const data = await response.json();
+            updateUI(data);
+        }
+
+        function updateUI(debugData) {
+            const container = document.getElementById("debug-controls");
+            container.innerHTML = ""; 
+            
+            for (const component in debugData) {
+                const isEnabled = debugData[component];
+                const div = document.createElement("div");
+                div.className = "debug-toggle";
+                div.innerHTML = `
+                    <span>${component}</span>
+                    <button onclick="toggleDebug('${component}', ${!isEnabled})">
+                        ${isEnabled ? "Disable" : "Enable"}
+                    </button>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        async function toggleDebug(component, enabled) {
+            await fetch('/toggle_debug', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ component, enabled })
+            });
+            fetchDebugStatus(); 
+        }
+
+        window.onload = fetchDebugStatus;
+    </script>
+</body>
+</html>
