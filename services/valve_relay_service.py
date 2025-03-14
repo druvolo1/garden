@@ -6,7 +6,8 @@ import eventlet
 import serial
 from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
-from status_namespace import emit_status_update
+from status_namespace import emit_status_update, is_debug_enabled  
+from datetime import datetime
 
 # 8-channel ON commands
 VALVE_ON_COMMANDS = {
@@ -36,12 +37,19 @@ VALVE_OFF_COMMANDS = {
 valve_status = {i: "off" for i in range(1, 9)}
 
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
+DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
 # Global variables for persistent serial connection and thread management
 serial_lock = semaphore.Semaphore()  # to synchronize USB access
 valve_ser = None      # persistent serial port; None if not open
 polling_thread = None # reference to the polling thread
 stop_event_instance = None  # an Event to signal the polling thread to stop
+
+def log_with_timestamp(msg):
+    """Logs messages only if debugging is enabled for valve_relay_service."""
+    if is_debug_enabled("valve_relay_service"): 
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+
 
 def get_valve_device_path():
     with open(SETTINGS_FILE, "r") as f:
@@ -59,7 +67,7 @@ def open_valve_serial():
     device_path = get_valve_device_path()
     valve_ser = serial.Serial(device_path, baudrate=9600, timeout=1)
     clear_error("VALVE_RELAY_OFFLINE")
-    print(f"[Valve] Serial port opened on {device_path}")
+    log_with_timestamp(f"[Valve] Serial port opened on {device_path}")
     return valve_ser
 
 def close_valve_serial():
@@ -70,9 +78,9 @@ def close_valve_serial():
     if valve_ser:
         try:
             valve_ser.close()
-            print("[Valve] Serial port closed.")
+            log_with_timestamp("[Valve] Serial port closed.")
         except Exception as e:
-            print(f"[Valve] Error closing serial port: {e}")
+            log_with_timestamp(f"[Valve] Error closing serial port: {e}")
         valve_ser = None
 
 def parse_hardware_response(response):
@@ -93,7 +101,7 @@ from status_namespace import emit_status_update
 
 def valve_polling_loop():
     global valve_ser
-    print("[Valve] Polling loop started.")
+    log_with_timestamp("[Valve] Polling loop started.")
 
     # Keep a snapshot of what valve_status was last time
     old_status_snapshot = dict(valve_status)
@@ -119,16 +127,16 @@ def valve_polling_loop():
                         break
 
                 if something_changed:
-                    print("[Valve] Detected a local valve status change. Emitting status update.")
+                    log_with_timestamp("[Valve] Detected a local valve status change. Emitting status update.")
                     emit_status_update()
 
             except Exception as e:
-                print(f"[Valve] Polling error: {e}")
+                log_with_timestamp(f"[Valve] Polling error: {e}")
                 set_error("VALVE_RELAY_OFFLINE")
 
         eventlet.sleep(1)
 
-    print("[Valve] Polling loop exiting.")
+    log_with_timestamp("[Valve] Polling loop exiting.")
 
 
 def init_valve_thread():
@@ -140,17 +148,17 @@ def init_valve_thread():
     try:
         device_path = get_valve_device_path()
     except Exception as e:
-        print(f"[Valve] init_valve_thread: {e}")
+        log_with_timestamp(f"[Valve] init_valve_thread: {e}")
         return
     if not device_path:
-        print("[Valve] No valve relay device assigned. Not starting thread.")
+        log_with_timestamp("[Valve] No valve relay device assigned. Not starting thread.")
         return
     if valve_ser is None:
         open_valve_serial()
     # Create a new Event instance to signal thread stopping
     stop_event_instance = event.Event()
     polling_thread = eventlet.spawn(valve_polling_loop)
-    print("[Valve] Polling thread spawned.")
+    log_with_timestamp("[Valve] Polling thread spawned.")
 
 def stop_valve_thread():
     """
@@ -158,7 +166,7 @@ def stop_valve_thread():
     """
     global polling_thread, stop_event_instance
     if polling_thread:
-        print("[Valve] Stopping polling thread...")
+        log_with_timestamp("[Valve] Stopping polling thread...")
         stop_event_instance.send()  # signal the thread to exit
         eventlet.sleep(1)  # allow it to finish
         polling_thread = None
@@ -185,7 +193,7 @@ def turn_on_valve(valve_id):
     #    parse_hardware_response might leave it as "off" or "unknown".
     #    So we check the final outcome:
     final_state = valve_status.get(valve_id, "unknown")
-    print(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested ON).")
+    log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested ON).")
 
     # 4) Now let the rest of the system see the new state:
     from status_namespace import emit_status_update
@@ -208,7 +216,7 @@ def turn_off_valve(valve_id):
         parse_hardware_response(response)
 
     final_state = valve_status.get(valve_id, "unknown")
-    print(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested OFF).")
+    log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested OFF).")
 
     from status_namespace import emit_status_update
     emit_status_update()

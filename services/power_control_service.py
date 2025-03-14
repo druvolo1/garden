@@ -10,13 +10,14 @@ from datetime import datetime
 import requests
 import json
 import socket
-from status_namespace import is_debug_enabled
+
 
 remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
 sio_clients = {}          # host_ip -> socketio.Client instance
 
 def log(msg):
+    from status_namespace import is_debug_enabled
     """Logs messages only if debugging is enabled for power_control_service."""
     if is_debug_enabled("power_control_service"):  # ✅ Check debug setting
         print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
