@@ -3,55 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debug Control Panel</title>
-    <style>
-        body { font-family: Arial, sans-serif; }
-        .debug-container { max-width: 600px; margin: auto; padding: 20px; }
-        .debug-toggle { display: flex; justify-content: space-between; padding: 10px; border: 1px solid #ddd; margin: 5px 0; }
-        button { padding: 5px 10px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <div class="debug-container">
-        <h2>Debug Control Panel</h2>
-        <div id="debug-controls"></div>
-    </div>
-    
+    <title>Debug Controls</title>
+    <link rel="stylesheet" href="/static/style.css">
     <script>
-        async function fetchDebugStatus() {
-            const response = await fetch('/debug_status');
-            const data = await response.json();
-            updateUI(data);
-        }
+        async function toggleDebug(section) {
+            const button = document.getElementById(`toggle-${section}`);
+            const currentState = button.classList.contains("btn-on-active");
+            const newState = !currentState;
 
-        function updateUI(debugData) {
-            const container = document.getElementById("debug-controls");
-            container.innerHTML = ""; 
-            
-            for (const component in debugData) {
-                const isEnabled = debugData[component];
-                const div = document.createElement("div");
-                div.className = "debug-toggle";
-                div.innerHTML = `
-                    <span>${component}</span>
-                    <button onclick="toggleDebug('${component}', ${!isEnabled})">
-                        ${isEnabled ? "Disable" : "Enable"}
-                    </button>
-                `;
-                container.appendChild(div);
+            // Update UI Immediately
+            button.classList.toggle("btn-on-active", newState);
+            button.classList.toggle("btn-off-active", !newState);
+            button.innerText = newState ? "ON" : "OFF";
+
+            // Send update to server
+            try {
+                await fetch(`/debug/toggle`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ section: section, enabled: newState })
+                });
+            } catch (error) {
+                console.error("Error updating debug state:", error);
+                alert("Failed to update debug state. Check the console for details.");
             }
         }
 
-        async function toggleDebug(component, enabled) {
-            await fetch('/toggle_debug', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ component, enabled })
-            });
-            fetchDebugStatus(); 
+        async function fetchDebugStates() {
+            try {
+                const response = await fetch("/debug/status");
+                const debugStates = await response.json();
+
+                for (const section in debugStates) {
+                    const button = document.getElementById(`toggle-${section}`);
+                    if (button) {
+                        const isEnabled = debugStates[section];
+                        button.classList.toggle("btn-on-active", isEnabled);
+                        button.classList.toggle("btn-off-active", !isEnabled);
+                        button.innerText = isEnabled ? "ON" : "OFF";
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching debug states:", error);
+            }
         }
 
-        window.onload = fetchDebugStatus;
+        window.onload = fetchDebugStates;
     </script>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/debug" class="active">Debug</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <h1>Debug Controls</h1>
+        <p class="subtitle">Toggle debug logs for different system components.</p>
+
+        <div class="settings-grid">
+            <div class="data-container">
+                <h3>Power Control</h3>
+                <button id="toggle-power" class="btn-off-active" onclick="toggleDebug('power')">OFF</button>
+            </div>
+
+            <div class="data-container">
+                <h3>Water Level</h3>
+                <button id="toggle-water" class="btn-off-active" onclick="toggleDebug('water')">OFF</button>
+            </div>
+
+            <div class="data-container">
+                <h3>Valves</h3>
+                <button id="toggle-valves" class="btn-off-active" onclick="toggleDebug('valves')">OFF</button>
+            </div>
+
+            <div class="data-container">
+                <h3>WebSocket</h3>
+                <button id="toggle-websocket" class="btn-off-active" onclick="toggleDebug('websocket')">OFF</button>
+            </div>
+
+            <div class="data-container">
+                <h3>pH Sensor</h3>
+                <button id="toggle-ph" class="btn-off-active" onclick="toggleDebug('ph')">OFF</button>
+            </div>
+
+            <div class="data-container">
+                <h3>EC Sensor</h3>
+                <button id="toggle-ec" class="btn-off-active" onclick="toggleDebug('ec')">OFF</button>
+            </div>
+        </div>
+    </main>
 </body>
 </html>
