@@ -10,7 +10,7 @@ except ImportError:
     print("RPi.GPIO not available. Using mock environment.")
 
 from utils.settings_utils import load_settings
-from status_namespace import emit_status_update
+
 from power_control_service import standardize_host_ip, get_local_ip_address
 
 _pins_lock = threading.Lock()
@@ -86,6 +86,7 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
+    from status_namespace import emit_status_update
     global _last_sensor_state
 
     while True:
