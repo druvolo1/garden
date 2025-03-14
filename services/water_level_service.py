@@ -115,8 +115,8 @@ def monitor_water_level_sensors():
                 drain_valve_ip = settings.get("drain_valve_ip")
 
                 valve_labels = settings.get("valve_labels", {})
-                fill_valve_label  = valve_labels.get(fill_valve_id,  fill_valve_id)
-                drain_valve_label = valve_labels.get(drain_valve_id, drain_valve_id)
+                fill_valve_label  = settings.get("fill_valve_label") or valve_labels.get(fill_valve_id, fill_valve_id)
+                drain_valve_label = settings.get("drain_valve_label") or valve_labels.get(drain_valve_id, drain_valve_id)
 
                 # Standardize host IPs before making WebSocket/API calls
                 resolved_fill_ip = standardize_host_ip(fill_valve_ip)
