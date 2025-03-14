@@ -3,7 +3,6 @@
 import eventlet
 eventlet.monkey_patch()
 
-
 import socketio  # pip install "python-socketio[client]"
 from utils.settings_utils import load_settings
 from datetime import datetime
@@ -11,6 +10,8 @@ import requests
 import json
 import socket
 
+# Import your new helper functions
+from utils.network_utils import standardize_host_ip, resolve_mdns
 
 remote_valve_states = {}  # (host_ip, valve_id_str) -> "on"/"off"
 last_outlet_states = {}   # outlet_ip -> "on"/"off"
@@ -19,52 +20,9 @@ sio_clients = {}          # host_ip -> socketio.Client instance
 def log(msg):
     from status_namespace import is_debug_enabled
     """Logs messages only if debugging is enabled for power_control_service."""
-    if is_debug_enabled("power_control_service"):  # ✅ Check debug setting
+    if is_debug_enabled("power_control_service"):
         print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
-def get_resolver():
-    from status_namespace import resolve_mdns
-    return resolve_mdns
-
-def get_local_ip_address():
-    """
-    Return this Pi’s primary LAN IP, or '127.0.0.1' on fallback.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    except:
-        return "127.0.0.1"
-    finally:
-        s.close()
-
-def standardize_host_ip(raw_host_ip):
-    """
-    If raw_host_ip is empty, or is 'localhost', '127.0.0.1', or '<system_name>.local',
-    replace it with this Pi’s LAN IP. Otherwise return raw_host_ip unchanged.
-    """
-    if not raw_host_ip:
-        return None
-
-    s = load_settings()
-    system_name = s.get("system_name", "Garden").lower()
-    lower_host = raw_host_ip.lower()
-
-    # Resolve .local hostnames
-    if lower_host.endswith(".local"):
-        resolve_mdns = get_resolver()
-        resolved_ip = resolve_mdns(lower_host)
-        if resolved_ip:
-            log(f"[standardize_host_ip] Resolved '{raw_host_ip}' -> '{resolved_ip}'")
-            return resolved_ip
-
-    if lower_host in ["localhost", "127.0.0.1", f"{system_name}.local"]:
-        new_ip = get_local_ip_address()
-        log(f"[standardize_host_ip] Replacing '{raw_host_ip}' with '{new_ip}'.")
-        return new_ip
-
-    return raw_host_ip
 
 def start_power_control_loop():
     """
@@ -72,6 +30,7 @@ def start_power_control_loop():
     """
     eventlet.spawn(power_control_main_loop)
     log("Power Control loop started.")
+
 
 def power_control_main_loop():
     while True:
@@ -108,16 +67,16 @@ def power_control_main_loop():
 
         eventlet.sleep(5)  # loop every 5 seconds
 
+
 def open_host_connection(raw_host_ip):
     """
     Connect to raw_host_ip:8000 via Socket.IO (namespace=/status).
-    Resolve .local hostnames before connecting.
+    Host resolution is handled by standardize_host_ip in network_utils.
     """
     if not raw_host_ip:
         log("[open_host_connection] ERROR: host_ip is empty.")
         return
 
-    # Ensure we use the resolved IP for .local hostnames
     host_ip = standardize_host_ip(raw_host_ip)
     if not host_ip:
         log(f"[open_host_connection] Could not standardize empty host? Skipping.")
@@ -149,7 +108,7 @@ def open_host_connection(raw_host_ip):
             label_str = vinfo.get("label", f"Valve {valve_id_str}")
 
             remote_valve_states[(resolved_host_ip, valve_id_str)] = status_str
-            remote_valve_states[(resolved_host_ip, label_str)] = status_str  # Store under both ID & Label
+            remote_valve_states[(resolved_host_ip, label_str)] = status_str
             log(f"    -> Storing remote_valve_states[({resolved_host_ip}, {valve_id_str})] = '{status_str}' (label='{label_str}')")
 
         # Evaluate power states after every update
@@ -163,6 +122,7 @@ def open_host_connection(raw_host_ip):
     except Exception as ex:
         log(f"Error connecting to {host_ip}: {ex}")
 
+
 def close_host_connection(host_ip):
     if host_ip in sio_clients:
         try:
@@ -172,8 +132,8 @@ def close_host_connection(host_ip):
         del sio_clients[host_ip]
         log(f"Closed socketio connection for {host_ip}")
 
+
 def reevaluate_all_outlets():
-    
     log("[DEBUG] Full remote_valve_states dump:")
     for key, value in remote_valve_states.items():
         log(f"[DEBUG]   {key} => {value}")
@@ -189,7 +149,7 @@ def reevaluate_all_outlets():
     else:
         log("No entries in remote_valve_states yet.")
 
-    changed_any_outlet = False  # track if we changed an outlet's state
+    changed_any_outlet = False
 
     for pc in power_controls:
         outlet_ip = pc.get("outlet_ip")
@@ -202,8 +162,7 @@ def reevaluate_all_outlets():
 
         any_on = False
         for tv in tracked_valves:
-            # Ensure hostnames are always resolved before checking
-            resolve_mdns = get_resolver()
+            # Resolve the host via network_utils
             fixed_host_ip = resolve_mdns(tv["host_ip"])
             if not fixed_host_ip:
                 log(f"[ERROR] Unable to resolve {tv['host_ip']} - skipping power control check.")
@@ -238,10 +197,10 @@ def reevaluate_all_outlets():
         else:
             log(f"    -> Outlet {outlet_ip} is already '{old_state}', no change.")
 
-    # If we changed ANY Shelly outlet, emit a status update:
     if changed_any_outlet:
         from status_namespace import emit_status_update
         emit_status_update()
+
 
 def set_shelly_state(outlet_ip, state):
     """
