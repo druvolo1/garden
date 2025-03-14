@@ -6,6 +6,9 @@ import subprocess
 import json
 import os
 
+# Import DNS helpers from your new file:
+from utils.network_utils import standardize_host_ip, resolve_mdns
+
 # Services and logic
 from services.ph_service import get_latest_ph_reading
 from services.ec_service import get_latest_ec_reading
@@ -28,10 +31,9 @@ REMOTE_STATES = {}   # remote_ip -> last-known JSON from that remote's "status_u
 REMOTE_CLIENTS = {}  # remote_ip -> python-socketio.Client instance
 remote_valve_states = {}  # Stores the latest valve states from remote systems
 
-
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
-
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
+
 
 def is_debug_enabled(component):
     """Check if debugging is enabled for a specific component."""
@@ -42,7 +44,7 @@ def is_debug_enabled(component):
                 print(f"[DEBUG WARNING] '{component}' not found in debug_settings.json. Defaulting to False.")
             return settings.get(component, False)
     except FileNotFoundError:
-        return False  # Default to False if file doesn't exist
+        return False
     except json.JSONDecodeError:
         print(f"[ERROR] Could not parse {DEBUG_SETTINGS_FILE}. Check the JSON formatting.")
         return False
@@ -50,7 +52,7 @@ def is_debug_enabled(component):
 
 def log_with_timestamp(msg):
     """Prints log messages only if debugging is enabled for WebSocket (websocket)."""
-    if is_debug_enabled("websocket"):  # ✅ Checks if debugging is enabled
+    if is_debug_enabled("websocket"):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
@@ -70,59 +72,22 @@ def is_local_host(host: str, local_names=None):
     log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
 
-def standardize_host_ip(hostname):
-    """
-    Ensures that hostnames are stored using their resolved IP.
-    If the hostname is already an IP, return as is.
-    If the hostname ends in .local, resolve it via mDNS.
-    """
-    if hostname.endswith(".local"):
-        resolved_ip = resolve_mdns(hostname)
-        if resolved_ip:
-            log_with_timestamp(f"[standardize_host_ip] Resolved '{hostname}' -> '{resolved_ip}'")
-            return resolved_ip
-        else:
-            log_with_timestamp(f"[standardize_host_ip] Failed to resolve '{hostname}', using as is.")
-    
-    return hostname  # Return as is if already an IP or resolution failed
-
-def resolve_mdns(hostname):
-    """ Try resolving .local using avahi-resolve-host-name first, fallback to socket """
-    try:
-        # Attempt to resolve via avahi (Linux/macOS)
-        result = subprocess.run(["avahi-resolve-host-name", "-4", hostname], capture_output=True, text=True)
-        if result.returncode == 0:
-            ip_address = result.stdout.strip().split()[-1]  # Extract the IP
-            log_with_timestamp(f"[DEBUG] Resolved {hostname} via Avahi: {ip_address}")
-            return ip_address
-    except Exception as e:
-        log_with_timestamp(f"[ERROR] Avahi resolution failed for {hostname}: {e}")
-
-    # Fallback to socket.getaddrinfo()
-    try:
-        info = socket.getaddrinfo(hostname, None, socket.AF_INET)
-        if info:
-            ip_address = info[0][4][0]
-            log_with_timestamp(f"[DEBUG] Resolved {hostname} via socket.getaddrinfo(): {ip_address}")
-            return ip_address
-    except socket.gaierror as e:
-        log_with_timestamp(f"[ERROR] Failed to resolve {hostname} via socket: {e}")
-
-    return None  # If both methods fail
-
 
 def connect_to_remote_if_needed(remote_ip):
-    """ Connects to a remote device, resolving .local names only for connection but keeping .local in stored data. """
+    """
+    Connects to a remote device, resolving .local names only for connection
+    but keeping .local in stored data.
+    """
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
 
     original_name = remote_ip  # Preserve .local for stored data
 
-    # Resolve .local names **only** for connection (not for storage)
+    # Resolve .local names **only** for connection
     resolved_ip = remote_ip
     if remote_ip.endswith(".local"):
-        mdns_ip = resolve_mdns(remote_ip)
+        mdns_ip = resolve_mdns(remote_ip)  # from utils.network_utils now
         if mdns_ip:
             log_with_timestamp(f"[DEBUG] Resolved {remote_ip} -> {mdns_ip}, using IP for WebSocket connection.")
             resolved_ip = mdns_ip
@@ -133,8 +98,8 @@ def connect_to_remote_if_needed(remote_ip):
     # Check if already connected
     if resolved_ip in REMOTE_CLIENTS:
         log_with_timestamp(f"[DEBUG] Already connected to {resolved_ip}, checking for updates...")
-        if not get_cached_remote_states(original_name):  # Use original name for cache check
-            log_with_timestamp(f"[DEBUG] No updates received from {original_name}, forcing reconnect.")
+        if not get_cached_remote_states(original_name):
+            log_with_timestamp(f"[DEBUG] No updates from {original_name}, forcing reconnect.")
             REMOTE_CLIENTS[resolved_ip].disconnect()
             del REMOTE_CLIENTS[resolved_ip]
         else:
@@ -157,17 +122,16 @@ def connect_to_remote_if_needed(remote_ip):
 
     @sio.on("status_update", namespace="/status")
     def on_remote_status_update(data):
-        REMOTE_STATES[original_name] = data  # ✅ Store data using original .local name
+        REMOTE_STATES[original_name] = data  # ✅ store under the original .local name
         log_with_timestamp(f"[AGG] on_remote_status_update from {original_name}, keys: {list(data.keys())}")
 
-    url = f"http://{resolved_ip}:8000"  # ✅ Use resolved IP **only** for WebSocket connection
+    url = f"http://{resolved_ip}:8000"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
         sio.connect(url, socketio_path="/socket.io", transports=["websocket", "polling"])
-        REMOTE_CLIENTS[resolved_ip] = sio  # ✅ Store connection under resolved IP
+        REMOTE_CLIENTS[resolved_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {resolved_ip}: {e}")
-
 
 
 def get_cached_remote_states(remote_ip):
@@ -197,13 +161,12 @@ def emit_status_update(force_emit=False):
         settings = load_settings()
         log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
-        # 2) Convert auto_dose_state times and prevent unnecessary updates
+        # 2) Convert auto_dose_state times
         auto_dose_copy = dict(auto_dose_state)
         if isinstance(auto_dose_copy.get("last_dose_time"), datetime):
             auto_dose_copy["last_dose_time"] = auto_dose_copy["last_dose_time"].isoformat()
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
-
         if auto_dose_copy["last_dose_type"] is None and auto_dose_copy["last_dose_amount"] == 0:
             auto_dose_copy["last_dose_time"] = None
 
@@ -219,7 +182,7 @@ def emit_status_update(force_emit=False):
         # 4) Water level
         water_level_info = get_water_level_status()
 
-        # 5) Valve relays - local relay states
+        # 5) Local valve states
         aggregator_map = {}
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
         if valve_relay_device:
@@ -236,17 +199,15 @@ def emit_status_update(force_emit=False):
         else:
             log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
 
-        # 6) Keep .local names in valve_info but resolve for connections
+        # 6) Keep .local names in valve_info but resolve them for the actual connections
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
         drain_valve_ip = settings.get("drain_valve_ip", "").strip()
 
         resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
         resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
+        log_with_timestamp(f"[DEBUG] Keeping .local names in data, resolved fill={resolved_fill_ip}, drain={resolved_drain_ip}")
 
-        log_with_timestamp(f"[DEBUG] Keeping .local names in WebSocket data.")
-        log_with_timestamp(f"[DEBUG] Resolving .local names for connections: fill={resolved_fill_ip}, drain={resolved_drain_ip}")
-
-        # 7) Fetch remote valve states
+        # 7) Pull in remote valve states
         remote_relays = {}
         for ip_addr, resolved_ip in [(fill_valve_ip, resolved_fill_ip), (drain_valve_ip, resolved_drain_ip)]:
             if not ip_addr:
@@ -263,11 +224,11 @@ def emit_status_update(force_emit=False):
             for label, relay_obj in remote_relay_states.items():
                 remote_relays[label] = {"label": label, "status": relay_obj.get("status", "off")}
 
-        # 8) Merge local and remote relays into final valve_relays
-        valve_relays = aggregator_map.copy()  # Start with local relays
-        valve_relays.update(remote_relays)  # Merge remote relays
+        # 8) Merge local + remote
+        valve_relays = aggregator_map.copy()
+        valve_relays.update(remote_relays)
 
-        # 9) Final valve_info structure
+        # 9) Build final valve_info
         valve_info = {
             "fill_valve_ip": settings.get("fill_valve_ip", ""),
             "fill_valve": settings.get("fill_valve", ""),
@@ -278,7 +239,7 @@ def emit_status_update(force_emit=False):
             "valve_relays": valve_relays
         }
 
-        # 10) Build final status payload
+        # 10) Build final payload
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
@@ -290,7 +251,7 @@ def emit_status_update(force_emit=False):
             "errors": []
         }
 
-        # 11) Emit if necessary
+        # 11) Decide if we force emit
         force_emit = force_emit or any(ip.endswith(".local") for ip in REMOTE_CLIENTS.keys())
 
         if force_emit or LAST_EMITTED_STATUS is None:
@@ -299,10 +260,10 @@ def emit_status_update(force_emit=False):
             LAST_EMITTED_STATUS = status_payload
             return
 
-        # Only emit if changes detected
+        # Compare for changes
         changes = {}
         for key in status_payload:
-            if status_payload[key] != LAST_EMITTED_STATUS.get(key):
+            if status_payload[key] != (LAST_EMITTED_STATUS.get(key) if LAST_EMITTED_STATUS else None):
                 changes[key] = (LAST_EMITTED_STATUS.get(key), status_payload[key])
 
         if not changes:
@@ -319,12 +280,13 @@ def emit_status_update(force_emit=False):
         import traceback
         traceback.print_exc()
 
+
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
         log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
         global LAST_EMITTED_STATUS
         LAST_EMITTED_STATUS = None  # Force first update when a client connects
-        emit_status_update(force_emit=True)  # Explicitly force emit
+        emit_status_update(force_emit=True)
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
