@@ -18,7 +18,7 @@
 
             // Send update to server
             try {
-                await fetch(`/api/debug/toggle`, {  // 🔧 FIXED API ENDPOINT
+                await fetch(`/debug/toggle`, {  // 🔧 FIXED API ENDPOINT
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ component: component, enabled: newState }) // 🔧 FIXED JSON KEYS
@@ -31,7 +31,7 @@
 
         async function fetchDebugStates() {
             try {
-                const response = await fetch("/api/debug/status");  // 🔧 FIXED API ENDPOINT
+                const response = await fetch("/debug/status");  // 🔧 FIXED API ENDPOINT
                 const debugStates = await response.json();
 
                 for (const component in debugStates) {
