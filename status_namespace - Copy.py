@@ -87,7 +87,7 @@ def connect_to_remote_if_needed(remote_ip):
     # Resolve .local names **only** for connection
     resolved_ip = remote_ip
     if remote_ip.endswith(".local"):
-        mdns_ip = resolve_mdns(remote_ip)
+        mdns_ip = resolve_mdns(remote_ip)  # from utils.network_utils now
         if mdns_ip:
             log_with_timestamp(f"[DEBUG] Resolved {remote_ip} -> {mdns_ip}, using IP for WebSocket connection.")
             resolved_ip = mdns_ip
@@ -122,7 +122,7 @@ def connect_to_remote_if_needed(remote_ip):
 
     @sio.on("status_update", namespace="/status")
     def on_remote_status_update(data):
-        REMOTE_STATES[original_name] = data  # store under the original .local name
+        REMOTE_STATES[original_name] = data  # ✅ store under the original .local name
         log_with_timestamp(f"[AGG] on_remote_status_update from {original_name}, keys: {list(data.keys())}")
 
     url = f"http://{resolved_ip}:8000"
@@ -135,19 +135,8 @@ def connect_to_remote_if_needed(remote_ip):
 
 
 def get_cached_remote_states(remote_ip):
-    """
-    Return the last-known status data from remote_ip, checking both .local
-    and resolved IP. If remote_ip is blank/None, skip entirely.
-    """
-    if not remote_ip:
-        log_with_timestamp("[DEBUG] get_cached_remote_states called with empty/None remote_ip. Skipping.")
-        return {}
-
-    if remote_ip.endswith(".local"):
-        resolved_ip = resolve_mdns(remote_ip)
-    else:
-        resolved_ip = remote_ip
-
+    """Return the last-known status data from remote_ip, checking both .local and resolved IP."""
+    resolved_ip = resolve_mdns(remote_ip) if remote_ip.endswith(".local") else remote_ip
     data = REMOTE_STATES.get(remote_ip, REMOTE_STATES.get(resolved_ip, {}))
 
     if data:
@@ -159,8 +148,7 @@ def get_cached_remote_states(remote_ip):
 
 def emit_status_update(force_emit=False):
     """
-    Collects all valve statuses from local and remote sources and emits only
-    when there are changes.
+    Collects all valve statuses from local and remote sources and emits only when there are changes.
     """
     global LAST_EMITTED_STATUS
 
@@ -215,23 +203,15 @@ def emit_status_update(force_emit=False):
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
         drain_valve_ip = settings.get("drain_valve_ip", "").strip()
 
-        # If these are blank, they won't break the code
-        resolved_fill_ip = None
-        if fill_valve_ip:
-            resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
+        resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
+        resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
+        log_with_timestamp(f"[DEBUG] Keeping .local names in data, resolved fill={resolved_fill_ip}, drain={resolved_drain_ip}")
 
-        resolved_drain_ip = None
-        if drain_valve_ip:
-            resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
-
-        log_with_timestamp(f"[DEBUG] fill_valve_ip='{fill_valve_ip}' => resolved='{resolved_fill_ip}'")
-        log_with_timestamp(f"[DEBUG] drain_valve_ip='{drain_valve_ip}' => resolved='{resolved_drain_ip}'")
-
-        # 7) Pull in remote valve states only if we have a non-blank IP
+        # 7) Pull in remote valve states
         remote_relays = {}
         for ip_addr, resolved_ip in [(fill_valve_ip, resolved_fill_ip), (drain_valve_ip, resolved_drain_ip)]:
             if not ip_addr:
-                log_with_timestamp("[DEBUG] Skipping empty ip_addr for remote valves")
+                log_with_timestamp("[DEBUG] Skipping empty ip_addr")
                 continue
 
             connect_to_remote_if_needed(resolved_ip)
@@ -239,7 +219,7 @@ def emit_status_update(force_emit=False):
             remote_valve_info = remote_data.get("valve_info", {})
             remote_relay_states = remote_valve_info.get("valve_relays", {})
 
-            log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', found {len(remote_relay_states)} valve relays")
+            log_with_timestamp(f"[DEBUG] From remote {resolved_ip}, found {len(remote_relay_states)} valve relays")
 
             for label, relay_obj in remote_relay_states.items():
                 remote_relays[label] = {"label": label, "status": relay_obj.get("status", "off")}
@@ -250,10 +230,10 @@ def emit_status_update(force_emit=False):
 
         # 9) Build final valve_info
         valve_info = {
-            "fill_valve_ip": fill_valve_ip,
+            "fill_valve_ip": settings.get("fill_valve_ip", ""),
             "fill_valve": settings.get("fill_valve", ""),
             "fill_valve_label": settings.get("fill_valve_label", ""),
-            "drain_valve_ip": drain_valve_ip,
+            "drain_valve_ip": settings.get("drain_valve_ip", ""),
             "drain_valve": settings.get("drain_valve", ""),
             "drain_valve_label": settings.get("drain_valve_label", ""),
             "valve_relays": valve_relays
@@ -271,10 +251,8 @@ def emit_status_update(force_emit=False):
             "errors": []
         }
 
-        # 11) Possibly force emit
-        force_emit = force_emit or any(
-            (ip and ip.endswith(".local")) for ip in REMOTE_CLIENTS.keys()
-        )
+        # 11) Decide if we force emit
+        force_emit = force_emit or any(ip.endswith(".local") for ip in REMOTE_CLIENTS.keys())
 
         if force_emit or LAST_EMITTED_STATUS is None:
             log_with_timestamp("[DEBUG] Forcing status update emit on first connection.")
@@ -285,9 +263,8 @@ def emit_status_update(force_emit=False):
         # Compare for changes
         changes = {}
         for key in status_payload:
-            old_val = LAST_EMITTED_STATUS.get(key) if LAST_EMITTED_STATUS else None
-            if status_payload[key] != old_val:
-                changes[key] = (old_val, status_payload[key])
+            if status_payload[key] != (LAST_EMITTED_STATUS.get(key) if LAST_EMITTED_STATUS else None):
+                changes[key] = (LAST_EMITTED_STATUS.get(key), status_payload[key])
 
         if not changes:
             log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
