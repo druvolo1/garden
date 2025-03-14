@@ -46,8 +46,8 @@ def is_debug_enabled(component):
         return False
 
 def log_with_timestamp(msg):
-    """Prints log messages only if debugging is enabled for WebSocket (status_namespace)."""
-    if is_debug_enabled("status_namespace"):  # ✅ Checks if debugging is enabled
+    """Prints log messages only if debugging is enabled for WebSocket (websocket)."""
+    if is_debug_enabled("websocket"):  # ✅ Checks if debugging is enabled
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
