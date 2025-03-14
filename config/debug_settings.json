@@ -1,0 +1,7 @@
+{
+    "status_namespace": false,
+    "water_level_service": false,
+    "power_control_service": false,
+    "valve_relay_service": false,
+    "websocket": false
+}
