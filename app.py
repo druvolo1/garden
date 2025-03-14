@@ -227,7 +227,7 @@ app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
-app.register_blueprint(debug_blueprint, url_prefix='/api/debug')
+app.register_blueprint(debug_blueprint, url_prefix='/debug')
 
 
 ########################################################################

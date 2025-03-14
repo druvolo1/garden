@@ -21,11 +21,11 @@ def save_debug_settings(settings):
     with open(DEBUG_SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=4)
 
-@debug_blueprint.route("/debug_status", methods=["GET"])
+@debug_blueprint.route("/status", methods=["GET"])
 def get_debug_status():
     return jsonify(load_debug_settings())
 
-@debug_blueprint.route("/toggle_debug", methods=["POST"])
+@debug_blueprint.route("/toggle", methods=["POST"])
 def toggle_debug():
     data = request.json
     component = data.get("component")
@@ -39,3 +39,4 @@ def toggle_debug():
         return jsonify({"message": f"Debug for {component} set to {new_state}"}), 200
     else:
         return jsonify({"error": "Invalid component"}), 400
+
