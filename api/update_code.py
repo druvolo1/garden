@@ -66,12 +66,24 @@ def run_cmd(cmd_list, cwd=None):
 @update_code_blueprint.route("/pull_no_restart", methods=["POST"])
 def pull_no_restart():
     """
-    1) git pull
-    2) pip install -r requirements.txt
+    1) git reset --hard
+    2) git pull
+    3) pip install -r requirements.txt
     (No service restart)
     """
     steps_output = []
     try:
+        # 1) Hard reset: discards all local changes before pulling
+        out, err = run_cmd(["git", "reset", "--hard"], cwd="/home/dave/garden")
+        steps_output.append(out)
+        if err:
+            return jsonify({
+                "status": "failure",
+                "error": err,
+                "output": "\n".join(steps_output)
+            }), 500
+
+        # 2) Pull latest changes
         out, err = run_cmd(["git", "pull"], cwd="/home/dave/garden")
         steps_output.append(out)
         if err:
@@ -81,6 +93,7 @@ def pull_no_restart():
                 "output": "\n".join(steps_output)
             }), 500
 
+        # 3) Install any new requirements
         out, err = run_cmd(
             ["/home/dave/garden/venv/bin/pip", "install", "-r", "requirements.txt"],
             cwd="/home/dave/garden"

@@ -1,8 +1,9 @@
 import threading
 import time
-import socket
 import requests
-from services.power_control_service import standardize_host_ip
+
+# Import your new helper
+from utils.network_utils import standardize_host_ip
 
 try:
     import RPi.GPIO as GPIO
@@ -13,14 +14,9 @@ except ImportError:
 from utils.settings_utils import load_settings
 
 
-
 _pins_lock = threading.Lock()
 _pins_inited = False
 _last_sensor_state = {}
-
-def get_host_info():
-    from services.power_control_service import standardize_host_ip, get_local_ip_address
-    return standardize_host_ip, get_local_ip_address
 
 
 def load_water_level_sensors():
@@ -31,6 +27,7 @@ def load_water_level_sensors():
         "sensor3": {"label": "Empty", "pin": 19},
     }
     return s.get("water_level_sensors", default_sensors)
+
 
 def ensure_pins_inited():
     global _pins_inited
@@ -52,6 +49,7 @@ def ensure_pins_inited():
             except Exception as e:
                 print(f"[WaterLevel DEBUG] Error initializing water-level pins: {e}")
 
+
 def force_cleanup_and_init():
     if not GPIO:
         return
@@ -61,6 +59,7 @@ def force_cleanup_and_init():
         GPIO.cleanup()
         _pins_inited = False
         ensure_pins_inited()
+
 
 def get_water_level_status():
     sensors = load_water_level_sensors()
@@ -73,7 +72,7 @@ def get_water_level_status():
             pin = cfg.get("pin")
             triggered = False
             if pin is not None:
-                sensor_state = GPIO.input(pin)  # 0 or 1
+                sensor_state = GPIO.input(pin)
                 triggered = (sensor_state == 1)
             status[sensor_key] = {
                 "label": label,
@@ -91,6 +90,7 @@ def get_water_level_status():
 
     return status
 
+
 def monitor_water_level_sensors():
     from status_namespace import emit_status_update
     global _last_sensor_state
@@ -102,24 +102,20 @@ def monitor_water_level_sensors():
             # Only act when sensor states change
             if current_state != _last_sensor_state:
                 _last_sensor_state = current_state
-
                 settings = load_settings()
 
                 fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
                 drain_sensor_key = settings.get("drain_sensor", "sensor3")
-
-                fill_valve_id  = settings.get("fill_valve")   # e.g. "1"
-                drain_valve_id = settings.get("drain_valve")  # e.g. "2"
-
-                fill_valve_ip  = settings.get("fill_valve_ip")   # e.g. "zone4.local" or "172.16.1.xxx"
-                drain_valve_ip = settings.get("drain_valve_ip")
+                fill_valve_id    = settings.get("fill_valve")
+                drain_valve_id   = settings.get("drain_valve")
+                fill_valve_ip    = settings.get("fill_valve_ip")
+                drain_valve_ip   = settings.get("drain_valve_ip")
 
                 valve_labels = settings.get("valve_labels", {})
-                fill_valve_label  = settings.get("fill_valve_label") or valve_labels.get(fill_valve_id, fill_valve_id)
+                fill_valve_label  = settings.get("fill_valve_label")  or valve_labels.get(fill_valve_id,  fill_valve_id)
                 drain_valve_label = settings.get("drain_valve_label") or valve_labels.get(drain_valve_id, drain_valve_id)
 
-                # Standardize host IPs before making WebSocket/API calls
-                resolved_fill_ip = standardize_host_ip(fill_valve_ip)
+                resolved_fill_ip  = standardize_host_ip(fill_valve_ip)
                 resolved_drain_ip = standardize_host_ip(drain_valve_ip)
 
                 # Fill logic
@@ -141,29 +137,22 @@ def monitor_water_level_sensors():
 
         time.sleep(0.5)
 
+
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
-    Calls /api/valve_relay/<valve_label>/off on the given IP. 
-    If valve_ip is empty, treat that as an error. 
-    If it's localhost, 127.0.0.1, or <system_name>.local, replace with our LAN IP.
-    Otherwise, use it as is.
+    Calls /api/valve_relay/<valve_label>/off on the given IP (resolved by standardize_host_ip).
     """
     if not valve_label:
         print("[ERROR] No valve_label provided.")
         return
-
     if not valve_ip:
         print("[ERROR] No valve_ip provided (empty). Aborting turn_off_valve call.")
         return
 
-    s = load_settings()
-    system_name = s.get("system_name", "Garden").lower()
-
-    # Resolve IP for `.local` domains
-    resolved_ip = standardize_host_ip(valve_ip)
-    if resolved_ip:
-        print(f"[DEBUG] Using resolved IP for valve control: '{resolved_ip}'.")
-        valve_ip = resolved_ip
+    final_ip = standardize_host_ip(valve_ip)
+    if final_ip:
+        print(f"[DEBUG] Using resolved IP for valve control: '{final_ip}'.")
+        valve_ip = final_ip
 
     url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
 
