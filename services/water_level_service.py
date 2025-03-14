@@ -2,6 +2,7 @@ import threading
 import time
 import socket
 import requests
+from services.power_control_service import standardize_host_ip
 
 try:
     import RPi.GPIO as GPIO
