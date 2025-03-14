@@ -31,19 +31,22 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 
-DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "config", "debug_settings.json")
+DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
 def is_debug_enabled(component):
     """Check if debugging is enabled for a specific component."""
     try:
         with open(DEBUG_SETTINGS_FILE, "r") as f:
             settings = json.load(f)
-            return settings.get(component, False)  # Default to False if not set
+            if component not in settings:
+                print(f"[DEBUG WARNING] '{component}' not found in debug_settings.json. Defaulting to False.")
+            return settings.get(component, False)
     except FileNotFoundError:
         return False  # Default to False if file doesn't exist
     except json.JSONDecodeError:
         print(f"[ERROR] Could not parse {DEBUG_SETTINGS_FILE}. Check the JSON formatting.")
         return False
+
 
 def log_with_timestamp(msg):
     """Prints log messages only if debugging is enabled for WebSocket (websocket)."""
