@@ -4,7 +4,7 @@ import os
 
 debug_blueprint = Blueprint("debug", __name__)
 
-DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "config", "debug_settings.json")
+DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
 def load_debug_settings():
     try:
