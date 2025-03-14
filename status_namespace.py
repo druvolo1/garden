@@ -182,7 +182,6 @@ def emit_status_update(force_emit=False):
         if isinstance(auto_dose_copy.get("next_dose_time"), datetime):
             auto_dose_copy["next_dose_time"] = auto_dose_copy["next_dose_time"].isoformat()
 
-        # Ignore `last_dose_time` if no dose occurred
         if auto_dose_copy["last_dose_type"] is None and auto_dose_copy["last_dose_amount"] == 0:
             auto_dose_copy["last_dose_time"] = None
 
@@ -198,7 +197,7 @@ def emit_status_update(force_emit=False):
         # 4) Water level
         water_level_info = get_water_level_status()
 
-        # 5) Valve relays and aggregator map
+        # 5) Valve relays - local relay states
         aggregator_map = {}
         valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
         if valve_relay_device:
@@ -208,14 +207,14 @@ def emit_status_update(force_emit=False):
             for valve_id_str, label in local_labels.items():
                 try:
                     valve_id = int(valve_id_str)
-                except:
+                except ValueError:
                     continue
                 st = get_valve_status(valve_id)
                 aggregator_map[label] = {"label": label, "status": st}
         else:
             log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
 
-        # 6) Keep `.local` in valve_info but resolve for connections
+        # 6) Keep .local names in valve_info but resolve for connections
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
         drain_valve_ip = settings.get("drain_valve_ip", "").strip()
 
@@ -225,50 +224,39 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"[DEBUG] Keeping .local names in WebSocket data.")
         log_with_timestamp(f"[DEBUG] Resolving .local names for connections: fill={resolved_fill_ip}, drain={resolved_drain_ip}")
 
-        # Fetch states from remote devices
+        # 7) Fetch remote valve states
+        remote_relays = {}
         for ip_addr, resolved_ip in [(fill_valve_ip, resolved_fill_ip), (drain_valve_ip, resolved_drain_ip)]:
             if not ip_addr:
                 log_with_timestamp("[DEBUG] Skipping empty ip_addr")
                 continue
 
-            connect_to_remote_if_needed(resolved_ip)  # Connect using resolved IP
+            connect_to_remote_if_needed(resolved_ip)
             remote_data = get_cached_remote_states(resolved_ip)
             remote_valve_info = remote_data.get("valve_info", {})
-            remote_relays = remote_valve_info.get("valve_relays", {})
+            remote_relay_states = remote_valve_info.get("valve_relays", {})
 
-            log_with_timestamp(f"[DEBUG] From remote {resolved_ip}, found {len(remote_relays)} label_keys")
+            log_with_timestamp(f"[DEBUG] From remote {resolved_ip}, found {len(remote_relay_states)} valve relays")
 
-            for label_key, label_obj in remote_relays.items():
-                remote_valve_states[(resolved_ip, label_key)] = label_obj.get("status", "off")
-                print(f"[DEBUG] Storing valve state: {resolved_ip} {label_key} -> {remote_valve_states[(resolved_ip, label_key)]}")
+            for label, relay_obj in remote_relay_states.items():
+                remote_relays[label] = {"label": label, "status": relay_obj.get("status", "off")}
 
-        # 7) Build final valve_info
-        fill_valve_label = settings.get("fill_valve_label", "")
-        drain_valve_label = settings.get("drain_valve_label", "")
-        valve_relay_device = settings.get("usb_roles", {}).get("valve_relay", "")
+        # 8) Merge local and remote relays into final valve_relays
+        valve_relays = aggregator_map.copy()  # Start with local relays
+        valve_relays.update(remote_relays)  # Merge remote relays
 
-        filtered_relays = {}
-
-        if valve_relay_device:  # ✅ If valve relay is assigned via USB, send all relays
-            log_with_timestamp(f"[DEBUG] Local valve relay detected via USB: {valve_relay_device}. Including all relays.")
-            filtered_relays = aggregator_map  # Send all valves
-        else:  # ✅ Otherwise, filter to only include assigned fill/drain valves
-            log_with_timestamp(f"[DEBUG] Filtering valves. Only sending assigned fill/drain valves.")
-            for label, relay in aggregator_map.items():
-                if label in (fill_valve_label, drain_valve_label):
-                    filtered_relays[label] = relay
-
+        # 9) Final valve_info structure
         valve_info = {
-            "fill_valve_ip": settings.get("fill_valve_ip", ""),  # ✅ Keeps `.local`
+            "fill_valve_ip": settings.get("fill_valve_ip", ""),
             "fill_valve": settings.get("fill_valve", ""),
-            "fill_valve_label": fill_valve_label,
-            "drain_valve_ip": settings.get("drain_valve_ip", ""),  # ✅ Keeps `.local`
+            "fill_valve_label": settings.get("fill_valve_label", ""),
+            "drain_valve_ip": settings.get("drain_valve_ip", ""),
             "drain_valve": settings.get("drain_valve", ""),
-            "drain_valve_label": drain_valve_label,
-            "valve_relays": filtered_relays  # ✅ Only send assigned valves unless it's a USB relay host
+            "drain_valve_label": settings.get("drain_valve_label", ""),
+            "valve_relays": valve_relays
         }
 
-        # 8) Build final status payload
+        # 10) Build final status payload
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
@@ -280,7 +268,7 @@ def emit_status_update(force_emit=False):
             "errors": []
         }
 
-        # **Force emit if first connection or if .local clients exist**
+        # 11) Emit if necessary
         force_emit = force_emit or any(ip.endswith(".local") for ip in REMOTE_CLIENTS.keys())
 
         if force_emit or LAST_EMITTED_STATUS is None:
@@ -289,29 +277,25 @@ def emit_status_update(force_emit=False):
             LAST_EMITTED_STATUS = status_payload
             return
 
-        # **Only emit if changes are detected**
+        # Only emit if changes detected
         changes = {}
         for key in status_payload:
-            if status_payload[key] != LAST_EMITTED_STATUS[key]:
-                changes[key] = (LAST_EMITTED_STATUS[key], status_payload[key])
+            if status_payload[key] != LAST_EMITTED_STATUS.get(key):
+                changes[key] = (LAST_EMITTED_STATUS.get(key), status_payload[key])
 
         if not changes:
             log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
-            return  # ✅ Skip emitting if nothing changed
+            return
 
         log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
-
-        # ✅ Emit the status update and store it
         _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload  # ✅ Store the last known status
-        log_with_timestamp("Status update emitted successfully (including forced emit on connection).")
+        LAST_EMITTED_STATUS = status_payload
+        log_with_timestamp("Status update emitted successfully.")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
-
-
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
