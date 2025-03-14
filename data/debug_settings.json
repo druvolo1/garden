@@ -2,5 +2,6 @@
     "water_level_service": false,
     "power_control_service": false,
     "valve_relay_service": false,
+    "ph": false,
     "websocket": false
 }
