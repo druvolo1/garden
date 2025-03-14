@@ -2,7 +2,7 @@
 
 import eventlet
 eventlet.monkey_patch()
-from status_namespace import resolve_mdns
+
 
 import socketio  # pip install "python-socketio[client]"
 from utils.settings_utils import load_settings
@@ -17,6 +17,10 @@ sio_clients = {}          # host_ip -> socketio.Client instance
 
 def log(msg):
     print(f"[PowerControlService] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
+
+def get_resolver():
+    from status_namespace import resolve_mdns
+    return resolve_mdns
 
 def get_local_ip_address():
     """
@@ -45,6 +49,7 @@ def standardize_host_ip(raw_host_ip):
 
     # Resolve .local hostnames
     if lower_host.endswith(".local"):
+        resolve_mdns = get_resolver()
         resolved_ip = resolve_mdns(lower_host)
         if resolved_ip:
             log(f"[standardize_host_ip] Resolved '{raw_host_ip}' -> '{resolved_ip}'")
@@ -194,6 +199,7 @@ def reevaluate_all_outlets():
         any_on = False
         for tv in tracked_valves:
             # Ensure hostnames are always resolved before checking
+            resolve_mdns = get_resolver()
             fixed_host_ip = resolve_mdns(tv["host_ip"])
             if not fixed_host_ip:
                 log(f"[ERROR] Unable to resolve {tv['host_ip']} - skipping power control check.")

@@ -11,11 +11,16 @@ except ImportError:
 
 from utils.settings_utils import load_settings
 
-from services.power_control_service import standardize_host_ip, get_local_ip_address
+
 
 _pins_lock = threading.Lock()
 _pins_inited = False
 _last_sensor_state = {}
+
+def get_host_info():
+    from services.power_control_service import standardize_host_ip, get_local_ip_address
+    return standardize_host_ip, get_local_ip_address
+
 
 def load_water_level_sensors():
     s = load_settings()
