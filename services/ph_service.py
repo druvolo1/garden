@@ -11,7 +11,7 @@ from queue import Queue
 from datetime import datetime
 from eventlet import tpool
 from services.error_service import set_error, clear_error
-
+from status_namespace import is_debug_enabled
 from utils.settings_utils import load_settings
 
 # Shared queue for commands sent to the probe
@@ -31,7 +31,9 @@ old_ph_value = None #stores the previous ph value so we only process changes
 ser = None  # Global variable to track the serial connection
 
 def log_with_timestamp(message):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
+    """Logs messages only if debugging is enabled for pH."""
+    if is_debug_enabled("ph"):  # ✅ Check if debug is enabled for pH
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
 
 def enqueue_command(command, command_type="general"):
     command_queue.put({"command": command, "type": command_type})
