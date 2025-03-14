@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 import json
 
 debug_blueprint = Blueprint("debug", __name__)
@@ -39,4 +39,7 @@ def toggle_debug():
         return jsonify({"message": f"Debug for {component} set to {new_state}"}), 200
     else:
         return jsonify({"error": "Invalid component"}), 400
-
+    
+@debug_blueprint.route("/")
+def debug_page():
+    return render_template("debug.html")
