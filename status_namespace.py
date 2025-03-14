@@ -3,6 +3,8 @@ from flask_socketio import Namespace
 from datetime import datetime
 import socket
 import subprocess
+import json
+import os
 
 # Services and logic
 from services.ph_service import get_latest_ph_reading
@@ -29,24 +31,24 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 
+DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "config", "debug_settings.json")
+
+def is_debug_enabled(component):
+    """Check if debugging is enabled for a specific component."""
+    try:
+        with open(DEBUG_SETTINGS_FILE, "r") as f:
+            settings = json.load(f)
+            return settings.get(component, False)  # Default to False if not set
+    except FileNotFoundError:
+        return False  # Default to False if file doesn't exist
+    except json.JSONDecodeError:
+        print(f"[ERROR] Could not parse {DEBUG_SETTINGS_FILE}. Check the JSON formatting.")
+        return False
+
 def log_with_timestamp(msg):
-    import json
-
-    DEBUG_SETTINGS_FILE = "debug_settings.json"
-
-    def is_debug_enabled(component):
-        """Check if debugging is enabled for a specific component."""
-        try:
-            with open(DEBUG_SETTINGS_FILE, "r") as f:
-                settings = json.load(f)
-                return settings.get(component, False)  # Default to False if not set
-        except FileNotFoundError:
-            return False  # Default to False if file doesn't exist
-
-    def log_with_timestamp(msg):
-        """Prints log messages only if debugging is enabled for WebSocket (status_namespace)."""
-        if is_debug_enabled("status_namespace"):  # Check if WebSocket debugging is enabled
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+    """Prints log messages only if debugging is enabled for WebSocket (status_namespace)."""
+    if is_debug_enabled("status_namespace"):  # ✅ Checks if debugging is enabled
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
 def is_local_host(host: str, local_names=None):
