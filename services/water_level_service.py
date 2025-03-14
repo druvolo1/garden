@@ -11,7 +11,7 @@ except ImportError:
 
 from utils.settings_utils import load_settings
 
-from power_control_service import standardize_host_ip, get_local_ip_address
+from services.power_control_service import standardize_host_ip, get_local_ip_address
 
 _pins_lock = threading.Lock()
 _pins_inited = False
