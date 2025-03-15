@@ -207,7 +207,7 @@
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const socket = io.connect(window.location.origin);
-
+  
       // Logging utilities
       function appendPhLog(message, isError = false) {
         const li = document.createElement("li");
@@ -221,7 +221,19 @@
         li.classList.add(isError ? "error-log" : "success-log");
         document.getElementById("ec-log-list").prepend(li);
       }
-
+  
+      // A helper to update the "Stored pH Slope" box
+      function setPhSlopeDisplay(slopeData) {
+        const slopeBox = document.getElementById("ph-slope-display");
+        if (!slopeBox) return; // just a safeguard
+        if (slopeData && slopeData.acid_slope !== undefined) {
+          slopeBox.textContent =
+            `Acid: ${slopeData.acid_slope}, Base: ${slopeData.base_slope}, Offset: ${slopeData.offset}`;
+        } else {
+          slopeBox.textContent = "No slope data stored.";
+        }
+      }
+  
       // Fetch settings to see which devices are assigned
       fetch("/api/settings")
         .then(r => r.json())
@@ -229,62 +241,51 @@
           const usbRoles = settings.usb_roles || {};
           const phDevice = usbRoles.ph_probe;
           const ecDevice = usbRoles.ec_meter;
-
+  
           let hasPh = false;
           let hasEc = false;
-
-          // If pH assigned
+  
           if (phDevice) {
             hasPh = true;
             document.getElementById("ph-assigned-content").style.display = "block";
-
-            // Also try to load a previously saved calibration date from settings
+  
             const calSection = settings.calibration || {};
             const phCalSection = calSection.ph_probe || {};
+  
+            // 1) Show stored calibration date
             const storedDate = phCalSection.manual_cal_date;
             if (storedDate) {
               document.getElementById("ph-cal-date").value = storedDate;
             }
-
-            // NEW/UPDATED: Show any stored slope we might have
-            const slopeData = phCalSection.slope;   // e.g. { acid_slope: 110.2, base_slope: 92.1, offset: 4.67 }
-            if (slopeData && slopeData.acid_slope !== undefined) {
-              document.getElementById("ph-slope-display").textContent =
-                `Acid: ${slopeData.acid_slope}, Base: ${slopeData.base_slope}, Offset: ${slopeData.offset}`;
-            } else {
-              document.getElementById("ph-slope-display").textContent = "No slope data stored.";
-            }
+  
+            // 2) Show any stored slope from the settings
+            //    (we named it "slope" in your example nested structure)
+            const slopeData = phCalSection.slope;
+            setPhSlopeDisplay(slopeData);
           } else {
-            // No pH device
             document.getElementById("ph-not-assigned").style.display = "block";
           }
-
-          // If EC assigned
+  
           if (ecDevice) {
             hasEc = true;
             document.getElementById("ec-assigned-content").style.display = "block";
           } else {
-            // No EC device
             document.getElementById("ec-not-assigned").style.display = "block";
           }
-
-          // If neither device is assigned, hide both columns and show the "no devices" msg
+  
           if (!hasPh && !hasEc) {
             document.getElementById("ph-section").style.display = "none";
             document.getElementById("ec-section").style.display = "none";
             document.getElementById("no-devices-message").style.display = "block";
           } else {
-            // If we have pH assigned, init the pH logic
             if (hasPh) initPhStuff();
-            // If we have EC assigned, init the EC logic
             if (hasEc) initEcStuff();
           }
         })
         .catch(err => console.error("Error fetching settings:", err));
-
+  
       // ============== PH STUFF ==============
       function initPhStuff() {
-        // fetch initial pH
         function fetchLatestPh() {
           fetch('/api/ph/latest')
             .then(res => res.json())
@@ -303,25 +304,41 @@
             });
         }
         fetchLatestPh();
-
+  
         // WebSocket events
         socket.on("connect", () => {
           appendPhLog("WebSocket connected (for pH).");
           fetchLatestPh();
         });
+  
+        // Existing pH update event
         socket.on("ph_update", data => {
           if (data?.ph !== undefined) {
             document.getElementById("current-ph").textContent = data.ph;
             appendPhLog(`Live pH update: ${data.ph}`);
           }
         });
+  
+        // Existing EC update event
         socket.on("ec_update", data => {
           if (data?.ec !== undefined) {
             document.getElementById("current-ec").textContent = data.ec;
             console.log("Live EC update:", data.ec);
           }
         });
-
+  
+        // ───────────────────────────────────────────────────────
+        // NEW: A live slope update event from the server
+        // Make sure your back-end emits "ph_slope_update" with
+        // something like: {"slope": {...}} whenever slope changes
+        // ───────────────────────────────────────────────────────
+        socket.on("ph_slope_update", msg => {
+          if (msg && msg.slope) {
+            appendPhLog("Live slope update received from server.");
+            setPhSlopeDisplay(msg.slope);
+          }
+        });
+  
         // pH Calibration Commands
         function sendPhCalCommand(level) {
           fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
@@ -335,45 +352,48 @@
             })
             .catch(() => appendPhLog(`Failed pH ${level} calibration cmd.`, true));
         }
-
+  
         // Save calibration date
         function savePhCalibrationDate() {
           const dateInput = document.getElementById("ph-cal-date");
-          const chosenDate = dateInput.value; // e.g. "2025-03-15"
-
+          const chosenDate = dateInput.value;
           if (!chosenDate) {
             appendPhLog("No date chosen for calibration!", true);
             return;
           }
-          // POST to /api/ph/calibration_date
           fetch("/api/ph/calibration_date", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ date: chosenDate })
           })
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              appendPhLog(`Calibration date saved: ${chosenDate}`);
-            } else {
-              appendPhLog(`Failed to save calibration date: ${data.error || data.message}`, true);
-            }
-          })
-          .catch(err => {
-            console.error("Error saving pH calibration date:", err);
-            appendPhLog("Error saving pH calibration date (check console).", true);
-          });
+            .then(r => r.json())
+            .then(data => {
+              if (data.status === "success") {
+                appendPhLog(`Calibration date saved: ${chosenDate}`);
+              } else {
+                appendPhLog(`Failed to save calibration date: ${data.error || data.message}`, true);
+              }
+            })
+            .catch(err => {
+              console.error("Error saving pH calibration date:", err);
+              appendPhLog("Error saving pH calibration date (check console).", true);
+            });
         }
-
-        // Check Slope
+  
+        // Check Slope (manual request)
         function checkPhSlope() {
-          // calls your future /api/ph/slope
           fetch('/api/ph/slope')
             .then(r => r.json())
             .then(data => {
               if (data.status === "success") {
-                // e.g. { status: "success", acid_slope: 98.0, base_slope: 97.5, offset: -3.2, overall_status: "ok" }
+                // e.g. {status: "success", acid_slope: 98.0, base_slope: 97.5, offset: -3.2, overall_status: "ok"}
                 appendPhLog(`Slope check => acid=${data.acid_slope}%, base=${data.base_slope}%, offset=${data.offset} => ${data.overall_status}`);
+                // Optionally update the slope display box here too:
+                setPhSlopeDisplay({
+                  acid_slope: data.acid_slope,
+                  base_slope: data.base_slope,
+                  offset: data.offset
+                });
               } else {
                 appendPhLog(`Slope check error: ${data.message || "Unknown"}`, true);
               }
@@ -383,7 +403,7 @@
               appendPhLog("Slope check failed (see console).", true);
             });
         }
-
+  
         // Event listeners for pH
         document.getElementById("calibrate-ph-low").addEventListener("click", () => sendPhCalCommand("low"));
         document.getElementById("calibrate-ph-mid").addEventListener("click", () => sendPhCalCommand("mid"));
@@ -392,10 +412,9 @@
         document.getElementById("save-ph-cal-date").addEventListener("click", savePhCalibrationDate);
         document.getElementById("ph-check-slope").addEventListener("click", checkPhSlope);
       }
-
+  
       // ============== EC STUFF ==============
       function initEcStuff() {
-        // fetch initial EC
         function fetchLatestEc() {
           fetch('/api/ec/latest')
             .then(res => res.json())
@@ -414,16 +433,14 @@
             });
         }
         fetchLatestEc();
-
-        // WebSocket for EC
+  
         socket.on("connect", () => {
           appendEcLog("WebSocket connected (for EC).");
           fetchLatestEc();
         });
         // If you want real-time EC logs:
         // socket.on("ec_update", data => { ... });
-
-        // EC Calibration
+  
         function sendEcCalCommand(level) {
           fetch(`/api/ec/calibrate/${level}`, { method: "POST" })
             .then(res => res.json())
@@ -436,7 +453,7 @@
             })
             .catch(() => appendEcLog(`Failed EC ${level} calibration cmd.`, true));
         }
-
+  
         document.getElementById("calibrate-ec-dry").addEventListener("click", () => sendEcCalCommand("dry"));
         document.getElementById("calibrate-ec-low").addEventListener("click", () => sendEcCalCommand("low"));
         document.getElementById("calibrate-ec-high").addEventListener("click", () => sendEcCalCommand("high"));
@@ -444,6 +461,5 @@
       }
     });
   </script>
-
 </body>
 </html>
