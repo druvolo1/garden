@@ -124,8 +124,7 @@
     <h1>Calibration</h1>
     <p class="subtitle">Ensure accurate readings for pH and EC if assigned.</p>
 
-    <!-- If no devices are assigned, we show this big message instead of the columns -->
-    <div id="no-devices-message">
+    <div id="no-devices-message" style="display: none;">
       <h2>You have no device assigned that requires calibration.</h2>
     </div>
 
@@ -135,8 +134,7 @@
       <div id="ph-section" class="cal-section">
         <h2>pH Probe</h2>
 
-        <!-- Shown only if a pH device is assigned -->
-        <div id="ph-assigned-content">
+        <div id="ph-assigned-content" style="display: none;">
           <h3>Current pH Value</h3>
           <div class="data-box"><span id="current-ph">--</span></div>
 
@@ -148,12 +146,17 @@
             <button class="cal-btn" id="clear-ph-cal">Clear</button>
           </div>
 
+          <h3>Calibration Date</h3>
+          <p>Pick the date of the last time you calibrated your pH probe:</p>
+          <!-- New date picker input + button -->
+          <input type="date" id="ph-cal-date" />
+          <button class="cal-btn" id="save-ph-cal-date">Save Calibration Date</button>
+
           <h3>pH Calibration Log</h3>
           <ul id="ph-log-list"></ul>
         </div>
 
-        <!-- Shown if no pH device assigned -->
-        <div id="ph-not-assigned">
+        <div id="ph-not-assigned" style="display: none;">
           <p><em>No pH device assigned.</em></p>
         </div>
       </div>
@@ -303,7 +306,36 @@
             })
             .catch(() => appendPhLog(`Failed pH ${level} calibration cmd.`, true));
         }
+        function savePhCalibrationDate() {
+          const dateInput = document.getElementById("ph-cal-date");
+          const chosenDate = dateInput.value;  // e.g. "2025-03-15"
 
+          if (!chosenDate) {
+            appendPhLog("No date chosen for calibration!", true);
+            return;
+          }
+
+          // POST to /api/ph/calibration_date with JSON { date: "YYYY-MM-DD" }
+          fetch("/api/ph/calibration_date", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: chosenDate })
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.status === "success") {
+              appendPhLog(`Calibration date saved: ${chosenDate}`);
+            } else {
+              appendPhLog(`Failed to save calibration date: ${data.error || data.message}`, true);
+            }
+          })
+          .catch(err => {
+            console.error("Error saving pH calibration date:", err);
+            appendPhLog("Error saving pH calibration date (check console).", true);
+          });
+        }
+
+        document.getElementById("save-ph-cal-date").addEventListener("click", savePhCalibrationDate);
         document.getElementById("calibrate-ph-low").addEventListener("click", () => sendPhCalCommand("low"));
         document.getElementById("calibrate-ph-mid").addEventListener("click", () => sendPhCalCommand("mid"));
         document.getElementById("calibrate-ph-high").addEventListener("click", () => sendPhCalCommand("high"));
