@@ -141,7 +141,7 @@ def parse_buffer(ser):
                     else:
                         # If it's under 5, "probe_health"=ok: "normal"
                         set_status("ph_probe", "probe_health", "ok",
-                                   "Readings appear normal now.")
+                                   "Readings appear normal.")
                     # Skip updating old_ph_value or latest_ph_value
                     continue
                 else:
