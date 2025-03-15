@@ -28,27 +28,24 @@
 <script>
 let socket;
 
+<script>
 document.addEventListener("DOMContentLoaded", () => {
-  // 1) Fetch notifications once on page load
-  fetchNotifications();
+  // 1) Connect to the /status namespace
+  const socket = io.connect(window.location.origin + "/status");
 
-  // 2) Connect to WebSocket / Socket.IO
-  // This connects specifically to the /status namespace, matching your Python code.
-  socket = io.connect(window.location.origin + "/status");
+  // 2) Add your handlers only after `socket` is defined
+  socket.on("connect", () => {
+    console.log("[CLIENT] Connected to the /status namespace!");
+  });
 
-
-  // 3) Listen for "notifications_update" event from the server
   socket.on("notifications_update", data => {
-    // Whenever the server says notifications changed, let's re-fetch
-    console.log("[WS] notifications_update event => re-fetching notifications.");
+    console.log("[WS] notifications_update => re-fetching notifications.");
     fetchNotifications();
   });
-});
 
-socket.on("connect", () => {
-  console.log("[CLIENT] Connected to the /status namespace!");
+  // 3) Fetch notifications once on page load
+  fetchNotifications();
 });
-
 /**
  * Fetch the notifications from /api/notifications
  */
