@@ -112,8 +112,8 @@ def parse_buffer(ser):
         if line.upper().startswith("?SLOPE,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
             try:
-                payload = line.replace("?Slope,", "")
-                parts = payload.split(",")
+                payload = line[7:]  # or line.split(",", 1)[1]
+                parts = payload.split(",")  # e.g. ["110.2", "92.1", "4.67"]
                 acid = float(parts[0])
                 base = float(parts[1])
                 offset = float(parts[2])
