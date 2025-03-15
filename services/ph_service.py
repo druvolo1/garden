@@ -117,6 +117,7 @@ def parse_buffer(ser):
             # Big-swing logic:
             if old_ph_value is not None:
                 delta = abs(ph_value - old_ph_value)
+                log_with_timestamp(f"PH Delta from {old_ph_value} -> {ph_value} is {delta}")
 
                 # If delta > 1 => track a "big jump"
                 if delta > 1.0:
