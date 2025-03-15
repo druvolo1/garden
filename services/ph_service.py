@@ -482,9 +482,9 @@ def enqueue_slope_query():
     # We'll only re-enable continuous reading once the slope line arrives,
     # or if you prefer, do it after the function returns.
 
-    log_with_timestamp("[DEBUG] enqueue_slope_query() -> about to WAIT up to 3s for slope_event.")
+    log_with_timestamp("[DEBUG] enqueue_slope_query() -> about to WAIT up to 10s for slope_event.")
     try:
-        with eventlet.timeout.Timeout(3, False):
+        with eventlet.timeout.Timeout(10, False):
             slope_event.wait()
     except eventlet.timeout.Timeout:
         log_with_timestamp("[DEBUG] enqueue_slope_query() -> Timed out waiting for slope_event.")
