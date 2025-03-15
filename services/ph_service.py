@@ -230,8 +230,10 @@ def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
     print("DEBUG: Entered serial_reader() at all...")
-    consecutive_fails = 0
+    consecutive_fails = 0      # times we failed to open the port
+    consecutive_read_errors = 0  # times we got read errors in a row
     MAX_FAILS = 5
+    READ_ERROR_THRESHOLD = 3   # how many consecutive read errors before reconnect
     last_no_reading_error_time = None
 
     while not stop_event.ready():
@@ -239,6 +241,7 @@ def serial_reader():
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
         if not ph_probe_path:
+            # no device assigned
             clear_status("ph_probe", "communication")
             clear_status("ph_probe", "reading")
             clear_status("ph_probe", "ph_value")
@@ -268,42 +271,60 @@ def serial_reader():
                 last_read_time = None
                 log_with_timestamp("[DEBUG] Buffer cleared on new device connection.")
 
-            # ─────────────────────────────────────────────────────────────
-            # Enable continuous read mode as soon as we connect:
-            # (Use "C,1" or "C,2" depending on your device/ASCII vs. continuous)
+            # Enable continuous read mode
             log_with_timestamp("[DEBUG] Enabling continuous read mode now that the device is open.")
             send_command_to_probe(ser, "C,1")
-            # ─────────────────────────────────────────────────────────────
 
             while not stop_event.ready():
                 if last_read_time:
                     elapsed = (datetime.now() - last_read_time).total_seconds()
                     if elapsed > 30:
+                        # Some “no reading” status logic
                         if (not last_no_reading_error_time or
                            (datetime.now() - last_no_reading_error_time).total_seconds() > 30):
-                            set_status(
-                                "ph_probe",
-                                "reading",
-                                "error",
-                                "No pH reading available for 30+ seconds."
-                            )
+                            set_status("ph_probe", "reading", "error",
+                                       "No pH reading available for 30+ seconds.")
                             last_no_reading_error_time = datetime.now()
 
-                raw_data = tpool.execute(ser.read, 100)
-                if raw_data:
-                    decoded_data = raw_data.decode("utf-8", errors="replace")
-                    with ph_lock:
-                        buffer += decoded_data
-                        if len(buffer) > MAX_BUFFER_LENGTH:
-                            log_with_timestamp("[DEBUG] Buffer exceeded max length. Dumping buffer.")
-                            set_status("ph_probe", "communication", "error",
-                                       "Buffer exceeded max length. Dumping buffer.")
-                            buffer = ""
-                    parse_buffer(ser)
-                else:
-                    eventlet.sleep(0.01)
+                try:
+                    # Try reading from the port
+                    raw_data = tpool.execute(ser.read, 100)
+
+                    # If read() returned no data at all, treat this as a transient read error
+                    if not raw_data:
+                        consecutive_read_errors += 1
+                        if consecutive_read_errors < READ_ERROR_THRESHOLD:
+                            log_with_timestamp(f"[DEBUG] Empty read from pH port. "
+                                               f"Transient error #{consecutive_read_errors}, ignoring.")
+                            eventlet.sleep(0.05)
+                            continue  # try reading again
+                        else:
+                            # We exceeded the read-error threshold
+                            raise serial.SerialException(
+                                f"Got {consecutive_read_errors} consecutive empty reads; "
+                                f"treating as fatal."
+                            )
+                    else:
+                        # We got data, so reset read-error counter
+                        consecutive_read_errors = 0
+                        decoded_data = raw_data.decode("utf-8", errors="replace")
+                        with ph_lock:
+                            buffer += decoded_data
+                            if len(buffer) > MAX_BUFFER_LENGTH:
+                                log_with_timestamp("[DEBUG] Buffer exceeded max length. Dumping buffer.")
+                                set_status("ph_probe", "communication", "error",
+                                           "Buffer exceeded max length. Dumping buffer.")
+                                buffer = ""
+                        parse_buffer(ser)
+
+                except (serial.SerialException, OSError) as read_ex:
+                    # We'll break out of the inner loop so we can reconnect
+                    raise read_ex
+
+                eventlet.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
+            # We only get here if something truly fatal happened
             consecutive_fails += 1
             log_with_timestamp(
                 f"[DEBUG] Serial error on {ph_probe_path}: {e}. "
@@ -321,8 +342,6 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("[DEBUG] Serial connection closed.")
-
-
 
 def send_configuration_commands(ser):
     try:
