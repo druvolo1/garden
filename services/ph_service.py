@@ -127,9 +127,20 @@ def parse_buffer(ser):
                 # ─────────────────────────────────────────────────────────
                 # Save slope to settings immediately after parsing it
                 s = load_settings()
-                s["ph_probe_slope"] = slope_data
+
+                # Make sure "calibration" and "ph_probe" exist in the settings
+                if "calibration" not in s:
+                    s["calibration"] = {}
+
+                if "ph_probe" not in s["calibration"]:
+                    s["calibration"]["ph_probe"] = {}
+
+                # Now store the slope data in the nested structure
+                s["calibration"]["ph_probe"]["slope"] = slope_data
+
+                # Finally, save
                 save_settings(s)
-                log_with_timestamp(f"[DEBUG] Slope data saved to settings: {slope_data}")
+                log_with_timestamp(f"[DEBUG] Slope data saved: {slope_data}")
                 # ─────────────────────────────────────────────────────────
 
                 last_sent_command = None
