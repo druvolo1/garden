@@ -126,7 +126,6 @@ def parse_buffer(ser):
 
                 # ─────────────────────────────────────────────────────────
                 # Save slope to settings immediately after parsing it
-                from utils.settings_utils import load_settings, save_settings
                 s = load_settings()
                 s["ph_probe_slope"] = slope_data
                 save_settings(s)
