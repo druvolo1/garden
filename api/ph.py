@@ -68,3 +68,44 @@ def set_ph_calibration_date():
     save_settings(s)
 
     return jsonify({"status": "success", "date": chosen_date})
+
+################################################################################
+# NEW route for slope check
+################################################################################
+@ph_blueprint.route('/slope', methods=['GET'])
+def ph_slope():
+    """
+    GET /api/ph/slope
+    This route calls get_slope_info() in ph_service, which enqueues:
+      1) C,0  (stop continuous)
+      2) Slope,?
+      and waits for parse_buffer to see '?Slope,xx,yy,zz'.
+    Then returns slope data as JSON, or error on timeout.
+    """
+    from services.ph_service import get_slope_info
+    log_with_timestamp("[DEBUG] ph_slope() route was called, about to get_slope_info()...")
+    slope = get_slope_info()  # calls enqueue_slope_query & waits
+    if slope is None:
+        # Means we never got "?Slope,xx,yy,zz" within ~3s
+        return jsonify({
+            "status": "failure",
+            "message": "No slope response from probe (timeout or no data)."
+        }), 400
+
+    # Example slope: {"acid_slope": 98.0, "base_slope": 97.5, "offset": -4.2}
+    acid = slope["acid_slope"]
+    base = slope["base_slope"]
+    offset = slope["offset"]
+
+    # Evaluate slope – e.g. if under 90% we might say "probe needs service"
+    overall_status = "ok"
+    if acid < 90 or base < 90:
+        overall_status = "probe needs service"
+
+    return jsonify({
+        "status": "success",
+        "acid_slope": acid,
+        "base_slope": base,
+        "offset": offset,
+        "overall_status": overall_status
+    })
