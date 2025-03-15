@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <title>Notifications</title>
-    <!-- You will need socket.io. E.g. -->
+    <!-- Load Socket.IO -->
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
@@ -26,26 +26,25 @@
 </table>
 
 <script>
-let socket;
-
-<script>
 document.addEventListener("DOMContentLoaded", () => {
   // 1) Connect to the /status namespace
   const socket = io.connect(window.location.origin + "/status");
 
-  // 2) Add your handlers only after `socket` is defined
+  // 2) Confirm successful connection
   socket.on("connect", () => {
     console.log("[CLIENT] Connected to the /status namespace!");
   });
 
+  // 3) Listen for "notifications_update" event from the server
   socket.on("notifications_update", data => {
     console.log("[WS] notifications_update => re-fetching notifications.");
     fetchNotifications();
   });
 
-  // 3) Fetch notifications once on page load
+  // 4) Fetch notifications once on page load
   fetchNotifications();
 });
+
 /**
  * Fetch the notifications from /api/notifications
  */
