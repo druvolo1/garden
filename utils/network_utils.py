@@ -20,34 +20,60 @@ def resolve_mdns(hostname: str) -> str:
     Tries to resolve a .local hostname via:
       1) avahi-resolve-host-name -4 <hostname>
       2) socket.getaddrinfo()
+      3) socket.gethostbyname()
     Returns the resolved IP string, or None if resolution fails.
     """
     if not hostname:
         return None
+
+    # If it's NOT a .local name, skip avahi and do getaddrinfo() + gethostbyname().
     if not hostname.endswith(".local"):
-        # Not a .local domain; skip avahi and let socket handle it
+        ip = fallback_socket_resolve(hostname)
+        if ip:
+            return ip
+        # Now fallback to gethostbyname:
         try:
-            info = socket.getaddrinfo(hostname, None, socket.AF_INET)
-            return info[0][4][0] if info else None
+            return socket.gethostbyname(hostname)
         except:
             return None
 
-    # 1) Try avahi
+    # If it IS a .local, try avahi first:
     try:
-        result = subprocess.run(["avahi-resolve-host-name", "-4", hostname],
-                                capture_output=True, text=True, check=False)
-        if result.returncode == 0:
+        result = subprocess.run(
+            ["avahi-resolve-host-name", "-4", hostname],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Example stdout: "drain.local\t192.168.1.101"
             ip_address = result.stdout.strip().split()[-1]
             return ip_address
     except:
         pass
 
-    # 2) Fallback to socket
+    # Then fallback to socket.getaddrinfo():
+    ip = fallback_socket_resolve(hostname)
+    if ip:
+        return ip
+
+    # Finally, fallback to socket.gethostbyname():
     try:
-        info = socket.getaddrinfo(hostname, None, socket.AF_INET)
-        return info[0][4][0] if info else None
+        return socket.gethostbyname(hostname)
     except:
         return None
+
+def fallback_socket_resolve(hostname: str) -> str:
+    """
+    A helper that tries socket.getaddrinfo() for an IPv4 address.
+    """
+    try:
+        info = socket.getaddrinfo(hostname, None, socket.AF_INET)
+        if info:
+            return info[0][4][0]  # IP is in [4][0]
+    except:
+        pass
+    return None
 
 def standardize_host_ip(raw_host_ip: str) -> str:
     """
@@ -72,4 +98,5 @@ def standardize_host_ip(raw_host_ip: str) -> str:
         if resolved:
             return resolved
 
+    # If not .local, or resolution failed, just return as-is
     return raw_host_ip
