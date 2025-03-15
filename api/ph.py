@@ -83,7 +83,6 @@ def ph_slope():
     Then returns slope data as JSON, or error on timeout.
     """
     from services.ph_service import get_slope_info
-    log_with_timestamp("[DEBUG] ph_slope() route was called, about to get_slope_info()...")
     slope = get_slope_info()  # calls enqueue_slope_query & waits
     if slope is None:
         # Means we never got "?Slope,xx,yy,zz" within ~3s
