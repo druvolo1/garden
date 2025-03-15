@@ -104,6 +104,7 @@ def parse_buffer(ser):
         # Try to parse a numeric pH reading
         try:
             ph_value = round(float(line), 2)
+            set_status("ph_probe", "reading", "ok", "Receiving readings.")
 
             # If reading is exactly 0 or 14 => set "ph_value" error
             if ph_value == 0 or ph_value == 14:
@@ -166,7 +167,7 @@ def parse_buffer(ser):
                            f"pH {ph_value} is out of recommended range [{ph_min}, {ph_max}].")
             else:
                 set_status("ph_probe", "within_range", "ok",
-                           f"pH {ph_value} is within recommended range [{ph_min}, {ph_max}].")
+                           f"pH is within recommended range [{ph_min}, {ph_max}].")
 
             from status_namespace import emit_status_update
             emit_status_update()
