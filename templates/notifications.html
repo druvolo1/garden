@@ -1,9 +1,10 @@
-<!-- File: templates/notifications.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8" />
     <title>Notifications</title>
+    <!-- You will need socket.io. E.g. -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
 <h1>Notifications</h1>
@@ -25,6 +26,26 @@
 </table>
 
 <script>
+let socket;
+
+document.addEventListener("DOMContentLoaded", () => {
+  // 1) Fetch notifications once on page load
+  fetchNotifications();
+
+  // 2) Connect to WebSocket / Socket.IO
+  socket = io.connect(window.location.origin);
+
+  // 3) Listen for "notifications_update" event from the server
+  socket.on("notifications_update", data => {
+    // Whenever the server says notifications changed, let's re-fetch
+    console.log("[WS] notifications_update event => re-fetching notifications.");
+    fetchNotifications();
+  });
+});
+
+/**
+ * Fetch the notifications from /api/notifications
+ */
 async function fetchNotifications() {
   try {
     const resp = await fetch("/api/notifications");
@@ -39,6 +60,9 @@ async function fetchNotifications() {
   }
 }
 
+/**
+ * Renders the notifications table body
+ */
 function renderNotifications(notifs) {
   const tbody = document.querySelector("#notifications-table tbody");
   tbody.innerHTML = ""; // Clear old rows
@@ -46,19 +70,26 @@ function renderNotifications(notifs) {
   notifs.forEach(n => {
     const tr = document.createElement("tr");
 
-    let cols = `
+    tr.innerHTML = `
       <td>${n.device}</td>
       <td>${n.key}</td>
       <td>${n.state}</td>
       <td>${n.message}</td>
       <td>${n.timestamp}</td>
-      <td><button onclick="clearNotification('${n.device}', '${n.key}')">Clear</button></td>
+      <td>
+        <button onclick="clearNotification('${n.device}', '${n.key}')">
+          Clear
+        </button>
+      </td>
     `;
-    tr.innerHTML = cols;
     tbody.appendChild(tr);
   });
 }
 
+/**
+ * Sends a POST to clear an individual notification,
+ * then re-fetches the table
+ */
 async function clearNotification(device, key) {
   try {
     const resp = await fetch("/api/notifications/clear", {
@@ -68,8 +99,7 @@ async function clearNotification(device, key) {
     });
     const data = await resp.json();
     if (data.status === "success") {
-      // re-fetch the table
-      fetchNotifications();
+      fetchNotifications(); // refresh after clearing
     } else {
       console.error("Failed to clear notification", data);
     }
@@ -77,9 +107,6 @@ async function clearNotification(device, key) {
     console.error("Error clearing notification:", err);
   }
 }
-
-// On page load, fetch the notifications
-fetchNotifications();
 </script>
 
 </body>
