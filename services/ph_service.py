@@ -429,7 +429,7 @@ def enqueue_disable_continuous():
     Enqueues a command to disable continuous output: C,0
     """
     log_with_timestamp("[DEBUG] enqueue_disable_continuous() -> putting C,0 in queue.")
-    enqueue_command("C,0", "general")
+    enqueue_command("C,1", "general")
 
 def enqueue_enable_continuous():
     """
