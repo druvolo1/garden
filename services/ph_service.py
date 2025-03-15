@@ -472,7 +472,7 @@ def enqueue_slope_query():
     slope_data = None
 
     # Step 1: turn off continuous
-    log_with_timestamp("[DEBUG] enqueue_slope_query() -> disabling continuous mode by queueing 'C,0'")
+    #log_with_timestamp("[DEBUG] enqueue_slope_query() -> disabling continuous mode by queueing 'C,0'")
     #enqueue_disable_continuous()
 
     # Step 2: slope
