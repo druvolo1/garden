@@ -93,7 +93,9 @@ def parse_buffer(ser):
 
         log_with_timestamp(f"[DEBUG] parse_buffer: got line '{line}'")
 
-        # *OK / *ER
+        # ---------------------------------------------------------
+        # 1) Check for '*OK' / '*ER' responses
+        # ---------------------------------------------------------
         if line in ("*OK", "*ER"):
             if last_sent_command:
                 log_with_timestamp(f"[DEBUG] parse_buffer: response '{line}' for command {last_sent_command}")
@@ -108,7 +110,9 @@ def parse_buffer(ser):
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
-        # Slope
+        # ---------------------------------------------------------
+        # 2) Check for slope data lines like "?SLOPE,110.2,92.1,4.67"
+        # ---------------------------------------------------------
         if line.upper().startswith("?SLOPE,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
             try:
@@ -117,6 +121,7 @@ def parse_buffer(ser):
                 acid = float(parts[0])
                 base = float(parts[1])
                 offset = float(parts[2])
+
                 slope_data = {
                     "acid_slope": acid,
                     "base_slope": base,
@@ -124,25 +129,16 @@ def parse_buffer(ser):
                 }
                 log_with_timestamp(f"[DEBUG] parse_buffer: slope_data set to {slope_data}")
 
-                # ─────────────────────────────────────────────────────────
-                # Save slope to settings immediately after parsing it
+                # Save slope data in your settings
                 s = load_settings()
-
-                # Make sure "calibration" and "ph_probe" exist in the settings
                 if "calibration" not in s:
                     s["calibration"] = {}
-
                 if "ph_probe" not in s["calibration"]:
                     s["calibration"]["ph_probe"] = {}
-
-                # Now store the slope data in the nested structure
                 s["calibration"]["ph_probe"]["slope"] = slope_data
-
-                # Finally, save
                 save_settings(s)
-                log_with_timestamp(f"[DEBUG] Slope data saved: {slope_data}")
-                # ─────────────────────────────────────────────────────────
 
+                log_with_timestamp(f"[DEBUG] Slope data saved: {slope_data}")
                 last_sent_command = None
                 slope_event.send()
 
@@ -155,7 +151,9 @@ def parse_buffer(ser):
                 log_with_timestamp(f"Error parsing slope line '{line}': {e}")
             continue
 
-        # Otherwise, try pH numeric
+        # ---------------------------------------------------------
+        # 3) Otherwise, assume it might be a numeric pH reading
+        # ---------------------------------------------------------
         try:
             ph_value = round(float(line), 2)
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
@@ -169,8 +167,18 @@ def parse_buffer(ser):
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
-            accepted_this_reading = False
-            if delta > 1.0:
+            # We'll define 'delta' in all cases, so there's no NameError
+            if old_ph_value is None:
+                # First reading after startup
+                delta = 0.0
+            else:
+                delta = abs(ph_value - old_ph_value)
+
+            log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
+
+            # Now handle big-jump logic vs. normal logic
+            if old_ph_value is not None and delta > 1.0:
+                # It's a big jump
                 now = datetime.now()
                 ph_jumps.append(now)
                 cutoff = now - timedelta(seconds=60)
@@ -178,33 +186,40 @@ def parse_buffer(ser):
 
                 if len(ph_jumps) >= 5:
                     set_status("ph_probe", "probe_health", "error",
-                            "Unstable readings detected (5 large jumps in last minute).")
+                               "Unstable readings detected (5 large jumps in last minute).")
                 else:
                     set_status("ph_probe", "probe_health", "ok",
-                            "Readings appear normal.")
+                               "Readings appear normal.")
 
-                # The important fix: update old_ph_value so we don't keep comparing to the
-                # stale baseline
+                # Important: update old_ph_value so we don't keep comparing
+                # new readings to a stale baseline
                 old_ph_value = ph_value
 
-                # Possibly also store latest_ph_value if you want the UI to see it:
+                # Also update latest_ph_value if you want the UI to see it
                 with ph_lock:
                     latest_ph_value = ph_value
 
+                # This 'continue' means we skip the normal “accepted reading” logic
+                # If you actually want to accept big-jump readings, remove 'continue'.
                 continue
-
             else:
-                # first reading
+                # Either it's the first reading (old_ph_value is None) or delta <= 1.0
                 accepted_this_reading = True
-                set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
 
+                if old_ph_value is None:
+                    # Definitely the first valid pH reading
+                    set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
+
+            # If we get here, we accept this reading as valid
             if accepted_this_reading:
                 with ph_lock:
                     latest_ph_value = ph_value
                     log_with_timestamp(f"Accepted new pH reading: {ph_value}")
+
                 old_ph_value = ph_value
                 last_read_time = datetime.now()
 
+                # Check if reading is in recommended pH range
                 s = load_settings()
                 ph_min = s.get("ph_range", {}).get("min", 5.5)
                 ph_max = s.get("ph_range", {}).get("max", 6.5)
@@ -215,15 +230,18 @@ def parse_buffer(ser):
                     set_status("ph_probe", "within_range", "ok",
                                f"pH is within recommended range [{ph_min}, {ph_max}].")
 
+            # Finally emit a status_update
             from status_namespace import emit_status_update
             emit_status_update()
 
         except ValueError as e:
+            # We got a non-numeric or nonsense line
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': {e}")
+
+    # end while '\r' in buffer
 
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
-
 
 
 def serial_reader():
