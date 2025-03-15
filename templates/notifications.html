@@ -1,0 +1,86 @@
+<!-- File: templates/notifications.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Notifications</title>
+</head>
+<body>
+<h1>Notifications</h1>
+
+<table id="notifications-table" border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Device</th>
+      <th>Key</th>
+      <th>State</th>
+      <th>Message</th>
+      <th>Timestamp</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- We'll fill this with JavaScript -->
+  </tbody>
+</table>
+
+<script>
+async function fetchNotifications() {
+  try {
+    const resp = await fetch("/api/notifications");
+    const data = await resp.json();
+    if (data.status === "success") {
+      renderNotifications(data.notifications);
+    } else {
+      console.error("Failed to load notifications", data);
+    }
+  } catch (err) {
+    console.error("Error fetching notifications:", err);
+  }
+}
+
+function renderNotifications(notifs) {
+  const tbody = document.querySelector("#notifications-table tbody");
+  tbody.innerHTML = ""; // Clear old rows
+
+  notifs.forEach(n => {
+    const tr = document.createElement("tr");
+
+    let cols = `
+      <td>${n.device}</td>
+      <td>${n.key}</td>
+      <td>${n.state}</td>
+      <td>${n.message}</td>
+      <td>${n.timestamp}</td>
+      <td><button onclick="clearNotification('${n.device}', '${n.key}')">Clear</button></td>
+    `;
+    tr.innerHTML = cols;
+    tbody.appendChild(tr);
+  });
+}
+
+async function clearNotification(device, key) {
+  try {
+    const resp = await fetch("/api/notifications/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device, key })
+    });
+    const data = await resp.json();
+    if (data.status === "success") {
+      // re-fetch the table
+      fetchNotifications();
+    } else {
+      console.error("Failed to clear notification", data);
+    }
+  } catch (err) {
+    console.error("Error clearing notification:", err);
+  }
+}
+
+// On page load, fetch the notifications
+fetchNotifications();
+</script>
+
+</body>
+</html>

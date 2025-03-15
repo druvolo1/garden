@@ -26,6 +26,7 @@ from api.valve_relay import valve_relay_blueprint
 from api.update_code import update_code_blueprint
 from api.ec import ec_blueprint
 from api.debug import debug_blueprint
+from api.notifications import notifications_blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
@@ -228,6 +229,7 @@ app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 app.register_blueprint(debug_blueprint, url_prefix='/debug')
+app.register_blueprint(notifications_blueprint, url_prefix='/api/notifications')
 
 
 ########################################################################
@@ -317,6 +319,10 @@ def device_timezones():
         return jsonify({"status": "success", "timezones": all_timezones}), 200
     except Exception as e:
         return jsonify({"status": "failure", "message": str(e)}), 500
+
+@app.route('/notifications')
+def notifications_page():
+    return render_template('notifications.html')
 
 ########################################################################
 # MAIN
