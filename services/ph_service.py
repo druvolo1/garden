@@ -64,9 +64,10 @@ last_read_time = None
 def parse_buffer(ser):
     """
     Reads data from the global `buffer`, splits on '\r',
-    attempts to parse numeric pH readings, and filters out
-    obviously noisy or implausible readings.
-    On success, update latest_ph_value & possibly emit status_update.
+    and attempts to parse numeric pH readings.
+    
+    - "ph_value" key tracks big-swing errors or 0/14 extremes.
+    - "within_range" key tracks whether pH is inside ph_range from settings.
     """
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
@@ -104,34 +105,47 @@ def parse_buffer(ser):
         try:
             ph_value = round(float(line), 2)
 
-            # If reading is exactly 0 or 14 => post notification
+            # If reading is exactly 0 or 14 => set "ph_value" error
             if ph_value == 0 or ph_value == 14:
                 set_status("ph_probe", "ph_value", "error",
                            f"Unrealistic reading ({ph_value}). Probe or calibration issue?")
 
-            # pH < 1.0 -> skip
+            # pH < 1.0 => ignore as noise
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
+            # Big-swing logic:
             if old_ph_value is not None:
                 delta = abs(ph_value - old_ph_value)
-                # Frequent large swings
+
+                # If delta > 1 => track a "big jump"
                 if delta > 1.0:
                     now = datetime.now()
                     ph_jumps.append(now)
                     cutoff = now - timedelta(seconds=60)
                     ph_jumps = [t for t in ph_jumps if t >= cutoff]
+
                     if len(ph_jumps) >= 5:
                         set_status("ph_probe", "ph_value", "error",
                                    "Frequent large pH swings (5+ in last minute). Probe may be failing.")
+                    else:
+                        # Revert to "ok" if we had been in error for big swings
+                        set_status("ph_probe", "ph_value", "ok",
+                                   f"pH swings stabilized. Only {len(ph_jumps)} big jumps in last minute.")
+
+                # If delta > 2 => skip unless old_ph_value was obviously invalid
                 if delta > 2.0:
-                    # If the last reading was invalid (like >14), accept new
                     if old_ph_value > 14 or old_ph_value < 1:
                         log_with_timestamp(f"Accepting pH correction from {old_ph_value} -> {ph_value}")
                     else:
                         raise ValueError(
                             f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
                         )
+            else:
+                # If this is our first reading, we can explicitly set "ph_value" to OK
+                # if it wasn't already an error from 0 or 14 or big-swing logic
+                set_status("ph_probe", "ph_value", "ok",
+                           f"First valid pH reading: {ph_value}")
 
             # Accept the new pH
             with ph_lock:
@@ -141,8 +155,17 @@ def parse_buffer(ser):
             old_ph_value = ph_value
             last_read_time = datetime.now()
 
-            # Now that we've got a valid reading, set "reading" to "ok"
-            set_status("ph_probe", "reading", "ok", f"pH reading active: {ph_value}")
+            # Now check if it's within the recommended range
+            s = load_settings()
+            ph_min = s.get("ph_range", {}).get("min", 5.5)
+            ph_max = s.get("ph_range", {}).get("max", 6.5)
+
+            if ph_value < ph_min or ph_value > ph_max:
+                set_status("ph_probe", "within_range", "error",
+                           f"pH {ph_value} is out of recommended range [{ph_min}, {ph_max}].")
+            else:
+                set_status("ph_probe", "within_range", "ok",
+                           f"pH {ph_value} is within recommended range [{ph_min}, {ph_max}].")
 
             from status_namespace import emit_status_update
             emit_status_update()
@@ -152,7 +175,6 @@ def parse_buffer(ser):
 
     if buffer:
         log_with_timestamp(f"[DEBUG] parse_buffer leftover buffer: {buffer!r}")
-
 
 def serial_reader():
     """
@@ -172,9 +194,11 @@ def serial_reader():
 
         # If no pH device is assigned, quietly wait 5s and skip
         if not ph_probe_path:
-            # Clear any "communication" or "reading" errors, since we have no device assigned
+            # Clear any "communication" or "reading" or "ph_value" states, since we have no device
             clear_status("ph_probe", "communication")
             clear_status("ph_probe", "reading")
+            clear_status("ph_probe", "ph_value")
+            clear_status("ph_probe", "within_range")
             eventlet.sleep(5)
             continue
 
@@ -195,7 +219,7 @@ def serial_reader():
             set_status("ph_probe", "communication", "ok", f"Opened {ph_probe_path} for pH reading.")
             clear_error("PH_USB_OFFLINE")  # legacy error handling
 
-            # NEW: Also initialize "reading" to "ok" so the dash shows it as OK initially
+            # Initialize 'reading' as ok so the dash shows it as OK initially
             set_status("ph_probe", "reading", "ok", "Initial state: awaiting pH data.")
 
             # Clear buffer on new device connection
@@ -218,15 +242,16 @@ def serial_reader():
                                        "No pH reading available (device assigned, but no data).")
                             last_no_reading_error = datetime.now()
                 else:
-                    # If we do have a reading, you could check if it's too old, etc.
+                    # (Optional) If you want to check if the last_read_time is too old, do it here
                     pass
 
+                # Read up to 100 bytes from the port
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
                     decoded_data = raw_data.decode("utf-8", errors="replace")
                     with ph_lock:
                         buffer += decoded_data
-                        # Buffer overflow => notification
+                        # Buffer overflow => set communication=error
                         if len(buffer) > MAX_BUFFER_LENGTH:
                             log_with_timestamp("Buffer exceeded max length. Dumping buffer.")
                             set_status("ph_probe", "communication", "error",
@@ -238,7 +263,8 @@ def serial_reader():
 
         except (serial.SerialException, OSError) as e:
             log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
-            set_status("ph_probe", "communication", "error", f"Cannot open {ph_probe_path}: {e}")
+            set_status("ph_probe", "communication", "error",
+                       f"Cannot open {ph_probe_path}: {e}")
             set_error("PH_USB_OFFLINE")  # legacy error approach
             eventlet.sleep(5)
 
@@ -246,6 +272,7 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("Serial connection closed.")
+
 
 def send_configuration_commands(ser):
     try:
