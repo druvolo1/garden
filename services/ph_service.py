@@ -63,19 +63,23 @@ last_read_time = None
 
 def parse_buffer(ser):
     """
-    Reads data from the global `buffer`, splits on '\r',
-    and attempts to parse numeric pH readings.
+    Reads data from `buffer`, splitting on '\r',
+    and applies these rules:
+
+    1) If pH is 0 or 14 => "probe_health"=error: bad probe.
+    2) If delta>1 => skip applying reading. If we get 5 such jumps
+       in a minute => "probe_health"=error: "unstable readings."
+       If we go below 5, revert to "probe_health"=ok: "readings appear normal."
+    3) If reading is accepted, check range logic for "within_range."
     """
 
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
 
-    # No references to get_status anymore.
-
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
         last_sent_command = next_cmd["command"]
-        log_with_timestamp(f"[DEBUG] No active command. Sending first queued command: {last_sent_command}")
+        log_with_timestamp(f"[DEBUG] No active command. Sending queued command: {last_sent_command}")
         send_command_to_probe(ser, next_cmd["command"])
 
     while '\r' in buffer:
@@ -85,9 +89,10 @@ def parse_buffer(ser):
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
+        # Possible *OK or *ER responses
         if line in ("*OK", "*ER"):
             if last_sent_command:
-                log_with_timestamp(f"Response '{line}' received for command: {last_sent_command}")
+                log_with_timestamp(f"Response '{line}' for command {last_sent_command}")
                 last_sent_command = None
             else:
                 log_with_timestamp(f"Unexpected response '{line}' (no command in progress)")
@@ -100,64 +105,80 @@ def parse_buffer(ser):
 
         try:
             ph_value = round(float(line), 2)
-
-            # Keep your set_status calls as they originally were:
+            # Indicate we're receiving data
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
 
+            # 1) Condition: If 0 or 14 => "probe_health"=error
             if ph_value == 0 or ph_value == 14:
-                set_status("ph_probe", "ph_value", "error",
-                           f"Unrealistic reading ({ph_value}). Probe or calibration issue?")
+                set_status("ph_probe", "probe_health", "error",
+                           f"Unrealistic reading ({ph_value}). Probe may be bad.")
+                # Typically we'd skip further logic
+                continue
 
+            # If <1 => treat as noise or error
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
+            # 2) Condition: If we have an old reading, see if delta>1 => skip
+            accepted_this_reading = False
             if old_ph_value is not None:
                 delta = abs(ph_value - old_ph_value)
-                log_with_timestamp(f"PH Delta from {old_ph_value} -> {ph_value} is {delta}")
+                log_with_timestamp(f"Delta from {old_ph_value} -> {ph_value} = {delta:.2f}")
 
+                # If delta>1 => we do NOT accept the reading
                 if delta > 1.0:
+                    # Track a "big jump" in the rolling list
                     now = datetime.now()
                     ph_jumps.append(now)
+                    # Purge older than 60s
                     cutoff = now - timedelta(seconds=60)
                     ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
+                    # If we have 5 big jumps => "probe_health"=error: "unstable"
                     if len(ph_jumps) >= 5:
-                        set_status("ph_probe", "ph_value", "error",
-                                   "Frequent large pH swings (5+ in last minute). Probe may be failing.")
+                        set_status("ph_probe", "probe_health", "error",
+                                   "Unstable readings detected (5 large jumps in last minute).")
                     else:
-                        set_status("ph_probe", "ph_value", "ok",
-                                   f"pH swings stabilized. Only {len(ph_jumps)} big jumps in last minute.")
+                        # If it's under 5, "probe_health"=ok: "normal"
+                        set_status("ph_probe", "probe_health", "ok",
+                                   "Readings appear normal now.")
+                    # Skip updating old_ph_value or latest_ph_value
+                    continue
+                else:
+                    # delta <= 1 => accept reading
+                    accepted_this_reading = True
+                    # If we were in an error from big swings, we might revert to "ok"
+                    # as above if len(ph_jumps)<5. Already done above if delta>1
+                    # so if we get a stable reading, let's see if we can reduce jumps
+                    now = datetime.now()
+                    cutoff = now - timedelta(seconds=60)
+                    ph_jumps = [t for t in ph_jumps if t >= cutoff]
+                    if len(ph_jumps) == 0:
+                        set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
 
-                if delta > 2.0:
-                    if old_ph_value > 14 or old_ph_value < 1:
-                        log_with_timestamp(f"Accepting pH correction from {old_ph_value} -> {ph_value}")
-                    else:
-                        raise ValueError(
-                            f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
-                        )
             else:
-                # If this is the first reading we see
-                set_status("ph_probe", "ph_value", "ok",
-                           f"First valid pH reading: {ph_value}")
+                # If no old reading => accept the first reading
+                accepted_this_reading = True
+                set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
 
-            with ph_lock:
-                latest_ph_value = ph_value
-                log_with_timestamp(f"Updated latest pH value: {latest_ph_value}")
+            # If we accepted the reading => update old_ph_value, latest_ph_value, range logic
+            if accepted_this_reading:
+                with ph_lock:
+                    latest_ph_value = ph_value
+                    log_with_timestamp(f"Accepted new pH reading: {ph_value}")
+                old_ph_value = ph_value
+                last_read_time = datetime.now()
 
-            old_ph_value = ph_value
-            last_read_time = datetime.now()
-
-            # Check if it's within recommended range
-            s = load_settings()
-            ph_min = s.get("ph_range", {}).get("min", 5.5)
-            ph_max = s.get("ph_range", {}).get("max", 6.5)
-
-            if ph_value < ph_min or ph_value > ph_max:
-                set_status("ph_probe", "within_range", "error",
-                           f"pH {ph_value} is out of recommended range [{ph_min}, {ph_max}].")
-            else:
-                set_status("ph_probe", "within_range", "ok",
-                           f"pH is within recommended range [{ph_min}, {ph_max}].")
+                # 3) Check if pH is in recommended range => "within_range"
+                s = load_settings()
+                ph_min = s.get("ph_range", {}).get("min", 5.5)
+                ph_max = s.get("ph_range", {}).get("max", 6.5)
+                if ph_value < ph_min or ph_value > ph_max:
+                    set_status("ph_probe", "within_range", "error",
+                               f"pH {ph_value} out of recommended range [{ph_min}, {ph_max}].")
+                else:
+                    set_status("ph_probe", "within_range", "ok",
+                               f"pH is within recommended range [{ph_min}, {ph_max}].")
 
             from status_namespace import emit_status_update
             emit_status_update()
@@ -165,8 +186,10 @@ def parse_buffer(ser):
         except ValueError as e:
             log_with_timestamp(f"Ignoring line '{line}': {e}")
 
+    # If leftover data remains but no '\r' => do nothing
     if buffer:
-        log_with_timestamp(f"[DEBUG] parse_buffer leftover buffer: {buffer!r}")
+        log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
+
 
 def serial_reader():
     """
