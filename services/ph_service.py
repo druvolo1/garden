@@ -170,29 +170,29 @@ def parse_buffer(ser):
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
             accepted_this_reading = False
-            if old_ph_value is not None:
-                delta = abs(ph_value - old_ph_value)
-                log_with_timestamp(f"[DEBUG] parse_buffer: Delta from {old_ph_value} -> {ph_value} = {delta:.2f}")
-                if delta > 1.0:
-                    now = datetime.now()
-                    ph_jumps.append(now)
-                    cutoff = now - timedelta(seconds=60)
-                    ph_jumps = [t for t in ph_jumps if t >= cutoff]
+            if delta > 1.0:
+                now = datetime.now()
+                ph_jumps.append(now)
+                cutoff = now - timedelta(seconds=60)
+                ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                    if len(ph_jumps) >= 5:
-                        set_status("ph_probe", "probe_health", "error",
-                                   "Unstable readings detected (5 large jumps in last minute).")
-                    else:
-                        set_status("ph_probe", "probe_health", "ok",
-                                   "Readings appear normal.")
-                    continue
+                if len(ph_jumps) >= 5:
+                    set_status("ph_probe", "probe_health", "error",
+                            "Unstable readings detected (5 large jumps in last minute).")
                 else:
-                    accepted_this_reading = True
-                    now = datetime.now()
-                    cutoff = now - timedelta(seconds=60)
-                    ph_jumps = [t for t in ph_jumps if t >= cutoff]
-                    if len(ph_jumps) == 0:
-                        set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
+                    set_status("ph_probe", "probe_health", "ok",
+                            "Readings appear normal.")
+
+                # The important fix: update old_ph_value so we don't keep comparing to the
+                # stale baseline
+                old_ph_value = ph_value
+
+                # Possibly also store latest_ph_value if you want the UI to see it:
+                with ph_lock:
+                    latest_ph_value = ph_value
+
+                continue
+
             else:
                 # first reading
                 accepted_this_reading = True
