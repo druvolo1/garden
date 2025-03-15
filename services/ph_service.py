@@ -65,12 +65,26 @@ def parse_buffer(ser):
     """
     Reads data from the global `buffer`, splits on '\r',
     and attempts to parse numeric pH readings.
-    
+
     - "ph_value" key tracks big-swing errors or 0/14 extremes.
     - "within_range" key tracks whether pH is inside ph_range from settings.
     """
+
+    from services.notification_service import get_status  # or you can do this at the top
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
+
+    def set_status_if_changed(device: str, key: str, new_state: str, new_msg: str = ""):
+        """
+        Only call set_status(...) if state/message differ from the current stored values,
+        preventing constant timestamp updates if nothing changes.
+        """
+        old_status = get_status(device, key)
+        old_state = old_status["state"] if (old_status and "state" in old_status) else None
+        old_msg = old_status["message"] if (old_status and "message" in old_status) else None
+
+        if old_state != new_state or old_msg != new_msg:
+            set_status(device, key, new_state, new_msg)
 
     # If we have a queued command but no active command
     if last_sent_command is None and not command_queue.empty():
@@ -104,12 +118,14 @@ def parse_buffer(ser):
         # Try to parse a numeric pH reading
         try:
             ph_value = round(float(line), 2)
-            set_status("ph_probe", "reading", "ok", "Receiving readings.")
+
+            # Instead of always setting reading=ok with a pH in the message, remove the pH from the message:
+            set_status_if_changed("ph_probe", "reading", "ok", "Receiving data.")
 
             # If reading is exactly 0 or 14 => set "ph_value" error
             if ph_value == 0 or ph_value == 14:
-                set_status("ph_probe", "ph_value", "error",
-                           f"Unrealistic reading ({ph_value}). Probe or calibration issue?")
+                set_status_if_changed("ph_probe", "ph_value", "error",
+                                      "Unrealistic reading (0 or 14). Probe or calibration issue?")
 
             # pH < 1.0 => ignore as noise
             if ph_value < 1.0:
@@ -128,12 +144,12 @@ def parse_buffer(ser):
                     ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
                     if len(ph_jumps) >= 5:
-                        set_status("ph_probe", "ph_value", "error",
-                                   "Frequent large pH swings (5+ in last minute). Probe may be failing.")
+                        set_status_if_changed("ph_probe", "ph_value", "error",
+                            "Frequent large pH swings (5+ in last minute). Probe may be failing.")
                     else:
-                        # Revert to "ok" if we had been in error for big swings
-                        set_status("ph_probe", "ph_value", "ok",
-                                   f"pH swings stabilized. Only {len(ph_jumps)} big jumps in last minute.")
+                        # If it was in error for big swings, revert to "ok" if stable
+                        set_status_if_changed("ph_probe", "ph_value", "ok",
+                            "pH swings stabilized. Fewer than 5 big jumps in last minute.")
 
                 # If delta > 2 => skip unless old_ph_value was obviously invalid
                 if delta > 2.0:
@@ -144,10 +160,9 @@ def parse_buffer(ser):
                             f"Ignoring pH jump >2 from old {old_ph_value} -> new {ph_value}"
                         )
             else:
-                # If this is our first reading, we can explicitly set "ph_value" to OK
-                # if it wasn't already an error from 0 or 14 or big-swing logic
-                set_status("ph_probe", "ph_value", "ok",
-                           f"First valid pH reading: {ph_value}")
+                # If this is our first reading, set "ph_value" to OK, no pH in the message
+                set_status_if_changed("ph_probe", "ph_value", "ok",
+                    "First valid pH reading acquired.")
 
             # Accept the new pH
             with ph_lock:
@@ -163,11 +178,12 @@ def parse_buffer(ser):
             ph_max = s.get("ph_range", {}).get("max", 6.5)
 
             if ph_value < ph_min or ph_value > ph_max:
-                set_status("ph_probe", "within_range", "error",
-                           f"pH {ph_value} is out of recommended range [{ph_min}, {ph_max}].")
+                set_status_if_changed("ph_probe", "within_range", "error",
+                    f"pH {ph_value} out of recommended range [{ph_min}, {ph_max}].")
             else:
-                set_status("ph_probe", "within_range", "ok",
-                           f"pH is within recommended range [{ph_min}, {ph_max}].")
+                # Remove the actual pH from the message to avoid extra updates
+                set_status_if_changed("ph_probe", "within_range", "ok",
+                    "pH is within recommended range.")
 
             from status_namespace import emit_status_update
             emit_status_update()
