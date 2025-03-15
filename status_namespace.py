@@ -208,8 +208,10 @@ def emit_status_update(force_emit=False):
         if local_valve_device:
             # If a local USB valve device is assigned, output all 8 valves
             log_with_timestamp("[DEBUG] Local valve_relay device is assigned; adding all 8 valves.")
+            valve_labels = settings.get("valve_labels", {})
             for i in range(1, 9):
-                label = f"Valve {i}"
+                # Use the custom label if present, otherwise fallback
+                label = valve_labels.get(str(i), f"Valve {i}")
                 aggregator_map[label] = {
                     "label": label,
                     "status": get_valve_status(i)
