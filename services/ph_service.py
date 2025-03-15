@@ -293,7 +293,7 @@ def serial_reader():
 
             # Enable continuous read mode on connect
             log_with_timestamp("[DEBUG] Enabling continuous read mode now that the device is open.")
-            send_command_to_probe(ser, "C,1")
+            send_command_to_probe(ser, "C,5")
 
             while not stop_event.ready():
                 if last_read_time:
@@ -523,10 +523,10 @@ def enqueue_disable_continuous():
 
 def enqueue_enable_continuous():
     """
-    Enqueues a command to re-enable continuous output: C,1
+    Enqueues a command to re-enable continuous output: C,5
     """
-    log_with_timestamp("[DEBUG] enqueue_enable_continuous() -> putting C,1 in queue.")
-    enqueue_command("C,1", "general")
+    log_with_timestamp("[DEBUG] enqueue_enable_continuous() -> putting C,5 in queue.")
+    enqueue_command("C,5", "general")
 
 
 def enqueue_slope_query():
