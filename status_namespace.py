@@ -235,6 +235,7 @@ def emit_status_update(force_emit=False):
                 aggregator_map[drain_valve_label] = {
                     "label": drain_valve_label,
                     "status": st
+                }
         # 6) Keep .local names in valve_info but resolve them for the actual connections
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
         drain_valve_ip = settings.get("drain_valve_ip", "").strip()
