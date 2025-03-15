@@ -249,9 +249,6 @@ def serial_reader():
             # Initialize 'reading' as ok so the dash shows it as OK initially
             set_status("ph_probe", "reading", "ok", "Initial state: awaiting pH data.")
 
-            # Also initialize 'ph_value' as ok, so it appears in the dashboard from the start
-            set_status("ph_probe", "ph_value", "ok", "No pH reading yet.")
-
             # Clear buffer on new device connection
             with ph_lock:
                 buffer = ""
