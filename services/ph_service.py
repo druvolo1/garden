@@ -14,7 +14,7 @@ from eventlet import semaphore, event
 
 from services.error_service import set_error, clear_error
 # Import your notifications helper (not shown here) for set_status/clear_status
-from services.notification_service import set_status, clear_status
+from services.notification_service import set_status, clear_status, get_status
 
 from utils.settings_utils import load_settings, save_settings
 
