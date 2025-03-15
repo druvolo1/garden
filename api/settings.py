@@ -19,7 +19,7 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.52"
+PROGRAM_VERSION = "1.0.55"
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
@@ -33,7 +33,7 @@ if not os.path.exists(SETTINGS_FILE):
             "dosing_interval": 1.0,
             "system_volume": 5.5,
             "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-            "auto_dosing_enabled": True,
+            "auto_dosing_enabled": False,
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
             "usb_roles": {
@@ -203,7 +203,7 @@ def reset_settings():
         "dosing_interval": 1.0,
         "system_volume": 5.5,
         "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-        "auto_dosing_enabled": True,
+        "auto_dosing_enabled": False,
         "time_zone": "America/New_York",
         "daylight_savings_enabled": True,
         "usb_roles": {
