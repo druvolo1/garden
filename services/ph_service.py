@@ -76,6 +76,7 @@ def parse_buffer(ser):
 
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
+    global slope_data, slope_event  # so we can update slope_data, slope_event
 
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
@@ -110,7 +111,6 @@ def parse_buffer(ser):
         # Slope
         if line.startswith("?Slope,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
-            global slope_data, slope_event
             try:
                 payload = line.replace("?Slope,", "")
                 parts = payload.split(",")
@@ -123,6 +123,16 @@ def parse_buffer(ser):
                     "offset": offset
                 }
                 log_with_timestamp(f"[DEBUG] parse_buffer: slope_data set to {slope_data}")
+
+                # ─────────────────────────────────────────────────────────
+                # Save slope to settings immediately after parsing it
+                from utils.settings_utils import load_settings, save_settings
+                s = load_settings()
+                s["ph_probe_slope"] = slope_data
+                save_settings(s)
+                log_with_timestamp(f"[DEBUG] Slope data saved to settings: {slope_data}")
+                # ─────────────────────────────────────────────────────────
+
                 last_sent_command = None
                 slope_event.send()
 
@@ -205,6 +215,7 @@ def parse_buffer(ser):
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
 
 
+
 def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
@@ -246,6 +257,13 @@ def serial_reader():
                 latest_ph_value = None
                 last_read_time = None
                 log_with_timestamp("[DEBUG] Buffer cleared on new device connection.")
+
+            # ─────────────────────────────────────────────────────────────
+            # Enable continuous read mode as soon as we connect:
+            # (Use "C,1" or "C,2" depending on your device/ASCII vs. continuous)
+            log_with_timestamp("[DEBUG] Enabling continuous read mode now that the device is open.")
+            send_command_to_probe(ser, "C,1")
+            # ─────────────────────────────────────────────────────────────
 
             while not stop_event.ready():
                 if last_read_time:
@@ -293,6 +311,7 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("[DEBUG] Serial connection closed.")
+
 
 
 def send_configuration_commands(ser):
@@ -429,7 +448,7 @@ def enqueue_disable_continuous():
     Enqueues a command to disable continuous output: C,0
     """
     log_with_timestamp("[DEBUG] enqueue_disable_continuous() -> putting C,0 in queue.")
-    enqueue_command("C,1", "general")
+    enqueue_command("C,0", "general")
 
 def enqueue_enable_continuous():
     """
@@ -443,10 +462,8 @@ def enqueue_slope_query():
     """
     1. Enqueue "C,0" to stop continuous streaming
     2. Enqueue "Slope,?" so we can get a well-formed slope response
-    3. Do NOT re-enable continuous mode until we see the slope line or we time out
-
-    Wait up to 3 seconds for parse_buffer() to see the "?Slope," line.
-    We'll add debug lines along the way for clarity.
+    3. We do NOT re-enable continuous mode here, unless you want to.
+       Wait up to 3 seconds for parse_buffer() to see the "?Slope," line.
     """
     global slope_event, slope_data
 
@@ -462,7 +479,9 @@ def enqueue_slope_query():
     log_with_timestamp("[DEBUG] enqueue_slope_query() -> queueing 'Slope,?'")
     enqueue_command("Slope,?", "slope_query")
 
-    # We won't re-enable continuous reading until we actually see the slope, as requested.
+    # We'll only re-enable continuous reading once the slope line arrives,
+    # or if you prefer, do it after the function returns.
+
     log_with_timestamp("[DEBUG] enqueue_slope_query() -> about to WAIT up to 3s for slope_event.")
     try:
         with eventlet.timeout.Timeout(3, False):
@@ -486,4 +505,21 @@ def get_slope_info():
         log_with_timestamp("[DEBUG] get_slope_info() -> slope_data is None (timed out or not found).")
     else:
         log_with_timestamp(f"[DEBUG] get_slope_info() -> success, slope_data={result}")
+        # If you want to re-enable continuous reading right away:
+        # enqueue_enable_continuous()
+    return result
+
+def get_slope_info():
+    """
+    Called from /api/ph/slope endpoint. 
+    Returns slope data or None on timeout/failure.
+    """
+    log_with_timestamp("[DEBUG] get_slope_info() called. Will run enqueue_slope_query() now...")
+    result = enqueue_slope_query()
+    if result is None:
+        log_with_timestamp("[DEBUG] get_slope_info() -> slope_data is None (timed out or not found).")
+    else:
+        log_with_timestamp(f"[DEBUG] get_slope_info() -> success, slope_data={result}")
+        # If you want to re-enable continuous reading right away:
+        # enqueue_enable_continuous()
     return result
