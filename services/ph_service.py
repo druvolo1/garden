@@ -39,6 +39,10 @@ def log_with_timestamp(message):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}", flush=True)
 
 def enqueue_command(command, command_type="general"):
+    """
+    Place a command into the queue.
+    command_type can be "calibration", "slope_query", or "general".
+    """
     command_queue.put({"command": command, "type": command_type})
 
 def send_command_to_probe(ser, command):
@@ -59,6 +63,14 @@ ph_jumps = []  # list of datetime objects when a big jump occurred
 # Track last time we successfully parsed a reading
 last_read_time = None
 
+# --------------------------------------------------------------------
+# These globals are for capturing slope data
+# We'll set them when parse_buffer sees a "?Slope,..." line
+# and we are waiting for slope.
+# --------------------------------------------------------------------
+slope_event = event.Event()  # We'll re-create it each time we do a slope query
+slope_data = None            # Will store {'acid_slope':..., 'base_slope':..., 'offset':...}
+
 def parse_buffer(ser):
     """
     Reads data from `buffer`, splitting on '\r',
@@ -69,6 +81,7 @@ def parse_buffer(ser):
        in a minute => "probe_health"=error: "unstable readings."
        If we go below 5, revert to "probe_health"=ok: "readings appear normal."
     3) If reading is accepted, check range logic for "within_range."
+    4) If we get a line like "?Slope,98.0,97.5,-3.2" => handle slope logic
     """
 
     global buffer, latest_ph_value, last_sent_command
@@ -104,7 +117,41 @@ def parse_buffer(ser):
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
-        # Attempt to parse a pH reading
+        # --------------------------------------------------------------------
+        # Slope logic: If line starts with "?Slope,"
+        # This means the device responded to "Slope,?" with e.g. "?Slope,98.0,97.5,-3.2"
+        # We'll parse it, store it in slope_data, and slope_event.send().
+        # --------------------------------------------------------------------
+        if line.startswith("?Slope,"):
+            log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
+            try:
+                payload = line.replace("?Slope,", "")  # => "98.0,97.5,-3.2"
+                parts = payload.split(",")
+                acid = float(parts[0])
+                base = float(parts[1])
+                offset = float(parts[2])
+                # set the global slope_data
+                global slope_data, slope_event
+                slope_data = {
+                    "acid_slope": acid,
+                    "base_slope": base,
+                    "offset": offset
+                }
+                # Mark that we've handled that command
+                last_sent_command = None
+                # wake up the waiting thread
+                slope_event.send()
+                # If there's another queued command, we can send it
+                if not command_queue.empty():
+                    next_cmd = command_queue.get()
+                    last_sent_command = next_cmd["command"]
+                    log_with_timestamp(f"Sending next queued command: {last_sent_command}")
+                    send_command_to_probe(ser, next_cmd["command"])
+            except Exception as e:
+                log_with_timestamp(f"Error parsing slope line '{line}': {e}")
+            continue
+
+        # Attempt to parse a numeric pH reading
         try:
             ph_value = round(float(line), 2)
             # Indicate we're receiving data
@@ -188,29 +235,20 @@ def serial_reader():
     """
     Main loop that reads from the assigned ph_probe_path, stores data in `buffer`,
     and calls parse_buffer() to handle lines and commands.
-
-    - If we cannot open the port 5 times in a row, set communication=error.
-    - Once opened successfully, we continuously read until we see an actual
-      I/O error or the stop_event is triggered.
-    - If no reading is received for 30s, set reading=error (once every 30s to avoid spam).
-    - We do NOT close the port (or mark it error) merely because a read() returns 0 bytes.
+    ...
     """
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
     print("DEBUG: Entered serial_reader() at all...")
 
-    # Track how many times in a row we fail to open the USB device
     consecutive_fails = 0
     MAX_FAILS = 5
-
-    # Track the last time we raised the "no reading" error so we don't spam
     last_no_reading_error_time = None
 
     while not stop_event.ready():
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
-        # If no pH device is assigned, wait a bit and clear statuses
         if not ph_probe_path:
             clear_status("ph_probe", "communication")
             clear_status("ph_probe", "reading")
@@ -229,15 +267,13 @@ def serial_reader():
 
             log_with_timestamp(f"Currently assigned pH probe device: {ph_probe_path}")
 
-            # Try opening the serial port
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
-            consecutive_fails = 0  # reset on success
+            consecutive_fails = 0
 
             set_status("ph_probe", "communication", "ok",
                        f"Opened {ph_probe_path} for pH reading.")
-            clear_error("PH_USB_OFFLINE")  # legacy error handling
+            clear_error("PH_USB_OFFLINE")
 
-            # Start fresh state
             with ph_lock:
                 buffer = ""
                 old_ph_value = None
@@ -245,9 +281,7 @@ def serial_reader():
                 last_read_time = None
                 log_with_timestamp("Buffer cleared on new device connection.")
 
-            # We read indefinitely until exception or stop_event
             while not stop_event.ready():
-                # If no reading for 30s => set reading=error once every 30s
                 if last_read_time:
                     elapsed = (datetime.now() - last_read_time).total_seconds()
                     if elapsed > 30:
@@ -260,9 +294,6 @@ def serial_reader():
                                 "No pH reading available for 30+ seconds."
                             )
                             last_no_reading_error_time = datetime.now()
-                else:
-                    # If never received a reading and it's been >30s since open, same logic
-                    pass
 
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
@@ -279,7 +310,6 @@ def serial_reader():
                     eventlet.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
-            # We failed either on open or on read
             consecutive_fails += 1
             log_with_timestamp(
                 f"Serial error on {ph_probe_path}: {e}. "
@@ -309,8 +339,7 @@ def send_configuration_commands(ser):
 def calibrate_ph(ser, level):
     """
     Directly sends calibration commands to the pH probe.
-    Recommended to use enqueue_calibration(...) if you want them queued
-    instead of immediate direct send.
+    ...
     """
     valid_levels = {
         'low': 'Cal,low,4.00',
@@ -359,9 +388,6 @@ def enqueue_calibration(level):
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
 
 def restart_serial_reader():
-    """
-    Stops the current serial_reader thread (if any), clears buffer/state, and spawns a new one.
-    """
     global stop_event, buffer, latest_ph_value
     log_with_timestamp("Restarting serial reader...")
 
@@ -371,8 +397,7 @@ def restart_serial_reader():
         log_with_timestamp("Buffer and latest pH value cleared.")
 
     stop_serial_reader()
-
-    eventlet.sleep(1)  # ensure old thread is done
+    eventlet.sleep(1)
     stop_event = event.Event()
     start_serial_reader()
 
@@ -407,7 +432,6 @@ def get_latest_ph_reading():
     settings = load_settings()
     ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
     if not ph_probe_path:
-        # No device assigned -> return None, no log
         return None
 
     with ph_lock:
@@ -431,79 +455,36 @@ def handle_stop_signal(signum, frame):
     graceful_exit(signum, frame)
 
 # ----------------------------------------------------------------------
-# NEW: Function to query Slope info from the probe on demand
+# QUEUE-BASED SLOPE QUERY
 # ----------------------------------------------------------------------
 
-def get_slope_info(timeout=1.0):
+def enqueue_slope_query():
     """
-    Sends 'Slope,?' to the EZO pH probe, waits briefly for a response like:
-      ?Slope,ACID,BASE,OFFSET
-    Returns a dict:
-      { 'acid_slope': float, 'base_slope': float, 'offset': float }
-    or None on failure.
-
-    Note: This function does a direct blocking read from the serial port,
-    which might not fully align with your concurrency approach. If you prefer
-    a queued approach, adapt accordingly.
+    Enqueues "Slope,?" with command_type="slope_query".
+    Then we wait for parse_buffer to see the response "?Slope,xx,yy,zz".
+    We'll store that in 'slope_data' and slope_event.send().
+    We'll return slope_data from here or None on timeout.
     """
-    global ser
+    global slope_event, slope_data
 
-    # If the port isn't open, try opening it or fail
-    if not ser or not ser.is_open:
-        # Optionally, try to open. Or else return None.
-        try:
-            settings = load_settings()
-            ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
-            if not ph_probe_path:
-                log_with_timestamp("No pH device assigned, cannot get slope.")
-                return None
-            ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
-        except Exception as e:
-            log_with_timestamp(f"Cannot open port for slope check: {e}")
-            return None
+    # re-create event each time
+    slope_event = event.Event()
+    slope_data = None
 
-    # flush any leftover:
+    enqueue_command("Slope,?", "slope_query")
+
+    # Wait up to 3 seconds for parse_buffer to set slope_data
     try:
-        ser.reset_input_buffer()
-    except:
-        pass
-
-    # send the command
-    slope_cmd = "Slope,?"
-    try:
-        log_with_timestamp(f"Sending slope command: {slope_cmd}")
-        ser.write((slope_cmd + "\r").encode())
-    except Exception as e:
-        log_with_timestamp(f"Error writing slope command: {e}")
+        with eventlet.timeout.Timeout(3, False):
+            slope_event.wait()
+    except eventlet.timeout.Timeout:
         return None
 
-    # read lines up to `timeout`
-    end_time = datetime.now() + timedelta(seconds=timeout)
-    slope_line = None
+    return slope_data
 
-    while datetime.now() < end_time:
-        raw_line = ser.readline().decode("utf-8", errors="replace").strip()
-        if raw_line.startswith("?Slope,"):
-            slope_line = raw_line
-            break
-        eventlet.sleep(0.01)  # short sleep
-
-    if not slope_line:
-        log_with_timestamp("Did not receive slope response.")
-        return None
-
-    # parse something like "?Slope,98.0,97.5,-3.2"
-    try:
-        payload = slope_line.replace("?Slope,", "")  # => "98.0,97.5,-3.2"
-        parts = payload.split(",")
-        acid_slope = float(parts[0])
-        base_slope = float(parts[1])
-        offset = float(parts[2])
-        return {
-            "acid_slope": acid_slope,
-            "base_slope": base_slope,
-            "offset": offset
-        }
-    except Exception as e:
-        log_with_timestamp(f"Error parsing slope line '{slope_line}': {e}")
-        return None
+def get_slope_info():
+    """
+    A convenient function you can call from your /api/ph/slope endpoint.
+    Returns the slope data or None if we couldn't get it in time.
+    """
+    return enqueue_slope_query()
