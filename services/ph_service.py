@@ -43,6 +43,7 @@ def enqueue_command(command, command_type="general"):
     Place a command into the queue.
     command_type can be "calibration", "slope_query", or "general".
     """
+    log_with_timestamp(f"[DEBUG] enqueue_command('{command}', type='{command_type}') called.")
     command_queue.put({"command": command, "type": command_type})
 
 def send_command_to_probe(ser, command):
@@ -51,7 +52,7 @@ def send_command_to_probe(ser, command):
     """
     global last_sent_command
     try:
-        log_with_timestamp(f"[DEBUG] Sending to probe: {command!r}")
+        log_with_timestamp(f"[DEBUG] Actually writing to serial: {command!r}")
         ser.write((command + '\r').encode())
         last_sent_command = command
     except Exception as e:
@@ -76,11 +77,10 @@ def parse_buffer(ser):
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
 
-    # If there's a queued command waiting and we are not in the middle of another
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
         last_sent_command = next_cmd["command"]
-        log_with_timestamp(f"[DEBUG] No active command. Sending queued command: {last_sent_command}")
+        log_with_timestamp(f"[DEBUG] parse_buffer: Taking next command from queue: {last_sent_command}")
         send_command_to_probe(ser, next_cmd["command"])
 
     while '\r' in buffer:
@@ -90,19 +90,20 @@ def parse_buffer(ser):
             log_with_timestamp("[DEBUG] parse_buffer: skipping empty line.")
             continue
 
+        log_with_timestamp(f"[DEBUG] parse_buffer: got line '{line}'")
+
         # *OK / *ER
         if line in ("*OK", "*ER"):
             if last_sent_command:
-                log_with_timestamp(f"Response '{line}' for command {last_sent_command}")
+                log_with_timestamp(f"[DEBUG] parse_buffer: response '{line}' for command {last_sent_command}")
                 last_sent_command = None
             else:
-                log_with_timestamp(f"Unexpected response '{line}' (no command in progress)")
+                log_with_timestamp(f"[DEBUG] parse_buffer: unexpected '{line}' (no command in progress)")
 
-            # If there's another queued command, send it
             if not command_queue.empty():
                 next_cmd = command_queue.get()
                 last_sent_command = next_cmd["command"]
-                log_with_timestamp(f"Sending next queued command: {last_sent_command}")
+                log_with_timestamp(f"[DEBUG] parse_buffer: Now sending next queued command: {last_sent_command}")
                 send_command_to_probe(ser, next_cmd["command"])
             continue
 
@@ -121,14 +122,14 @@ def parse_buffer(ser):
                     "base_slope": base,
                     "offset": offset
                 }
+                log_with_timestamp(f"[DEBUG] parse_buffer: slope_data set to {slope_data}")
                 last_sent_command = None
                 slope_event.send()
 
-                # If there's another queued command, process it
                 if not command_queue.empty():
                     nxt = command_queue.get()
                     last_sent_command = nxt["command"]
-                    log_with_timestamp(f"Sending next queued command: {last_sent_command}")
+                    log_with_timestamp(f"[DEBUG] parse_buffer: sending next queued command: {last_sent_command}")
                     send_command_to_probe(ser, nxt["command"])
             except Exception as e:
                 log_with_timestamp(f"Error parsing slope line '{line}': {e}")
@@ -138,6 +139,7 @@ def parse_buffer(ser):
         try:
             ph_value = round(float(line), 2)
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
+            log_with_timestamp(f"[DEBUG] parse_buffer: recognized numeric pH => {ph_value}")
 
             if ph_value == 0 or ph_value == 14:
                 set_status("ph_probe", "probe_health", "error",
@@ -150,7 +152,7 @@ def parse_buffer(ser):
             accepted_this_reading = False
             if old_ph_value is not None:
                 delta = abs(ph_value - old_ph_value)
-                log_with_timestamp(f"Delta from {old_ph_value} -> {ph_value} = {delta:.2f}")
+                log_with_timestamp(f"[DEBUG] parse_buffer: Delta from {old_ph_value} -> {ph_value} = {delta:.2f}")
                 if delta > 1.0:
                     now = datetime.now()
                     ph_jumps.append(now)
@@ -197,7 +199,7 @@ def parse_buffer(ser):
             emit_status_update()
 
         except ValueError as e:
-            log_with_timestamp(f"Ignoring line '{line}': {e}")
+            log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': {e}")
 
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
@@ -226,12 +228,11 @@ def serial_reader():
             try:
                 dev_list = subprocess.check_output("ls /dev/serial/by-id", shell=True).decode().splitlines()
                 dev_list_str = ", ".join(dev_list) if dev_list else "No devices found"
-                log_with_timestamp(f"Devices in /dev/serial/by-id: {dev_list_str}")
+                log_with_timestamp(f"[DEBUG] Found devices: {dev_list_str}")
             except subprocess.CalledProcessError:
-                log_with_timestamp("No devices found in /dev/serial/by-id (subprocess error).")
+                log_with_timestamp("[DEBUG] No devices found in /dev/serial/by-id (subprocess error).")
 
-            log_with_timestamp(f"Currently assigned pH probe device: {ph_probe_path}")
-
+            log_with_timestamp(f"[DEBUG] Trying to open serial port: {ph_probe_path}")
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
             consecutive_fails = 0
 
@@ -244,7 +245,7 @@ def serial_reader():
                 old_ph_value = None
                 latest_ph_value = None
                 last_read_time = None
-                log_with_timestamp("Buffer cleared on new device connection.")
+                log_with_timestamp("[DEBUG] Buffer cleared on new device connection.")
 
             while not stop_event.ready():
                 if last_read_time:
@@ -266,7 +267,7 @@ def serial_reader():
                     with ph_lock:
                         buffer += decoded_data
                         if len(buffer) > MAX_BUFFER_LENGTH:
-                            log_with_timestamp("Buffer exceeded max length. Dumping buffer.")
+                            log_with_timestamp("[DEBUG] Buffer exceeded max length. Dumping buffer.")
                             set_status("ph_probe", "communication", "error",
                                        "Buffer exceeded max length. Dumping buffer.")
                             buffer = ""
@@ -277,7 +278,7 @@ def serial_reader():
         except (serial.SerialException, OSError) as e:
             consecutive_fails += 1
             log_with_timestamp(
-                f"Serial error on {ph_probe_path}: {e}. "
+                f"[DEBUG] Serial error on {ph_probe_path}: {e}. "
                 f"Reconnecting in 5s... (fail #{consecutive_fails})"
             )
 
@@ -291,16 +292,16 @@ def serial_reader():
         finally:
             if ser and ser.is_open:
                 ser.close()
-                log_with_timestamp("Serial connection closed.")
+                log_with_timestamp("[DEBUG] Serial connection closed.")
 
 
 def send_configuration_commands(ser):
     try:
-        log_with_timestamp("Sending configuration commands to the pH probe...")
+        log_with_timestamp("[DEBUG] Sending default config commands: 'C,2'")
         command = "C,2"
         send_command_to_probe(ser, command)
     except Exception as e:
-        log_with_timestamp(f"Error sending configuration commands: {e}")
+        log_with_timestamp(f"[DEBUG] Error sending configuration commands: {e}")
 
 
 def calibrate_ph(ser, level):
@@ -313,18 +314,19 @@ def calibrate_ph(ser, level):
 
     global last_sent_command
     if level not in valid_levels:
-        log_with_timestamp(f"Invalid calibration level: {level}")
+        log_with_timestamp(f"[DEBUG] Invalid calibration level: {level}")
         return {"status": "failure", "message": "Invalid calibration level"}
 
     with ph_lock:
         command = valid_levels[level]
         if last_sent_command is None:
+            log_with_timestamp(f"[DEBUG] calibrate_ph() -> sending: {command}")
             send_command_to_probe(ser, command)
             last_sent_command = command
-            log_with_timestamp(f"Calibration command '{command}' sent.")
             return {"status": "success", "message": f"Calibration command '{command}' sent"}
         else:
-            log_with_timestamp(f"Cannot send calibration command '{command}' while waiting for a response.")
+            msg = f"[DEBUG] calibrate_ph() -> cannot send '{command}' while waiting for response."
+            log_with_timestamp(msg)
             return {"status": "failure", "message": "A command is already in progress"}
 
 
@@ -342,18 +344,19 @@ def enqueue_calibration(level):
                        f"Must be one of {list(valid_levels.keys())}."
         }
     command = valid_levels[level]
+    log_with_timestamp(f"[DEBUG] enqueue_calibration('{level}') -> puts '{command}' in queue")
     command_queue.put({"command": command, "type": "calibration"})
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
 
 
 def restart_serial_reader():
     global stop_event, buffer, latest_ph_value
-    log_with_timestamp("Restarting serial reader...")
+    log_with_timestamp("[DEBUG] restart_serial_reader() called.")
 
     with ph_lock:
         buffer = ""
         latest_ph_value = None
-        log_with_timestamp("Buffer and latest pH value cleared.")
+        log_with_timestamp("[DEBUG] Buffer and latest pH value cleared for restart.")
 
     stop_serial_reader()
     eventlet.sleep(1)
@@ -362,70 +365,77 @@ def restart_serial_reader():
 
 def get_last_sent_command():
     global last_sent_command
-    return last_sent_command if last_sent_command else "No command has been sent yet."
+    result = last_sent_command if last_sent_command else "No command has been sent yet."
+    log_with_timestamp(f"[DEBUG] get_last_sent_command() -> {result}")
+    return result
 
 def start_serial_reader():
+    log_with_timestamp("[DEBUG] start_serial_reader() -> spawning serial_reader thread.")
     eventlet.spawn(serial_reader)
-    log_with_timestamp("Serial reader started.")
 
 def stop_serial_reader():
     global buffer, latest_ph_value, ser
-    log_with_timestamp("Stopping serial reader...")
+    log_with_timestamp("[DEBUG] stop_serial_reader() called.")
 
     with ph_lock:
         buffer = ""
         latest_ph_value = None
-        log_with_timestamp("Buffer and latest pH value cleared during stop.")
+        log_with_timestamp("[DEBUG] Buffer and latest pH value cleared during stop.")
 
     if ser and ser.is_open:
         ser.close()
-        log_with_timestamp("Serial connection closed.")
+        log_with_timestamp("[DEBUG] Serial connection closed.")
 
     stop_event.send()
-    log_with_timestamp("Serial reader stopped.")
+    log_with_timestamp("[DEBUG] serial_reader stopped via event.")
+
 
 def get_latest_ph_reading():
     global latest_ph_value
     settings = load_settings()
     ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
     if not ph_probe_path:
+        log_with_timestamp("[DEBUG] get_latest_ph_reading() -> no pH device assigned.")
         return None
 
     with ph_lock:
         if latest_ph_value is not None:
+            log_with_timestamp(f"[DEBUG] get_latest_ph_reading() -> returning {latest_ph_value}")
             return latest_ph_value
 
-    log_with_timestamp("No pH reading available.")
+    log_with_timestamp("[DEBUG] get_latest_ph_reading() -> no pH reading available.")
     return None
 
 def graceful_exit(signum, frame):
-    log_with_timestamp(f"Received signal {signum}. Cleaning up...")
+    log_with_timestamp(f"[DEBUG] Received signal {signum}. Doing graceful_exit...")
     try:
         stop_serial_reader()
     except Exception as e:
-        log_with_timestamp(f"Error during cleanup: {e}")
-    log_with_timestamp("Cleanup complete. Exiting application.")
+        log_with_timestamp(f"[DEBUG] Error during cleanup: {e}")
+    log_with_timestamp("[DEBUG] Cleanup complete. Exiting.")
     raise SystemExit()
 
 def handle_stop_signal(signum, frame):
-    log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
+    log_with_timestamp(f"[DEBUG] Received signal {signum} (SIGTSTP). will graceful_exit..")
     graceful_exit(signum, frame)
 
 
 # ----------------------------------------------------------------------
-# QUEUE-BASED SLOPE QUERY: Turn off continuous mode, request slope, re-enable
+# QUEUE-BASED SLOPE QUERY: Turn off continuous mode, request slope
 # ----------------------------------------------------------------------
 
 def enqueue_disable_continuous():
     """
     Enqueues a command to disable continuous output: C,0
     """
+    log_with_timestamp("[DEBUG] enqueue_disable_continuous() -> putting C,0 in queue.")
     enqueue_command("C,0", "general")
 
 def enqueue_enable_continuous():
     """
     Enqueues a command to re-enable continuous output: C,1
     """
+    log_with_timestamp("[DEBUG] enqueue_enable_continuous() -> putting C,1 in queue.")
     enqueue_command("C,1", "general")
 
 
@@ -433,39 +443,47 @@ def enqueue_slope_query():
     """
     1. Enqueue "C,0" to stop continuous streaming
     2. Enqueue "Slope,?" so we can get a well-formed slope response
-    3. Optionally re-enable continuous mode "C,1" if you want to resume streaming
+    3. Do NOT re-enable continuous mode until we see the slope line or we time out
 
     Wait up to 3 seconds for parse_buffer() to see the "?Slope," line.
+    We'll add debug lines along the way for clarity.
     """
     global slope_event, slope_data
+
+    log_with_timestamp("[DEBUG] enqueue_slope_query() called. Will set up slope_event and slope_data.")
     slope_event = event.Event()
     slope_data = None
 
     # Step 1: turn off continuous
+    log_with_timestamp("[DEBUG] enqueue_slope_query() -> disabling continuous mode by queueing 'C,0'")
     enqueue_disable_continuous()
 
     # Step 2: slope
+    log_with_timestamp("[DEBUG] enqueue_slope_query() -> queueing 'Slope,?'")
     enqueue_command("Slope,?", "slope_query")
 
-    # Step 3: (Optional) If you want to re-enable streaming after slope
-    # uncomment this line:
-    # enqueue_enable_continuous()
-
-    # Wait up to 3 seconds
+    # We won't re-enable continuous reading until we actually see the slope, as requested.
+    log_with_timestamp("[DEBUG] enqueue_slope_query() -> about to WAIT up to 3s for slope_event.")
     try:
         with eventlet.timeout.Timeout(3, False):
             slope_event.wait()
     except eventlet.timeout.Timeout:
+        log_with_timestamp("[DEBUG] enqueue_slope_query() -> Timed out waiting for slope_event.")
         return None
 
+    log_with_timestamp(f"[DEBUG] enqueue_slope_query() -> we got slope_event, slope_data={slope_data}")
     return slope_data
 
 
 def get_slope_info():
     """
-    A function that you call from your /api/ph/slope endpoint.
-    This enqueues the commands to disable streaming, request slope, (optionally re-enable),
-    then waits for parse_buffer() to parse the slope line.
-    Returns the slope data or None on timeout.
+    Called from /api/ph/slope endpoint. 
+    Returns slope data or None on timeout/failure.
     """
-    return enqueue_slope_query()
+    log_with_timestamp("[DEBUG] get_slope_info() called. Will run enqueue_slope_query() now...")
+    result = enqueue_slope_query()
+    if result is None:
+        log_with_timestamp("[DEBUG] get_slope_info() -> slope_data is None (timed out or not found).")
+    else:
+        log_with_timestamp(f"[DEBUG] get_slope_info() -> success, slope_data={result}")
+    return result
