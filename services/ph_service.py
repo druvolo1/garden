@@ -198,6 +198,8 @@ def serial_reader():
 
             log_with_timestamp(f"Currently assigned pH probe device: {ph_probe_path}")
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
+            
+            start_of_loop = datetime.now()
             # If we successfully open it, set communication=ok
             set_status("ph_probe", "communication", "ok", f"Opened {ph_probe_path} for pH reading.")
             clear_error("PH_USB_OFFLINE")  # legacy error handling
