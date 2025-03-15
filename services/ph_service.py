@@ -64,12 +64,13 @@ ph_jumps = []  # list of datetime objects when a big jump occurred
 last_read_time = None
 
 # --------------------------------------------------------------------
-# These globals are for capturing slope data
-# We'll set them when parse_buffer sees a "?Slope,..." line
-# and we are waiting for slope.
+# Globals for capturing slope data
+# parse_buffer() sets slope_data when it sees "?Slope,xx,yy,zz"
+# slope_event is used to wake the code that enqueued "Slope,?".
 # --------------------------------------------------------------------
 slope_event = event.Event()  # We'll re-create it each time we do a slope query
 slope_data = None            # Will store {'acid_slope':..., 'base_slope':..., 'offset':...}
+
 
 def parse_buffer(ser):
     """
@@ -119,8 +120,8 @@ def parse_buffer(ser):
 
         # --------------------------------------------------------------------
         # Slope logic: If line starts with "?Slope,"
-        # This means the device responded to "Slope,?" with e.g. "?Slope,98.0,97.5,-3.2"
-        # We'll parse it, store it in slope_data, and slope_event.send().
+        # The device responded to "Slope,?" with e.g. "?Slope,98.0,97.5,-3.2"
+        # We'll parse it, store in slope_data, slope_event.send().
         # --------------------------------------------------------------------
         if line.startswith("?Slope,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
@@ -130,7 +131,7 @@ def parse_buffer(ser):
                 acid = float(parts[0])
                 base = float(parts[1])
                 offset = float(parts[2])
-                # set the global slope_data
+
                 global slope_data, slope_event
                 slope_data = {
                     "acid_slope": acid,
@@ -139,14 +140,17 @@ def parse_buffer(ser):
                 }
                 # Mark that we've handled that command
                 last_sent_command = None
-                # wake up the waiting thread
+
+                # Wake up the waiting code
                 slope_event.send()
-                # If there's another queued command, we can send it
+
+                # If there's another queued command, send it
                 if not command_queue.empty():
                     next_cmd = command_queue.get()
                     last_sent_command = next_cmd["command"]
                     log_with_timestamp(f"Sending next queued command: {last_sent_command}")
                     send_command_to_probe(ser, next_cmd["command"])
+
             except Exception as e:
                 log_with_timestamp(f"Error parsing slope line '{line}': {e}")
             continue
@@ -157,7 +161,7 @@ def parse_buffer(ser):
             # Indicate we're receiving data
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
 
-            # 1) Condition: If 0 or 14 => "probe_health"=error
+            # 1) If 0 or 14 => error
             if ph_value == 0 or ph_value == 14:
                 set_status("ph_probe", "probe_health", "error",
                            f"Unrealistic reading ({ph_value}). Probe may be bad.")
@@ -176,22 +180,18 @@ def parse_buffer(ser):
                 if delta > 1.0:
                     now = datetime.now()
                     ph_jumps.append(now)
-                    # Purge older than 60s
                     cutoff = now - timedelta(seconds=60)
                     ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                    # If we have 5 big jumps => "probe_health"=error
                     if len(ph_jumps) >= 5:
                         set_status("ph_probe", "probe_health", "error",
                                    "Unstable readings detected (5 large jumps in last minute).")
                     else:
                         set_status("ph_probe", "probe_health", "ok",
                                    "Readings appear normal.")
-                    # skip updating
                     continue
                 else:
                     accepted_this_reading = True
-                    # If stable reading, see if we can revert to 'ok'
                     now = datetime.now()
                     cutoff = now - timedelta(seconds=60)
                     ph_jumps = [t for t in ph_jumps if t >= cutoff]
@@ -226,7 +226,6 @@ def parse_buffer(ser):
         except ValueError as e:
             log_with_timestamp(f"Ignoring line '{line}': {e}")
 
-    # leftover data with no '\r'
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
 
@@ -235,7 +234,11 @@ def serial_reader():
     """
     Main loop that reads from the assigned ph_probe_path, stores data in `buffer`,
     and calls parse_buffer() to handle lines and commands.
-    ...
+    - If we cannot open the port 5 times in a row, set communication=error.
+    - Once opened successfully, we continuously read until we see an actual
+      I/O error or the stop_event is triggered.
+    - If no reading is received for 30s, set reading=error (once every 30s to avoid spam).
+    - We do NOT close the port (or mark it error) merely because a read() returns 0 bytes.
     """
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
@@ -328,6 +331,7 @@ def serial_reader():
                 ser.close()
                 log_with_timestamp("Serial connection closed.")
 
+
 def send_configuration_commands(ser):
     try:
         log_with_timestamp("Sending configuration commands to the pH probe...")
@@ -339,7 +343,8 @@ def send_configuration_commands(ser):
 def calibrate_ph(ser, level):
     """
     Directly sends calibration commands to the pH probe.
-    ...
+    This is typically used if you want to send a calibration command
+    without using the queue. The recommended approach is to use enqueue_calibration().
     """
     valid_levels = {
         'low': 'Cal,low,4.00',
@@ -454,6 +459,7 @@ def handle_stop_signal(signum, frame):
     log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
     graceful_exit(signum, frame)
 
+
 # ----------------------------------------------------------------------
 # QUEUE-BASED SLOPE QUERY
 # ----------------------------------------------------------------------
@@ -461,16 +467,19 @@ def handle_stop_signal(signum, frame):
 def enqueue_slope_query():
     """
     Enqueues "Slope,?" with command_type="slope_query".
-    Then we wait for parse_buffer to see the response "?Slope,xx,yy,zz".
-    We'll store that in 'slope_data' and slope_event.send().
-    We'll return slope_data from here or None on timeout.
+    parse_buffer() will parse any "?Slope,xx,yy,zz" lines,
+    store them in slope_data, and call slope_event.send().
+
+    We wait up to 3 seconds for that to happen.
+    Returns slope_data or None on timeout.
     """
     global slope_event, slope_data
 
-    # re-create event each time
+    # Reset the event and data
     slope_event = event.Event()
     slope_data = None
 
+    # Enqueue the slope command
     enqueue_command("Slope,?", "slope_query")
 
     # Wait up to 3 seconds for parse_buffer to set slope_data
@@ -484,7 +493,7 @@ def enqueue_slope_query():
 
 def get_slope_info():
     """
-    A convenient function you can call from your /api/ph/slope endpoint.
-    Returns the slope data or None if we couldn't get it in time.
+    A function you can call from /api/ph/slope endpoint (for example).
+    Returns the slope data or None if it didn't arrive in time.
     """
     return enqueue_slope_query()
