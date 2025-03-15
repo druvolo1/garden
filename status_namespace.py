@@ -253,7 +253,12 @@ def emit_status_update(force_emit=False):
             log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', found {len(remote_relay_states)} valve relays")
 
             for label, relay_obj in remote_relay_states.items():
-                remote_relays[label] = {"label": label, "status": relay_obj.get("status", "off")}
+                # Only add if label matches fill or drain
+                if label in [fill_valve_label, drain_valve_label]:
+                    remote_relays[label] = {
+                        "label": label,
+                        "status": relay_obj.get("status", "off")
+                    }
 
         # 8) Merge local + remote
         valve_relays = aggregator_map.copy()
