@@ -6,6 +6,7 @@ import subprocess
 import json
 import os
 
+
 # Import DNS helpers from your new file:
 from utils.network_utils import standardize_host_ip, resolve_mdns
 
@@ -16,6 +17,7 @@ from utils.settings_utils import load_settings
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
 from services.water_level_service import get_water_level_status
+from services.notification_service import get_all_notifications
 
 _socketio = None
 
@@ -268,7 +270,7 @@ def emit_status_update(force_emit=False):
             "plant_info": plant_info,
             "water_level": water_level_info,
             "valve_info": valve_info,
-            "errors": []
+            "notifications": get_all_notifications()
         }
 
         # 11) Possibly force emit
