@@ -230,10 +230,12 @@ def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
     print("DEBUG: Entered serial_reader() at all...")
-    consecutive_fails = 0              # times we failed to open / keep the port
-    consecutive_read_errors = 0        # times we read() got zero bytes in a row
+    consecutive_fails = 0              # times we failed to open the port overall
+    consecutive_read_errors = 0        # times read() returned zero bytes
+    consecutive_fatal_exceptions = 0   # times OSError / SerialException in a row
     MAX_FAILS = 5
-    READ_ERROR_THRESHOLD = 3           # how many consecutive empty reads allowed
+    READ_ERROR_THRESHOLD = 3    # how many consecutive empty reads are allowed
+    FATAL_ERROR_THRESHOLD = 2   # how many consecutive fatal exceptions we allow
     last_no_reading_error_time = None
 
     while not stop_event.ready():
@@ -257,9 +259,11 @@ def serial_reader():
 
             log_with_timestamp(f"[DEBUG] Trying to open serial port: {ph_probe_path}")
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
-            consecutive_fails = 0  # We succeeded, so reset fails
+            consecutive_fails = 0
+            consecutive_fatal_exceptions = 0  # we successfully opened, so reset
 
-            set_status("ph_probe", "communication", "ok", f"Opened {ph_probe_path} for pH reading.")
+            set_status("ph_probe", "communication", "ok",
+                       f"Opened {ph_probe_path} for pH reading.")
             clear_error("PH_USB_OFFLINE")
 
             with ph_lock:
@@ -269,12 +273,11 @@ def serial_reader():
                 last_read_time = None
                 log_with_timestamp("[DEBUG] Buffer cleared on new device connection.")
 
-            # Immediately enable continuous read mode:
+            # Enable continuous read mode on connect
             log_with_timestamp("[DEBUG] Enabling continuous read mode now that the device is open.")
             send_command_to_probe(ser, "C,1")
 
             while not stop_event.ready():
-                # If we haven't seen a new reading in 30s, mark error
                 if last_read_time:
                     elapsed = (datetime.now() - last_read_time).total_seconds()
                     if elapsed > 30:
@@ -287,28 +290,34 @@ def serial_reader():
                 try:
                     raw_data = tpool.execute(ser.read, 100)
                     if not raw_data:
+                        # zero bytes => transient read error
                         consecutive_read_errors += 1
-                        log_with_timestamp(
-                            f"[DEBUG] read() returned no data => consecutive_read_errors={consecutive_read_errors}"
-                        )
+                        log_with_timestamp(f"[DEBUG] read() returned no data => consecutive_read_errors={consecutive_read_errors}")
                         if consecutive_read_errors < READ_ERROR_THRESHOLD:
-                            log_with_timestamp("[DEBUG] Ignoring short read glitch...")
+                            log_with_timestamp("[DEBUG] Ignoring short read glitch, continuing.")
                             eventlet.sleep(0.05)
                             continue
                         else:
-                            # We got X consecutive read errors => treat as fatal
+                            # repeated empty reads => treat as “fatal” and raise SerialException
                             raise serial.SerialException(
-                                f"Got {consecutive_read_errors} consecutive empty reads => giving up."
+                                f"{consecutive_read_errors} consecutive empty reads => giving up."
                             )
                     else:
-                        # We got valid data => reset consecutive_read_errors
+                        # we got data => reset the read-error counter
                         if consecutive_read_errors > 0:
                             log_with_timestamp(
                                 f"[DEBUG] reset consecutive_read_errors from {consecutive_read_errors} to 0"
                             )
                         consecutive_read_errors = 0
 
-                        # Combine data into buffer, parse
+                        # also reset the “fatal exception” counter, since we had a success
+                        if consecutive_fatal_exceptions > 0:
+                            log_with_timestamp(
+                                f"[DEBUG] reset consecutive_fatal_exceptions from {consecutive_fatal_exceptions} to 0"
+                            )
+                        consecutive_fatal_exceptions = 0
+
+                        # parse data
                         decoded_data = raw_data.decode("utf-8", errors="replace")
                         with ph_lock:
                             buffer += decoded_data
@@ -320,13 +329,26 @@ def serial_reader():
                         parse_buffer(ser)
 
                 except (serial.SerialException, OSError) as read_ex:
-                    # We got a real read error => break out to reconnect
-                    raise read_ex
+                    # This is a truly “fatal” read error
+                    consecutive_fatal_exceptions += 1
+                    log_with_timestamp(
+                        f"[DEBUG] Fatal read exception => consecutive_fatal_exceptions={consecutive_fatal_exceptions}. {read_ex}"
+                    )
 
-                # Minimal sleep so we don't hog CPU
+                    if consecutive_fatal_exceptions < FATAL_ERROR_THRESHOLD:
+                        # Let’s keep going for now, not closing the port
+                        log_with_timestamp("[DEBUG] Tolerating a fatal read error. We'll keep the port open for now.")
+                        eventlet.sleep(0.2)
+                        continue
+                    else:
+                        # We exceeded the threshold => raise again to break out of the loop
+                        log_with_timestamp("[DEBUG] Exceeded FATAL_ERROR_THRESHOLD => forcing reconnect.")
+                        raise read_ex
+
                 eventlet.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
+            # Reconnect logic
             consecutive_fails += 1
             log_with_timestamp(
                 f"[DEBUG] consecutive_fails incremented => {consecutive_fails}. "
@@ -344,7 +366,6 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("[DEBUG] Serial connection closed.")
-
 
 def send_configuration_commands(ser):
     try:
