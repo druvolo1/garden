@@ -146,16 +146,24 @@
             <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
           </div>
 
-          <!-- Slope Button -->
-          <button class="cal-btn" id="ph-check-slope" style="margin-bottom: 1rem;">
-            Check Slope
-          </button>
+          <!-- Moved the "Check Slope" button below the date section -->
 
           <h3>Calibration Date</h3>
           <p>Pick the date of the last time you calibrated your pH probe:</p>
           <!-- Date picker input + button -->
           <input type="date" id="ph-cal-date" />
           <button class="cal-btn" id="save-ph-cal-date">Save Calibration Date</button>
+
+          <!-- NEW/UPDATED: Show any stored slope from settings -->
+          <h3>Stored pH Slope</h3>
+          <div class="data-box" id="ph-slope-display">
+            <!-- We'll fill this with slope data or a 'No slope data' message via JS -->
+          </div>
+
+          <!-- Moved the slope check button down here -->
+          <button class="cal-btn" id="ph-check-slope" style="margin: 1rem 0;">
+            Check Slope
+          </button>
 
           <h3>pH Calibration Log</h3>
           <ul id="ph-log-list"></ul>
@@ -236,6 +244,15 @@
             const storedDate = phCalSection.manual_cal_date;
             if (storedDate) {
               document.getElementById("ph-cal-date").value = storedDate;
+            }
+
+            // NEW/UPDATED: Show any stored slope we might have
+            const slopeData = phCalSection.slope;   // e.g. { acid_slope: 110.2, base_slope: 92.1, offset: 4.67 }
+            if (slopeData && slopeData.acid_slope !== undefined) {
+              document.getElementById("ph-slope-display").textContent =
+                `Acid: ${slopeData.acid_slope}, Base: ${slopeData.base_slope}, Offset: ${slopeData.offset}`;
+            } else {
+              document.getElementById("ph-slope-display").textContent = "No slope data stored.";
             }
           } else {
             // No pH device
@@ -355,7 +372,7 @@
             .then(r => r.json())
             .then(data => {
               if (data.status === "success") {
-                // You might see: { status: "success", acid_slope: 98.0, base_slope: 97.5, offset: -3.2, overall_status: "ok" }
+                // e.g. { status: "success", acid_slope: 98.0, base_slope: 97.5, offset: -3.2, overall_status: "ok" }
                 appendPhLog(`Slope check => acid=${data.acid_slope}%, base=${data.base_slope}%, offset=${data.offset} => ${data.overall_status}`);
               } else {
                 appendPhLog(`Slope check error: ${data.message || "Unknown"}`, true);
