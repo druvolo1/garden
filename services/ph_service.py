@@ -109,7 +109,7 @@ def parse_buffer(ser):
             continue
 
         # Slope
-        if line.startswith("?Slope,"):
+        if line.upper().startswith("?SLOPE,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
             try:
                 payload = line.replace("?Slope,", "")
