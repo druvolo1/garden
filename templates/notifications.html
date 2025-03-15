@@ -33,7 +33,9 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchNotifications();
 
   // 2) Connect to WebSocket / Socket.IO
-  socket = io.connect(window.location.origin);
+  // This connects specifically to the /status namespace, matching your Python code.
+  socket = io.connect(window.location.origin + "/status");
+
 
   // 3) Listen for "notifications_update" event from the server
   socket.on("notifications_update", data => {
@@ -41,6 +43,10 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("[WS] notifications_update event => re-fetching notifications.");
     fetchNotifications();
   });
+});
+
+socket.on("connect", () => {
+  console.log("[CLIENT] Connected to the /status namespace!");
 });
 
 /**
