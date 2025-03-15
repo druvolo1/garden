@@ -180,6 +180,10 @@ def serial_reader():
     """
     Main loop that reads from the assigned ph_probe_path, stores data in `buffer`,
     and calls parse_buffer() to handle lines and commands.
+
+    Adds logic:
+    - If we cannot open the port 5 times in a row, set communication=error.
+    - Once we do open successfully, set communication=ok and reset failures to 0.
     """
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
@@ -188,17 +192,20 @@ def serial_reader():
     # Track the last time we set an error for "no reading"
     last_no_reading_error = None
 
+    # NEW: track how many times in a row we fail to open the USB device
+    consecutive_fails = 0
+    MAX_FAILS = 5
+
     while not stop_event.ready():
         settings = load_settings()
         ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
 
         # If no pH device is assigned, quietly wait 5s and skip
         if not ph_probe_path:
-            # Clear any "communication" or "reading" or "ph_value" states, since we have no device
+            # Clear any "communication", "reading", or "ph_value" states, since we have no device
             clear_status("ph_probe", "communication")
             clear_status("ph_probe", "reading")
             clear_status("ph_probe", "ph_value")
-            clear_status("ph_probe", "within_range")
             eventlet.sleep(5)
             continue
 
@@ -212,7 +219,12 @@ def serial_reader():
                 log_with_timestamp("No devices found in /dev/serial/by-id (subprocess error).")
 
             log_with_timestamp(f"Currently assigned pH probe device: {ph_probe_path}")
+
+            # Attempt to open the serial port
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
+
+            # If we reach here, we successfully opened the port; reset failures to 0
+            consecutive_fails = 0
 
             start_of_loop = datetime.now()
             # If we successfully open it, set communication=ok
@@ -221,6 +233,9 @@ def serial_reader():
 
             # Initialize 'reading' as ok so the dash shows it as OK initially
             set_status("ph_probe", "reading", "ok", "Initial state: awaiting pH data.")
+
+            # Also initialize 'ph_value' as ok, so it appears in the dashboard from the start
+            set_status("ph_probe", "ph_value", "ok", "No pH reading yet.")
 
             # Clear buffer on new device connection
             with ph_lock:
@@ -251,7 +266,7 @@ def serial_reader():
                     decoded_data = raw_data.decode("utf-8", errors="replace")
                     with ph_lock:
                         buffer += decoded_data
-                        # Buffer overflow => set communication=error
+                        # If buffer is too big => communication=error
                         if len(buffer) > MAX_BUFFER_LENGTH:
                             log_with_timestamp("Buffer exceeded max length. Dumping buffer.")
                             set_status("ph_probe", "communication", "error",
@@ -262,9 +277,15 @@ def serial_reader():
                     eventlet.sleep(0.05)
 
         except (serial.SerialException, OSError) as e:
-            log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s...")
-            set_status("ph_probe", "communication", "error",
-                       f"Cannot open {ph_probe_path}: {e}")
+            # We failed to open the port
+            consecutive_fails += 1
+            log_with_timestamp(f"Serial error on {ph_probe_path}: {e}. Reconnecting in 5s... (fail #{consecutive_fails})")
+
+            # If we hit 5 fails, set communication=error
+            if consecutive_fails >= MAX_FAILS:
+                set_status("ph_probe", "communication", "error",
+                           f"Cannot open {ph_probe_path} after {consecutive_fails} consecutive attempts.")
+
             set_error("PH_USB_OFFLINE")  # legacy error approach
             eventlet.sleep(5)
 
@@ -272,7 +293,6 @@ def serial_reader():
             if ser and ser.is_open:
                 ser.close()
                 log_with_timestamp("Serial connection closed.")
-
 
 def send_configuration_commands(ser):
     try:
