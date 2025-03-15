@@ -1,121 +1,179 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8" />
-    <title>Notifications</title>
-    <!-- Load Socket.IO -->
-    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>Notifications</title>
+  <!-- Link to your main CSS. Adjust the href as needed. -->
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- Load Socket.IO for real-time updates -->
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+
+  <style>
+    /* Additional styling specifically for the notifications table */
+
+    /* Make the table nicely spaced and aligned */
+    #notifications-table {
+      width: 80%;
+      margin: 40px auto;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    #notifications-table th,
+    #notifications-table td {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 12px 16px;
+    }
+    #notifications-table th {
+      background-color: #1e1e1e;
+      font-weight: 600;
+    }
+
+    /* We'll set .state-ok vs .state-other in our JS below */
+    .state-ok {
+      background-color: #28a745; /* green */
+      color: #ffffff;
+    }
+    .state-other {
+      background-color: #dc3545; /* red */
+      color: #ffffff;
+    }
+
+    /* Center the page content in line with the .css styling */
+    main {
+      max-width: 90vw;
+      margin: 40px auto;
+      text-align: center;
+    }
+  </style>
 </head>
+
 <body>
-<h1>Notifications</h1>
+  <!-- Optional: If you have a navbar, you can use the styles from style.css -->
+  <!--
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/notifications" class="active">Notifications</a></li>
+      ...
+    </ul>
+  </nav>
+  -->
 
-<table id="notifications-table" border="1" cellpadding="6" cellspacing="0">
-  <thead>
-    <tr>
-      <th>Device</th>
-      <th>Key</th>
-      <th>State</th>
-      <th>Message</th>
-      <th>Timestamp</th>
-      <th>Action</th>
-    </tr>
-  </thead>
-  <tbody>
-    <!-- We'll fill this with JavaScript -->
-  </tbody>
-</table>
+  <main>
+    <h1>Notifications</h1>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  // 1) Connect to the /status namespace
-  const socket = io.connect(window.location.origin + "/status");
+    <table id="notifications-table">
+      <thead>
+        <tr>
+          <th>Device</th>
+          <th>Key</th>
+          <th>State</th>
+          <th>Message</th>
+          <th>Timestamp</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- We'll populate this via JavaScript -->
+      </tbody>
+    </table>
+  </main>
 
-  // 2) Confirm successful connection in the browser console
-  socket.on("connect", () => {
-    console.log("[CLIENT] Connected to /status namespace!");
-  });
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // 1) Connect to the /status namespace (matching your Python code)
+    const socket = io.connect(window.location.origin + "/status");
 
-  // 3) Whenever the server emits "notifications_update", re-render table
-  socket.on("notifications_update", (data) => {
-    console.log("[WS] notifications_update => updating notifications from event data.");
-    // data should contain something like: { notifications: [ ... ] }
-    if (data.notifications) {
-      renderNotifications(data.notifications);
-    }
-  });
-
-  // 4) Fetch the notifications once on page load
-  fetchNotifications();
-});
-
-/**
- * Fetch the notifications from /api/notifications
- */
-async function fetchNotifications() {
-  try {
-    const resp = await fetch("/api/notifications");
-    const data = await resp.json();
-    if (data.status === "success") {
-      renderNotifications(data.notifications);
-    } else {
-      console.error("Failed to load notifications:", data);
-    }
-  } catch (err) {
-    console.error("Error fetching notifications:", err);
-  }
-}
-
-/**
- * Renders the notifications table body
- */
-function renderNotifications(notifs) {
-  const tbody = document.querySelector("#notifications-table tbody");
-  tbody.innerHTML = ""; // Clear old rows
-
-  notifs.forEach(n => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${n.device}</td>
-      <td>${n.key}</td>
-      <td>${n.state}</td>
-      <td>${n.message}</td>
-      <td>${n.timestamp}</td>
-      <td>
-        <button onclick="clearNotification('${n.device}', '${n.key}')">
-          Clear
-        </button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-/**
- * Sends a POST to clear an individual notification,
- * then re-fetches the table
- */
-async function clearNotification(device, key) {
-  try {
-    const resp = await fetch("/api/notifications/clear", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device, key })
+    // 2) Confirm successful connection
+    socket.on("connect", () => {
+      console.log("[CLIENT] Connected to /status namespace!");
     });
-    const data = await resp.json();
-    if (data.status === "success") {
-      // Once cleared, you can either:
-      //  1) Re-fetch notifications
-      //  2) Or rely on the server to emit "notifications_update" automatically
-      //     if you coded that in Python. Here we'll just fetch again to be safe.
-      fetchNotifications();
-    } else {
-      console.error("Failed to clear notification:", data);
-    }
-  } catch (err) {
-    console.error("Error clearing notification:", err);
-  }
-}
-</script>
 
+    // 3) Listen for "notifications_update" from the server
+    socket.on("notifications_update", data => {
+      console.log("[WS] notifications_update => re-render notifications from event data.");
+      if (data.notifications) {
+        renderNotifications(data.notifications);
+      }
+    });
+
+    // 4) Fetch notifications once on page load
+    fetchNotifications();
+  });
+
+  /**
+   * Fetch the notifications from /api/notifications
+   */
+  async function fetchNotifications() {
+    try {
+      const resp = await fetch("/api/notifications");
+      const data = await resp.json();
+      if (data.status === "success") {
+        renderNotifications(data.notifications);
+      } else {
+        console.error("Failed to load notifications:", data);
+      }
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    }
+  }
+
+  /**
+   * Render notifications into the table
+   * - If state === "ok", we apply .state-ok
+   * - Otherwise, we apply .state-other
+   */
+  function renderNotifications(notifs) {
+    const tbody = document.querySelector("#notifications-table tbody");
+    tbody.innerHTML = ""; // Clear old rows
+
+    notifs.forEach(n => {
+      const row = document.createElement("tr");
+
+      // Decide which CSS class to apply for the state cell
+      const stateClass = (n.state && n.state.toLowerCase() === "ok")
+        ? "state-ok"
+        : "state-other";
+
+      row.innerHTML = `
+        <td>${n.device}</td>
+        <td>${n.key}</td>
+        <td class="${stateClass}">${n.state}</td>
+        <td>${n.message}</td>
+        <td>${n.timestamp}</td>
+        <td>
+          <button onclick="clearNotification('${n.device}', '${n.key}')">
+            Clear
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  /**
+   * Clear an individual notification, then re-fetch
+   * or rely on Socket.IO if your server emits again
+   */
+  async function clearNotification(device, key) {
+    try {
+      const resp = await fetch("/api/notifications/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device, key })
+      });
+      const data = await resp.json();
+      if (data.status === "success") {
+        // Re-fetch or let the server's emit handle it
+        fetchNotifications();
+      } else {
+        console.error("Failed to clear notification:", data);
+      }
+    } catch (err) {
+      console.error("Error clearing notification:", err);
+    }
+  }
+  </script>
 </body>
 </html>
