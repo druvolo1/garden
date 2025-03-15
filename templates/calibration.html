@@ -26,7 +26,7 @@
       padding: 1rem;
       border-radius: 6px;
       min-width: 300px; 
-      max-width: 400px; /* optional: to limit how wide each column gets */
+      max-width: 400px; /* optional: limit how wide each column gets */
       margin-bottom: 20px;
     }
     .cal-section h2 {
@@ -134,7 +134,7 @@
       <div id="ph-section" class="cal-section">
         <h2>pH Probe</h2>
 
-        <div id="ph-assigned-content" style="display: none;">
+        <div id="ph-assigned-content">
           <h3>Current pH Value</h3>
           <div class="data-box"><span id="current-ph">--</span></div>
 
@@ -143,12 +143,17 @@
             <button class="cal-btn" id="calibrate-ph-low">Low (4.00)</button>
             <button class="cal-btn" id="calibrate-ph-mid">Mid (7.00)</button>
             <button class="cal-btn" id="calibrate-ph-high">High (10.00)</button>
-            <button class="cal-btn" id="clear-ph-cal">Clear</button>
+            <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
           </div>
+
+          <!-- Slope Button -->
+          <button class="cal-btn" id="ph-check-slope" style="margin-bottom: 1rem;">
+            Check Slope
+          </button>
 
           <h3>Calibration Date</h3>
           <p>Pick the date of the last time you calibrated your pH probe:</p>
-          <!-- New date picker input + button -->
+          <!-- Date picker input + button -->
           <input type="date" id="ph-cal-date" />
           <button class="cal-btn" id="save-ph-cal-date">Save Calibration Date</button>
 
@@ -156,7 +161,7 @@
           <ul id="ph-log-list"></ul>
         </div>
 
-        <div id="ph-not-assigned" style="display: none;">
+        <div id="ph-not-assigned">
           <p><em>No pH device assigned.</em></p>
         </div>
       </div>
@@ -175,7 +180,7 @@
             <button class="cal-btn" id="calibrate-ec-dry">Dry</button>
             <button class="cal-btn" id="calibrate-ec-low">Low (12.88)</button>
             <button class="cal-btn" id="calibrate-ec-high">High (80.00)</button>
-            <button class="cal-btn" id="clear-ec-cal">Clear</button>
+            <button class="cal-btn danger" id="clear-ec-cal">Clear</button>
           </div>
 
           <h3>EC Calibration Log</h3>
@@ -209,7 +214,7 @@
         document.getElementById("ec-log-list").prepend(li);
       }
 
-      // Hide or show columns based on device assignment
+      // Fetch settings to see which devices are assigned
       fetch("/api/settings")
         .then(r => r.json())
         .then(settings => {
@@ -220,21 +225,29 @@
           let hasPh = false;
           let hasEc = false;
 
-          // If pH is assigned, show the assigned content
+          // If pH assigned
           if (phDevice) {
             hasPh = true;
             document.getElementById("ph-assigned-content").style.display = "block";
+
+            // Also try to load a previously saved calibration date from settings
+            const calSection = settings.calibration || {};
+            const phCalSection = calSection.ph_probe || {};
+            const storedDate = phCalSection.manual_cal_date;
+            if (storedDate) {
+              document.getElementById("ph-cal-date").value = storedDate;
+            }
           } else {
-            // show "No pH device assigned"
+            // No pH device
             document.getElementById("ph-not-assigned").style.display = "block";
           }
 
-          // If EC is assigned, show the assigned content
+          // If EC assigned
           if (ecDevice) {
             hasEc = true;
             document.getElementById("ec-assigned-content").style.display = "block";
           } else {
-            // show "No EC device assigned"
+            // No EC device
             document.getElementById("ec-not-assigned").style.display = "block";
           }
 
@@ -254,10 +267,10 @@
 
       // ============== PH STUFF ==============
       function initPhStuff() {
-        // We'll fetch the initial pH
+        // fetch initial pH
         function fetchLatestPh() {
           fetch('/api/ph/latest')
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
               if (data?.ph !== undefined) {
                 document.getElementById("current-ph").textContent = data.ph;
@@ -279,24 +292,23 @@
           appendPhLog("WebSocket connected (for pH).");
           fetchLatestPh();
         });
-        socket.on("ph_update", (data) => {
+        socket.on("ph_update", data => {
           if (data?.ph !== undefined) {
             document.getElementById("current-ph").textContent = data.ph;
             appendPhLog(`Live pH update: ${data.ph}`);
           }
         });
         socket.on("ec_update", data => {
-            if (data?.ec !== undefined) {
-                document.getElementById("current-ec").textContent = data.ec;
-                console.log("Live EC update:", data.ec);
-            }
-            });
+          if (data?.ec !== undefined) {
+            document.getElementById("current-ec").textContent = data.ec;
+            console.log("Live EC update:", data.ec);
+          }
+        });
 
-
-        // Calibration
+        // pH Calibration Commands
         function sendPhCalCommand(level) {
           fetch(`/api/ph/calibrate/${level}`, { method: "POST" })
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
               if (data.status === "success") {
                 appendPhLog(`pH Calibration (${level}) success: ${data.message}`);
@@ -306,16 +318,17 @@
             })
             .catch(() => appendPhLog(`Failed pH ${level} calibration cmd.`, true));
         }
+
+        // Save calibration date
         function savePhCalibrationDate() {
           const dateInput = document.getElementById("ph-cal-date");
-          const chosenDate = dateInput.value;  // e.g. "2025-03-15"
+          const chosenDate = dateInput.value; // e.g. "2025-03-15"
 
           if (!chosenDate) {
             appendPhLog("No date chosen for calibration!", true);
             return;
           }
-
-          // POST to /api/ph/calibration_date with JSON { date: "YYYY-MM-DD" }
+          // POST to /api/ph/calibration_date
           fetch("/api/ph/calibration_date", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -335,19 +348,40 @@
           });
         }
 
-        document.getElementById("save-ph-cal-date").addEventListener("click", savePhCalibrationDate);
+        // Check Slope
+        function checkPhSlope() {
+          // calls your future /api/ph/slope
+          fetch('/api/ph/slope')
+            .then(r => r.json())
+            .then(data => {
+              if (data.status === "success") {
+                // You might see: { status: "success", acid_slope: 98.0, base_slope: 97.5, offset: -3.2, overall_status: "ok" }
+                appendPhLog(`Slope check => acid=${data.acid_slope}%, base=${data.base_slope}%, offset=${data.offset} => ${data.overall_status}`);
+              } else {
+                appendPhLog(`Slope check error: ${data.message || "Unknown"}`, true);
+              }
+            })
+            .catch(err => {
+              console.error("Error checking slope:", err);
+              appendPhLog("Slope check failed (see console).", true);
+            });
+        }
+
+        // Event listeners for pH
         document.getElementById("calibrate-ph-low").addEventListener("click", () => sendPhCalCommand("low"));
         document.getElementById("calibrate-ph-mid").addEventListener("click", () => sendPhCalCommand("mid"));
         document.getElementById("calibrate-ph-high").addEventListener("click", () => sendPhCalCommand("high"));
         document.getElementById("clear-ph-cal").addEventListener("click", () => sendPhCalCommand("clear"));
+        document.getElementById("save-ph-cal-date").addEventListener("click", savePhCalibrationDate);
+        document.getElementById("ph-check-slope").addEventListener("click", checkPhSlope);
       }
 
       // ============== EC STUFF ==============
       function initEcStuff() {
-        // We'll fetch the initial EC
+        // fetch initial EC
         function fetchLatestEc() {
           fetch('/api/ec/latest')
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
               if (data?.ec !== undefined) {
                 document.getElementById("current-ec").textContent = data.ec;
@@ -364,18 +398,18 @@
         }
         fetchLatestEc();
 
-        // WebSocket
+        // WebSocket for EC
         socket.on("connect", () => {
           appendEcLog("WebSocket connected (for EC).");
           fetchLatestEc();
         });
-        // If you want real-time EC, you'd do: socket.on("ec_update", ...)
+        // If you want real-time EC logs:
+        // socket.on("ec_update", data => { ... });
 
-        // Calibration
+        // EC Calibration
         function sendEcCalCommand(level) {
-          // levels: "dry", "low", "high", "clear"
           fetch(`/api/ec/calibrate/${level}`, { method: "POST" })
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
               if (data.status === "success") {
                 appendEcLog(`EC Calibration (${level}) success: ${data.message}`);

@@ -247,12 +247,10 @@ def serial_reader():
 
             # We read indefinitely until exception or stop_event
             while not stop_event.ready():
-                # (A) If no reading has been received for 30s => set reading=error
-                #     but only once every 30s to avoid spamming.
+                # If no reading for 30s => set reading=error once every 30s
                 if last_read_time:
                     elapsed = (datetime.now() - last_read_time).total_seconds()
                     if elapsed > 30:
-                        # Only raise error if we haven't done so in the last 30s
                         if (not last_no_reading_error_time or
                            (datetime.now() - last_no_reading_error_time).total_seconds() > 30):
                             set_status(
@@ -263,13 +261,9 @@ def serial_reader():
                             )
                             last_no_reading_error_time = datetime.now()
                 else:
-                    # If we have never received a reading and it's been 30+ seconds, do the same.
-                    # Because last_read_time is None at first, we can track how long since open.
-                    # For brevity, you can just rely on the same logic if needed.
-                    # If you want a fresh open time, store it in a variable.
+                    # If never received a reading and it's been >30s since open, same logic
                     pass
 
-                # (B) Do the actual read
                 raw_data = tpool.execute(ser.read, 100)
                 if raw_data:
                     decoded_data = raw_data.decode("utf-8", errors="replace")
@@ -282,11 +276,10 @@ def serial_reader():
                             buffer = ""
                     parse_buffer(ser)
                 else:
-                    # An empty read is normal if the device is quiet. Just sleep briefly
                     eventlet.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
-            # We failed either on open or on read (device disconnected, etc.)
+            # We failed either on open or on read
             consecutive_fails += 1
             log_with_timestamp(
                 f"Serial error on {ph_probe_path}: {e}. "
@@ -297,7 +290,7 @@ def serial_reader():
                 set_status("ph_probe", "communication", "error",
                            f"Cannot open {ph_probe_path} after {consecutive_fails} attempts.")
 
-            set_error("PH_USB_OFFLINE")  # legacy error approach
+            set_error("PH_USB_OFFLINE")
             eventlet.sleep(5)
 
         finally:
@@ -339,9 +332,7 @@ def calibrate_ph(ser, level):
             log_with_timestamp(f"Calibration command '{command}' sent.")
             return {"status": "success", "message": f"Calibration command '{command}' sent"}
         else:
-            log_with_timestamp(
-                f"Cannot send calibration command '{command}' while waiting for a response."
-            )
+            log_with_timestamp(f"Cannot send calibration command '{command}' while waiting for a response.")
             return {"status": "failure", "message": "A command is already in progress"}
 
 def enqueue_calibration(level):
@@ -416,7 +407,8 @@ def get_latest_ph_reading():
     settings = load_settings()
     ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
     if not ph_probe_path:
-        return None  # No device assigned
+        # No device assigned -> return None, no log
+        return None
 
     with ph_lock:
         if latest_ph_value is not None:
@@ -437,3 +429,81 @@ def graceful_exit(signum, frame):
 def handle_stop_signal(signum, frame):
     log_with_timestamp(f"Received signal {signum} (SIGTSTP). Cleaning up...")
     graceful_exit(signum, frame)
+
+# ----------------------------------------------------------------------
+# NEW: Function to query Slope info from the probe on demand
+# ----------------------------------------------------------------------
+
+def get_slope_info(timeout=1.0):
+    """
+    Sends 'Slope,?' to the EZO pH probe, waits briefly for a response like:
+      ?Slope,ACID,BASE,OFFSET
+    Returns a dict:
+      { 'acid_slope': float, 'base_slope': float, 'offset': float }
+    or None on failure.
+
+    Note: This function does a direct blocking read from the serial port,
+    which might not fully align with your concurrency approach. If you prefer
+    a queued approach, adapt accordingly.
+    """
+    global ser
+
+    # If the port isn't open, try opening it or fail
+    if not ser or not ser.is_open:
+        # Optionally, try to open. Or else return None.
+        try:
+            settings = load_settings()
+            ph_probe_path = settings.get("usb_roles", {}).get("ph_probe")
+            if not ph_probe_path:
+                log_with_timestamp("No pH device assigned, cannot get slope.")
+                return None
+            ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
+        except Exception as e:
+            log_with_timestamp(f"Cannot open port for slope check: {e}")
+            return None
+
+    # flush any leftover:
+    try:
+        ser.reset_input_buffer()
+    except:
+        pass
+
+    # send the command
+    slope_cmd = "Slope,?"
+    try:
+        log_with_timestamp(f"Sending slope command: {slope_cmd}")
+        ser.write((slope_cmd + "\r").encode())
+    except Exception as e:
+        log_with_timestamp(f"Error writing slope command: {e}")
+        return None
+
+    # read lines up to `timeout`
+    end_time = datetime.now() + timedelta(seconds=timeout)
+    slope_line = None
+
+    while datetime.now() < end_time:
+        raw_line = ser.readline().decode("utf-8", errors="replace").strip()
+        if raw_line.startswith("?Slope,"):
+            slope_line = raw_line
+            break
+        eventlet.sleep(0.01)  # short sleep
+
+    if not slope_line:
+        log_with_timestamp("Did not receive slope response.")
+        return None
+
+    # parse something like "?Slope,98.0,97.5,-3.2"
+    try:
+        payload = slope_line.replace("?Slope,", "")  # => "98.0,97.5,-3.2"
+        parts = payload.split(",")
+        acid_slope = float(parts[0])
+        base_slope = float(parts[1])
+        offset = float(parts[2])
+        return {
+            "acid_slope": acid_slope,
+            "base_slope": base_slope,
+            "offset": offset
+        }
+    except Exception as e:
+        log_with_timestamp(f"Error parsing slope line '{slope_line}': {e}")
+        return None
