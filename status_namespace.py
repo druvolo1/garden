@@ -198,20 +198,29 @@ def emit_status_update(force_emit=False):
 
         # 5) Local valve states
         aggregator_map = {}
-        valve_relay_device = settings.get("usb_roles", {}).get("valve_relay")
-        if valve_relay_device:
-            log_with_timestamp(f"[DEBUG] local valve_relay_device={valve_relay_device}")
-            from services.valve_relay_service import get_valve_status
-            local_labels = settings.get("valve_labels", {})
-            for valve_id_str, label in local_labels.items():
-                try:
-                    valve_id = int(valve_id_str)
-                except ValueError:
-                    continue
-                st = get_valve_status(valve_id)
-                aggregator_map[label] = {"label": label, "status": st}
-        else:
-            log_with_timestamp("[DEBUG] No local valve_relay_device assigned.")
+
+        fill_valve_id = settings.get("fill_valve", "")
+        fill_valve_label = settings.get("fill_valve_label", "")
+        drain_valve_id = settings.get("drain_valve", "")
+        drain_valve_label = settings.get("drain_valve_label", "")
+
+        from services.valve_relay_service import get_valve_status
+
+        # If fill_valve_id is a valid integer:
+        if fill_valve_id.isdigit():
+            st = get_valve_status(int(fill_valve_id))
+            aggregator_map[fill_valve_label] = {
+                "label": fill_valve_label,
+                "status": st
+            }
+
+        # If drain_valve_id is a valid integer:
+        if drain_valve_id.isdigit():
+            st = get_valve_status(int(drain_valve_id))
+            aggregator_map[drain_valve_label] = {
+                "label": drain_valve_label,
+                "status": st
+            }
 
         # 6) Keep .local names in valve_info but resolve them for the actual connections
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
