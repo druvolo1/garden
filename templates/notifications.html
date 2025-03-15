@@ -30,18 +30,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // 1) Connect to the /status namespace
   const socket = io.connect(window.location.origin + "/status");
 
-  // 2) Confirm successful connection
+  // 2) Confirm successful connection in the browser console
   socket.on("connect", () => {
-    console.log("[CLIENT] Connected to the /status namespace!");
+    console.log("[CLIENT] Connected to /status namespace!");
   });
 
-  // 3) Listen for "notifications_update" event from the server
-  socket.on("notifications_update", data => {
-    console.log("[WS] notifications_update => re-fetching notifications.");
-    fetchNotifications();
+  // 3) Whenever the server emits "notifications_update", re-render table
+  socket.on("notifications_update", (data) => {
+    console.log("[WS] notifications_update => updating notifications from event data.");
+    // data should contain something like: { notifications: [ ... ] }
+    if (data.notifications) {
+      renderNotifications(data.notifications);
+    }
   });
 
-  // 4) Fetch notifications once on page load
+  // 4) Fetch the notifications once on page load
   fetchNotifications();
 });
 
@@ -55,7 +58,7 @@ async function fetchNotifications() {
     if (data.status === "success") {
       renderNotifications(data.notifications);
     } else {
-      console.error("Failed to load notifications", data);
+      console.error("Failed to load notifications:", data);
     }
   } catch (err) {
     console.error("Error fetching notifications:", err);
@@ -71,7 +74,6 @@ function renderNotifications(notifs) {
 
   notifs.forEach(n => {
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
       <td>${n.device}</td>
       <td>${n.key}</td>
@@ -101,9 +103,13 @@ async function clearNotification(device, key) {
     });
     const data = await resp.json();
     if (data.status === "success") {
-      fetchNotifications(); // refresh after clearing
+      // Once cleared, you can either:
+      //  1) Re-fetch notifications
+      //  2) Or rely on the server to emit "notifications_update" automatically
+      //     if you coded that in Python. Here we'll just fetch again to be safe.
+      fetchNotifications();
     } else {
-      console.error("Failed to clear notification", data);
+      console.error("Failed to clear notification:", data);
     }
   } catch (err) {
     console.error("Error clearing notification:", err);
