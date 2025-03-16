@@ -148,12 +148,11 @@
         }
   
         // (C) Show/hide fill/drain UI if there's a fill_valve / drain_valve
-        const fillValveId   = data.settings?.fill_valve;   // e.g. "1"
-        const drainValveId  = data.settings?.drain_valve;  // e.g. "1"
-  
-        // IP addresses for controlling them locally
-        const fillValveIp   = data.settings?.fill_valve_ip   || window.location.hostname;
-        const drainValveIp  = data.settings?.drain_valve_ip  || window.location.hostname;
+        const fillValveId   = data.valve_info?.fill_valve    || data.settings?.fill_valve;
+        const drainValveId  = data.valve_info?.drain_valve   || data.settings?.drain_valve;
+        const fillValveIp   = data.valve_info?.fill_valve_ip || data.settings?.fill_valve_ip || window.location.hostname;
+        const drainValveIp  = data.valve_info?.drain_valve_ip || data.settings?.drain_valve_ip || window.location.hostname;
+
   
         document.getElementById("local-fill-container").style.display =
           fillValveId ? "block" : "none";
@@ -181,28 +180,26 @@
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
+          const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
+          const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
 
-          // The valve ID is now the key in 'relays', e.g. "4"
-          const fillValveId  = data.settings?.fill_valve;
-          const drainValveId = data.settings?.drain_valve;
-
-          // 1) Fill valve
+          // Fill valve
           if (fillValveId && relays[fillValveId]) {
             const fillStatus = (relays[fillValveId].status || "").toLowerCase();
-            document.getElementById("local-fill-status").textContent =
-              (fillStatus === "on") ? "On" : "Off";
+            document.getElementById("local-fill-status").textContent = 
+              fillStatus === "on" ? "On" : "Off";
             updateLocalValveButtons("fill", fillStatus);
           }
 
-          // 2) Drain valve
+          // Drain valve
           if (drainValveId && relays[drainValveId]) {
             const drainStatus = (relays[drainValveId].status || "").toLowerCase();
-            document.getElementById("local-drain-status").textContent =
-              (drainStatus === "on") ? "On" : "Off";
+            document.getElementById("local-drain-status").textContent = 
+              drainStatus === "on" ? "On" : "Off";
             updateLocalValveButtons("drain", drainStatus);
           }
         }
-      });
+
   
       // 3) Optionally fetch /api/settings to discover remote zones
       fetch("/api/settings")
@@ -429,14 +426,14 @@
           // Update valve statuses
           if (data.valve_info?.valve_relays) {
             const relays = data.valve_info.valve_relays;
-            const fillValveId  = data.settings?.fill_valve;
-            const drainValveId = data.settings?.drain_valve;
+            const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
+            const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
 
             // Fill valve
             if (fillValveId && relays[fillValveId]) {
               const fillStatus = (relays[fillValveId].status || "").toLowerCase();
               document.getElementById(`${zoneId}-fill-status`).textContent =
-                (fillStatus === "on") ? "On" : "Off";
+                fillStatus === "on" ? "On" : "Off";
               updateRemoteValveButtons(zoneId, "fill", fillStatus);
             }
 
@@ -444,7 +441,7 @@
             if (drainValveId && relays[drainValveId]) {
               const drainStatus = (relays[drainValveId].status || "").toLowerCase();
               document.getElementById(`${zoneId}-drain-status`).textContent =
-                (drainStatus === "on") ? "On" : "Off";
+                drainStatus === "on" ? "On" : "Off";
               updateRemoteValveButtons(zoneId, "drain", drainStatus);
             }
           }
