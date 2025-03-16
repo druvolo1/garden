@@ -136,7 +136,7 @@
           data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
         document.getElementById("local-ec-display").textContent =
           data.current_ec !== undefined ? parseFloat(data.current_ec).toFixed(2) : "N/A";
-  
+
         // Update last-updated timestamp (Local)
         document.getElementById("local-last-updated").textContent =
           "Last updated: " + new Date().toLocaleString();
@@ -147,16 +147,19 @@
         }
   
         // (C) Show/hide fill/drain UI if there's a fill_valve / drain_valve
-        const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
-        const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
-        const fillValveIp  = data.valve_info?.fill_valve_ip  || data.settings?.fill_valve_ip  || window.location.hostname;
-        const drainValveIp = data.valve_info?.drain_valve_ip || data.settings?.drain_valve_ip || window.location.hostname;
-
+        //     (We still store them as numeric IDs in settings, e.g. "4")
+        const fillValveId   = data.valve_info?.fill_valve    || data.settings?.fill_valve;
+        const drainValveId  = data.valve_info?.drain_valve   || data.settings?.drain_valve;
+        const fillValveIp   = data.valve_info?.fill_valve_ip || data.settings?.fill_valve_ip || window.location.hostname;
+        const drainValveIp  = data.valve_info?.drain_valve_ip|| data.settings?.drain_valve_ip|| window.location.hostname;
+  
+        // Show or hide the containers
         document.getElementById("local-fill-container").style.display =
           fillValveId ? "block" : "none";
         document.getElementById("local-drain-container").style.display =
           drainValveId ? "block" : "none";
   
+        // Enable or disable the On/Off buttons
         const fillOnBtn   = document.getElementById("local-fill-on");
         const fillOffBtn  = document.getElementById("local-fill-off");
         const drainOnBtn  = document.getElementById("local-drain-on");
@@ -174,30 +177,35 @@
           drainOnBtn.onclick  = () => setValveLocal(drainValveIp, drainValveId, "local-drain-status", "on");
           drainOffBtn.onclick = () => setValveLocal(drainValveIp, drainValveId, "local-drain-status", "off");
         }
-  
+
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
+        // (NEW) We now check keys "fill_{id}" and "drain_{id}" instead of just the numeric ID.
+
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
 
+          // (NEW) Construct the aggregator keys for fill & drain
+          const fillKey  = fillValveId   ? `fill_${fillValveId}`   : null;
+          const drainKey = drainValveId  ? `drain_${drainValveId}` : null;
+
           // Fill valve
-          if (fillValveId && relays[fillValveId]) {
-            const fillStatus = (relays[fillValveId].status || "").toLowerCase();
+          if (fillKey && relays[fillKey]) {
+            const fillStatus = (relays[fillKey].status || "").toLowerCase();
             document.getElementById("local-fill-status").textContent =
-              fillStatus === "on" ? "On" : "Off";
+              (fillStatus === "on") ? "On" : "Off";
             updateLocalValveButtons("fill", fillStatus);
           }
 
           // Drain valve
-          if (drainValveId && relays[drainValveId]) {
-            const drainStatus = (relays[drainValveId].status || "").toLowerCase();
+          if (drainKey && relays[drainKey]) {
+            const drainStatus = (relays[drainKey].status || "").toLowerCase();
             document.getElementById("local-drain-status").textContent =
-              drainStatus === "on" ? "On" : "Off";
+              (drainStatus === "on") ? "On" : "Off";
             updateLocalValveButtons("drain", drainStatus);
           }
         }
-
-      }); // <-- ADD THIS to close localSocket.on("status_update", ...)
-
+      });  // End localSocket.on("status_update")
+  
       // 3) Optionally fetch /api/settings to discover remote zones
       fetch("/api/settings")
         .then(r => r.json())
@@ -208,7 +216,7 @@
           });
         })
         .catch(err => console.error("[LOCAL] error loading additional_plants:", err));
-
+  
       // Render sensor statuses
       function renderSensors(prefix, sensorDefs, waterLevel) {
         for (let i = 1; i <= 3; i++) {
@@ -423,20 +431,22 @@
           // Update valve statuses
           if (data.valve_info?.valve_relays) {
             const relays = data.valve_info.valve_relays;
-            const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
-            const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
+
+            // (NEW) Build the aggregator keys for the remote fill/drain
+            const fillKey  = fillValveId  ? `fill_${fillValveId}`   : null;
+            const drainKey = drainValveId ? `drain_${drainValveId}` : null;
 
             // Fill valve
-            if (fillValveId && relays[fillValveId]) {
-              const fillStatus = (relays[fillValveId].status || "").toLowerCase();
+            if (fillKey && relays[fillKey]) {
+              const fillStatus = (relays[fillKey].status || "").toLowerCase();
               document.getElementById(`${zoneId}-fill-status`).textContent =
                 fillStatus === "on" ? "On" : "Off";
               updateRemoteValveButtons(zoneId, "fill", fillStatus);
             }
 
             // Drain valve
-            if (drainValveId && relays[drainValveId]) {
-              const drainStatus = (relays[drainValveId].status || "").toLowerCase();
+            if (drainKey && relays[drainKey]) {
+              const drainStatus = (relays[drainKey].status || "").toLowerCase();
               document.getElementById(`${zoneId}-drain-status`).textContent =
                 drainStatus === "on" ? "On" : "Off";
               updateRemoteValveButtons(zoneId, "drain", drainStatus);
@@ -477,7 +487,7 @@
           offBtn.classList.add("btn-off-active");
         }
       }
-    }); // <-- ADD THIS to close document.addEventListener("DOMContentLoaded", ...)
+    });
   </script>
 </body>
 </html>

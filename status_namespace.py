@@ -223,16 +223,15 @@ def emit_status_update(force_emit=False):
         else:
             # If no local USB, we just add fill/drain by numeric ID
             if fill_valve_id.isdigit():
-                st = get_valve_status(int(fill_valve_id))
-                aggregator_map[fill_valve_id] = {
+                aggregator_map[f"fill_{fill_valve_id}"] = {
                     "label": fill_valve_label,
-                    "status": st
+                    "status": get_valve_status(int(fill_valve_id))
                 }
+
             if drain_valve_id.isdigit():
-                st = get_valve_status(int(drain_valve_id))
-                aggregator_map[drain_valve_id] = {
+                aggregator_map[f"drain_{drain_valve_id}"] = {
                     "label": drain_valve_label,
-                    "status": st
+                    "status": get_valve_status(int(drain_valve_id))
                 }
 
         # 6) Keep .local names in valve_info but resolve them for actual connections
@@ -275,11 +274,17 @@ def emit_status_update(force_emit=False):
 
             # Compare numeric keys to fill_valve_id / drain_valve_id
             for key, relay_obj in remote_relay_states.items():
-                if key == fill_valve_id or key == drain_valve_id:
-                    remote_relays[key] = {
+                if key == fill_valve_id:
+                    remote_relays[f"fill_{key}"] = {
                         "label": relay_obj.get("label", f"Valve {key}"),
                         "status": relay_obj.get("status", "off")
                     }
+                elif key == drain_valve_id:
+                    remote_relays[f"drain_{key}"] = {
+                        "label": relay_obj.get("label", f"Valve {key}"),
+                        "status": relay_obj.get("status", "off")
+                    }
+
 
         # 8) Merge local + remote
         valve_relays = aggregator_map.copy()
