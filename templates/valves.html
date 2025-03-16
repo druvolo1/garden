@@ -41,39 +41,36 @@
   </main>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // 1) Do the initial fetch to populate the table
-      fetchValveStatus();
+  document.addEventListener('DOMContentLoaded', () => {
+    // 1) Do the initial fetch to populate the table
+    fetchValveStatus();
 
-      // 2) Set up our WebSocket (Socket.IO) connection for real-time updates
-      const socket = io("/status");  // namespace must match your server's @socketio.on_namespace(StatusNamespace('/status'))
+    // 2) Set up our WebSocket (Socket.IO) connection for real-time updates
+    const socket = io("/status", {
+      transports: ["websocket"]
+    });
 
-      socket.on("connect", () => {
-        console.log("[valves.html] Connected to /status namespace via Socket.IO");
-      });
+    socket.on("connect", () => {
+      console.log("[valves.html] Connected to /status namespace");
+    });
 
-      socket.on("disconnect", () => {
-        console.log("[valves.html] Disconnected from /status namespace");
-      });
+    socket.on("disconnect", () => {
+      console.log("[valves.html] Disconnected from /status namespace");
+    });
 
-      // 3) On each "status_update", see if there's valve info => update the table
-      socket.on("status_update", (data) => {
-        // Confirm that 'valve_info' and 'valve_relays' exist in the payload
-        if (data.valve_info && data.valve_info.valve_relays) {
-          const relays = data.valve_info.valve_relays;
-          // relays is like {"1": {label: "...", status: "on"}, "2": {...}, ...}
-          for (let valveId in relays) {
-            const info = relays[valveId];
-            const status = info.status || "off"; // default if missing
-            // Update the table cell for that valve (if it exists)
-            const statusCell = document.getElementById(`valve-status-${valveId}`);
-            if (statusCell) {
-              statusCell.textContent = status;
-            }
-            // Color the On/Off buttons
-            updateValveDisplay(valveId, status.toLowerCase());
-          }
+    // 3) On each status_update, update the displayed status if it matches fill_{ID} or drain_{ID}
+    socket.on("status_update", (data) => {
+      const relays = data?.valve_info?.valve_relays || {};
+      // relays might have fill_4, drain_4, fill_3, drain_3, etc.
+      // For each key in relays, if we have a row for it in the table, update it:
+      Object.keys(relays).forEach(key => {
+        const info = relays[key];
+        const status = info.status || "off";
+        const rowStatusCell = document.getElementById(`valve-status-${key}`);
+        if (rowStatusCell) {
+          rowStatusCell.textContent = status;
         }
+        updateValveDisplay(key, status.toLowerCase());
       });
     });
 
