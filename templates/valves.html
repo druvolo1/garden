@@ -5,7 +5,7 @@
   <title>Valve Control</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <!-- NEW: import the Socket.IO client library -->
+  <!-- import the Socket.IO client library -->
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
@@ -21,15 +21,15 @@
     </ul>
   </nav>
 
-  <main> 
+  <main>
     <h1>Valve Control</h1>
     <p>This page allows you to name each valve and turn them on/off.</p>
 
     <table id="valve-table" border="1" cellpadding="8" cellspacing="0">
       <thead>
         <tr>
-          <th>Valve ID</th>
-          <th>Label</th>
+          <th>Valve Label</th>
+          <th>Rename</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -46,44 +46,49 @@
       fetchValveStatus();
 
       // 2) Set up our WebSocket (Socket.IO) connection for real-time updates
-      const socket = io("/status");  // namespace must match your server's @socketio.on_namespace(StatusNamespace('/status'))
+      const socket = io("/status");  // '/status' must match your server's namespace
 
       socket.on("connect", () => {
-        console.log("[valves.html] Connected to /status namespace via Socket.IO");
+        console.log("[valves.html] Connected to /status via Socket.IO");
       });
 
       socket.on("disconnect", () => {
-        console.log("[valves.html] Disconnected from /status namespace");
+        console.log("[valves.html] Disconnected from /status");
       });
 
       // 3) On each "status_update", see if there's valve info => update the table
       socket.on("status_update", (data) => {
-        // Confirm that 'valve_info' and 'valve_relays' exist in the payload
+        // Check if 'valve_info' and 'valve_relays' exist
         if (data.valve_info && data.valve_info.valve_relays) {
-          const relays = data.valve_info.valve_relays;
-          // relays is like {"1": {label: "...", status: "on"}, "2": {...}, ...}
-          for (let valveId in relays) {
-            const info = relays[valveId];
-            const status = info.status || "off"; // default if missing
-            // Update the table cell for that valve (if it exists)
-            const statusCell = document.getElementById(`valve-status-${valveId}`);
+          const relays = data.valve_info.valve_relays; 
+          // relays is like {"Zone 1 Drain": {status: "off"}, "Zone 2 Drain": {...}, ...}
+          for (let labelKey in relays) {
+            const relay = relays[labelKey];
+            const newStatus = relay.status || "off";
+            // Update the table cell for that label (if it exists)
+            const statusCell = document.getElementById(`valve-status-${labelKey}`);
             if (statusCell) {
-              statusCell.textContent = status;
+              statusCell.textContent = newStatus;
             }
             // Color the On/Off buttons
-            updateValveDisplay(valveId, status.toLowerCase());
+            updateValveDisplay(labelKey, newStatus.toLowerCase());
           }
         }
       });
     });
 
-    // ============== Existing Code Below (unchanged except for the finishing brace at the end) =============
-
+    // ============== Populate table from a JSON endpoint =============
     function fetchValveStatus() {
       fetch("/api/valve_relay/all_status")
         .then(response => response.json())
         .then(data => {
           if (data.status === "success") {
+            // data.valves is presumably something like:
+            // {
+            //   "Zone 1 Drain": {"status": "off"},
+            //   "Zone 2 Drain": {"status": "on"},
+            //   ...
+            // }
             populateTable(data.valves);
           } else {
             console.error("Failed to fetch valve status:", data.error);
@@ -98,52 +103,57 @@
       const tbody = document.querySelector("#valve-table tbody");
       tbody.innerHTML = ""; // Clear existing rows
 
-      Object.keys(valves).forEach(valveId => {
-        const info = valves[valveId];
-        const label = info.label || "";
+      // 'valveKey' will be something like "Zone 4 Drain"
+      Object.keys(valves).forEach(valveKey => {
+        const info = valves[valveKey];
         const status = info.status || "unknown";
 
         const tr = document.createElement('tr');
 
-        const idCell = document.createElement('td');
-        idCell.textContent = valveId;
-        tr.appendChild(idCell);
-
+        // (A) Valve label cell
         const labelCell = document.createElement('td');
-        const labelWrapper = document.createElement('div');
-        labelWrapper.style.display = "inline-flex";
-        labelWrapper.style.gap = "8px";
+        labelCell.textContent = valveKey;  // "Zone 4 Drain"
+        tr.appendChild(labelCell);
 
-        const labelInput = document.createElement('input');
-        labelInput.type = "text";
-        labelInput.value = label;
-        labelInput.id = `valve-label-${valveId}`;
-        labelInput.style.width = "180px";
+        // (B) Label rename cell (optional if you still want to rename by the key)
+        // You might remove or adapt this if your "label is key" approach doesn't allow dynamic renaming
+        const renameCell = document.createElement('td');
+        const renameWrapper = document.createElement('div');
+        renameWrapper.style.display = "inline-flex";
+        renameWrapper.style.gap = "8px";
+
+        const renameInput = document.createElement('input');
+        renameInput.type = "text";
+        renameInput.value = valveKey;
+        renameInput.id = `valve-rename-${valveKey}`;
+        renameInput.style.width = "180px";
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = "Save";
-        saveBtn.onclick = () => saveLabel(valveId);
+        saveBtn.onclick = () => saveLabel(valveKey);
 
-        labelWrapper.appendChild(labelInput);
-        labelWrapper.appendChild(saveBtn);
-        labelCell.appendChild(labelWrapper);
-        tr.appendChild(labelCell);
+        renameWrapper.appendChild(renameInput);
+        renameWrapper.appendChild(saveBtn);
+        renameCell.appendChild(renameWrapper);
+        tr.appendChild(renameCell);
 
+        // (C) Status cell
         const statusCell = document.createElement('td');
-        statusCell.id = `valve-status-${valveId}`;
+        statusCell.id = `valve-status-${valveKey}`;
         statusCell.textContent = status;
         tr.appendChild(statusCell);
 
+        // (D) Action cell (On/Off)
         const actionCell = document.createElement('td');
         const onBtn = document.createElement('button');
         onBtn.textContent = "ON";
-        onBtn.id = `valve-${valveId}-on`;
-        onBtn.onclick = () => turnValveOn(valveId);
+        onBtn.id = `valve-${valveKey}-on`;
+        onBtn.onclick = () => turnValveOn(valveKey);
 
         const offBtn = document.createElement('button');
         offBtn.textContent = "OFF";
-        offBtn.id = `valve-${valveId}-off`;
-        offBtn.onclick = () => turnValveOff(valveId);
+        offBtn.id = `valve-${valveKey}-off`;
+        offBtn.onclick = () => turnValveOff(valveKey);
 
         actionCell.appendChild(onBtn);
         actionCell.appendChild(offBtn);
@@ -151,35 +161,41 @@
 
         tbody.appendChild(tr);
 
-        updateValveDisplay(valveId, status.toLowerCase());
+        updateValveDisplay(valveKey, status.toLowerCase());
       });
     }
 
-    function saveLabel(valveId) {
-      const newLabel = document.getElementById(`valve-label-${valveId}`).value;
-      fetch(`/api/valve_relay/label/${valveId}`, {
+    // ============== Example: rename the valve key (if you allow that) =============
+    function saveLabel(oldLabel) {
+      const newLabel = document.getElementById(`valve-rename-${oldLabel}`).value;
+      // If your backend still expects numeric IDs or some unique ID, you'll need to adapt this.
+      // For now, we assume there's an endpoint that can rename from oldLabel->newLabel
+      fetch(`/api/valve_relay/rename`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({label: newLabel})
+        body: JSON.stringify({ old_label: oldLabel, new_label: newLabel })
       })
-        .then(r => r.json())
-        .then(data => {
-          if (data.status === "success") {
-            console.log(`Label saved for valve ${valveId}: ${newLabel}`);
-          } else {
-            console.error("Failed to save label:", data.error);
-          }
-        })
-        .catch(err => console.error("Error saving label:", err));
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success") {
+          console.log(`Renamed valve from "${oldLabel}" to "${newLabel}"`);
+          // Possibly re-fetch or reload the table
+          fetchValveStatus();
+        } else {
+          console.error("Failed to rename label:", data.error);
+        }
+      })
+      .catch(err => console.error("Error renaming label:", err));
     }
 
-    function turnValveOn(valveId) {
-      fetch(`/api/valve_relay/${valveId}/on`, {method: "POST"})
+    // ============== Turn valve on/off by label =============
+    function turnValveOn(label) {
+      fetch(`/api/valve_relay/${encodeURIComponent(label)}/on`, {method: "POST"})
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            document.getElementById(`valve-status-${valveId}`).textContent = "on";
-            updateValveDisplay(valveId, "on");
+            document.getElementById(`valve-status-${label}`).textContent = "on";
+            updateValveDisplay(label, "on");
           } else {
             console.error("Failed to turn valve on:", data.error);
           }
@@ -187,13 +203,13 @@
         .catch(err => console.error("Error turning valve on:", err));
     }
 
-    function turnValveOff(valveId) {
-      fetch(`/api/valve_relay/${valveId}/off`, {method: "POST"})
+    function turnValveOff(label) {
+      fetch(`/api/valve_relay/${encodeURIComponent(label)}/off`, {method: "POST"})
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            document.getElementById(`valve-status-${valveId}`).textContent = "off";
-            updateValveDisplay(valveId, "off");
+            document.getElementById(`valve-status-${label}`).textContent = "off";
+            updateValveDisplay(label, "off");
           } else {
             console.error("Failed to turn valve off:", data.error);
           }
@@ -201,9 +217,10 @@
         .catch(err => console.error("Error turning valve off:", err));
     }
 
-    function updateValveDisplay(valveId, newStatus) {
-      const onButton  = document.getElementById(`valve-${valveId}-on`);
-      const offButton = document.getElementById(`valve-${valveId}-off`);
+    // ============== UI styling for on/off buttons =============
+    function updateValveDisplay(label, newStatus) {
+      const onButton  = document.getElementById(`valve-${label}-on`);
+      const offButton = document.getElementById(`valve-${label}-off`);
       if (!onButton || !offButton) return;
 
       onButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
