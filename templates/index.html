@@ -120,15 +120,14 @@
         console.error("[LOCAL] connect_error:", err);
       });
   
-        // 2) When we receive a status_update, refresh local zone UI
-        localSocket.on("status_update", (data) => {
-          console.log("[LOCAL] status_update:", data);
-          
+      // 2) When we receive a status_update, refresh local zone UI
+      localSocket.on("status_update", (data) => {
+        console.log("[LOCAL] status_update:", data);
+        
         // If the local zone provides a system_name, update the <title>:
         if (data.settings?.system_name) {
           document.title = data.settings.system_name;
         }
-
 
         // (A) Basic system info
         document.getElementById("local-system-name").textContent =
@@ -148,12 +147,11 @@
         }
   
         // (C) Show/hide fill/drain UI if there's a fill_valve / drain_valve
-        const fillValveId   = data.valve_info?.fill_valve    || data.settings?.fill_valve;
-        const drainValveId  = data.valve_info?.drain_valve   || data.settings?.drain_valve;
-        const fillValveIp   = data.valve_info?.fill_valve_ip || data.settings?.fill_valve_ip || window.location.hostname;
-        const drainValveIp  = data.valve_info?.drain_valve_ip || data.settings?.drain_valve_ip || window.location.hostname;
+        const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
+        const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
+        const fillValveIp  = data.valve_info?.fill_valve_ip  || data.settings?.fill_valve_ip  || window.location.hostname;
+        const drainValveIp = data.valve_info?.drain_valve_ip || data.settings?.drain_valve_ip || window.location.hostname;
 
-  
         document.getElementById("local-fill-container").style.display =
           fillValveId ? "block" : "none";
         document.getElementById("local-drain-container").style.display =
@@ -180,13 +178,11 @@
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
-          const fillValveId  = data.valve_info?.fill_valve  || data.settings?.fill_valve;
-          const drainValveId = data.valve_info?.drain_valve || data.settings?.drain_valve;
 
           // Fill valve
           if (fillValveId && relays[fillValveId]) {
             const fillStatus = (relays[fillValveId].status || "").toLowerCase();
-            document.getElementById("local-fill-status").textContent = 
+            document.getElementById("local-fill-status").textContent =
               fillStatus === "on" ? "On" : "Off";
             updateLocalValveButtons("fill", fillStatus);
           }
@@ -194,13 +190,14 @@
           // Drain valve
           if (drainValveId && relays[drainValveId]) {
             const drainStatus = (relays[drainValveId].status || "").toLowerCase();
-            document.getElementById("local-drain-status").textContent = 
+            document.getElementById("local-drain-status").textContent =
               drainStatus === "on" ? "On" : "Off";
             updateLocalValveButtons("drain", drainStatus);
           }
         }
 
-  
+      }); // <-- ADD THIS to close localSocket.on("status_update", ...)
+
       // 3) Optionally fetch /api/settings to discover remote zones
       fetch("/api/settings")
         .then(r => r.json())
@@ -211,7 +208,7 @@
           });
         })
         .catch(err => console.error("[LOCAL] error loading additional_plants:", err));
-  
+
       // Render sensor statuses
       function renderSensors(prefix, sensorDefs, waterLevel) {
         for (let i = 1; i <= 3; i++) {
@@ -480,7 +477,7 @@
           offBtn.classList.add("btn-off-active");
         }
       }
-    });
+    }); // <-- ADD THIS to close document.addEventListener("DOMContentLoaded", ...)
   </script>
 </body>
 </html>
