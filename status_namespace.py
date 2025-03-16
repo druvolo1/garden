@@ -163,7 +163,10 @@ def get_cached_remote_states(remote_ip):
 def emit_status_update(force_emit=False):
     """
     Collects all valve statuses from local and remote sources and emits only
-    when there are changes.
+    when there are changes. We now store valve_relays as:
+      "Zone 4 Drain": { "status": "on" }
+      "Zone 5 Drain": { "status": "off" }
+    etc., with label-based dictionary keys and no extra "label" field inside.
     """
     global LAST_EMITTED_STATUS
 
@@ -197,7 +200,7 @@ def emit_status_update(force_emit=False):
         # 4) Water level
         water_level_info = get_water_level_status()
 
-        # 5) Local valve states (numeric keys)
+        # 5) Build local valve states keyed by label
         from services.valve_relay_service import get_valve_status
         aggregator_map = {}
 
@@ -206,33 +209,29 @@ def emit_status_update(force_emit=False):
         drain_valve_id   = settings.get("drain_valve", "")
         drain_valve_label= settings.get("drain_valve_label", "")
 
-        # If local USB device is assigned, output all 8 numeric valves
         usb_roles = settings.get("usb_roles", {})
         local_valve_device = usb_roles.get("valve_relay", None)
 
         if local_valve_device:
+            # If a local USB device is assigned, add all 8 valves, keyed by label
             log_with_timestamp("[DEBUG] Local valve_relay device is assigned; adding all 8 valves.")
             label_dict = settings.get("valve_labels", {})
             for i in range(1, 9):
                 numeric_id = str(i)
                 custom_label = label_dict.get(numeric_id, f"Valve {numeric_id}")
                 aggregator_map[custom_label] = {
-                    "label": custom_label,
                     "status": get_valve_status(i)
                 }
-
-        # If NO local_valve_device, we just do fill/drain by label:
         else:
+            # If no USB device, just add the fill/drain valves by label
             if fill_valve_id.isdigit():
                 st = get_valve_status(int(fill_valve_id))
                 aggregator_map[fill_valve_label] = {
-                    "label": fill_valve_label,
                     "status": st
                 }
             if drain_valve_id.isdigit():
                 st = get_valve_status(int(drain_valve_id))
                 aggregator_map[drain_valve_label] = {
-                    "label": drain_valve_label,
                     "status": st
                 }
 
@@ -257,7 +256,7 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"[DEBUG] fill_valve_ip='{fill_valve_ip}' => resolved='{resolved_fill_ip}'")
         log_with_timestamp(f"[DEBUG] drain_valve_ip='{drain_valve_ip}' => resolved='{resolved_drain_ip}'")
 
-        # 7) Pull in remote states if there's a non-blank IP, matching numeric IDs
+        # 7) Pull in remote states (label-keyed) if there's a non-blank IP
         remote_relays = {}
         for ip_addr, resolved_ip in [
             (fill_valve_ip, resolved_fill_ip),
@@ -274,13 +273,11 @@ def emit_status_update(force_emit=False):
 
             log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', found {len(remote_relay_states)} valve relays")
 
-            # Compare numeric keys to fill_valve_id / drain_valve_id
-            for key, relay_obj in remote_relay_states.items():
-                if key == fill_valve_id or key == drain_valve_id:
-                    remote_relays[key] = {
-                        "label": relay_obj.get("label", f"Valve {key}"),
-                        "status": relay_obj.get("status", "off")
-                    }
+            # Copy all remote relays by label
+            for label_key, relay_obj in remote_relay_states.items():
+                remote_relays[label_key] = {
+                    "status": relay_obj.get("status", "off")
+                }
 
         # 8) Merge local + remote
         valve_relays = aggregator_map.copy()
@@ -330,7 +327,7 @@ def emit_status_update(force_emit=False):
         if not changes:
             log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
             return
- 
+
         log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
