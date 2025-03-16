@@ -197,88 +197,87 @@ def emit_status_update(force_emit=False):
         # 4) Water level
         water_level_info = get_water_level_status()
 
-        # 5) Local valve states
+        # 5) Local valve states (numeric keys)
         from services.valve_relay_service import get_valve_status
-        
         aggregator_map = {}
 
-        # Check if this device has a local USB valve_relay device
+        fill_valve_id    = settings.get("fill_valve", "")        # e.g. "1"
+        fill_valve_label = settings.get("fill_valve_label", "")  # e.g. "Zone 1 Fill"
+        drain_valve_id   = settings.get("drain_valve", "")
+        drain_valve_label= settings.get("drain_valve_label", "")
+
+        # If local USB device is assigned, output all 8 numeric valves
         usb_roles = settings.get("usb_roles", {})
         local_valve_device = usb_roles.get("valve_relay", None)
 
         if local_valve_device:
-            # If a local USB valve device is assigned, output all 8 valves
             log_with_timestamp("[DEBUG] Local valve_relay device is assigned; adding all 8 valves.")
-            valve_labels = settings.get("valve_labels", {})
+            label_dict = settings.get("valve_labels", {})
             for i in range(1, 9):
-                # Use the custom label if present, otherwise fallback
-                label_dict = settings.get("valve_labels", {})
-                for i in range(1, 9):
-                    # numeric key as string
-                    key = str(i)
-                    # actual label
-                    custom_label = label_dict.get(key, f"Valve {i}")
-                    aggregator_map[key] = {
-                        "label": custom_label,
-                        "status": get_valve_status(i)
-                    }
+                numeric_id = str(i)
+                custom_label = label_dict.get(numeric_id, f"Valve {numeric_id}")
+                aggregator_map[numeric_id] = {
+                    "label": custom_label,
+                    "status": get_valve_status(i)
+                }
         else:
-            # Otherwise, keep the original fill/drain logic
-            fill_valve_id = settings.get("fill_valve", "")
-            fill_valve_label = settings.get("fill_valve_label", "")
-            drain_valve_id = settings.get("drain_valve", "")
-            drain_valve_label = settings.get("drain_valve_label", "")
-
-            # If fill_valve_id is a valid integer:
+            # If no local USB, we just add fill/drain by numeric ID
             if fill_valve_id.isdigit():
                 st = get_valve_status(int(fill_valve_id))
-                aggregator_map[fill_valve_label] = {
+                aggregator_map[fill_valve_id] = {
                     "label": fill_valve_label,
                     "status": st
                 }
-
-            # If drain_valve_id is a valid integer:
             if drain_valve_id.isdigit():
                 st = get_valve_status(int(drain_valve_id))
-                aggregator_map[drain_valve_label] = {
+                aggregator_map[drain_valve_id] = {
                     "label": drain_valve_label,
                     "status": st
                 }
-        # 6) Keep .local names in valve_info but resolve them for the actual connections
+
+        # 6) Keep .local names in valve_info but resolve them for actual connections
         fill_valve_ip = settings.get("fill_valve_ip", "").strip()
         drain_valve_ip = settings.get("drain_valve_ip", "").strip()
 
-        # If these are blank, they won't break the code
         resolved_fill_ip = None
         if fill_valve_ip:
-            resolved_fill_ip = resolve_mdns(fill_valve_ip) if fill_valve_ip.endswith(".local") else fill_valve_ip
+            if fill_valve_ip.endswith(".local"):
+                resolved_fill_ip = resolve_mdns(fill_valve_ip) or fill_valve_ip
+            else:
+                resolved_fill_ip = fill_valve_ip
 
         resolved_drain_ip = None
         if drain_valve_ip:
-            resolved_drain_ip = resolve_mdns(drain_valve_ip) if drain_valve_ip.endswith(".local") else drain_valve_ip
+            if drain_valve_ip.endswith(".local"):
+                resolved_drain_ip = resolve_mdns(drain_valve_ip) or drain_valve_ip
+            else:
+                resolved_drain_ip = drain_valve_ip
 
         log_with_timestamp(f"[DEBUG] fill_valve_ip='{fill_valve_ip}' => resolved='{resolved_fill_ip}'")
         log_with_timestamp(f"[DEBUG] drain_valve_ip='{drain_valve_ip}' => resolved='{resolved_drain_ip}'")
 
-        # 7) Pull in remote valve states only if we have a non-blank IP
+        # 7) Pull in remote states if there's a non-blank IP, matching numeric IDs
         remote_relays = {}
-        for ip_addr, resolved_ip in [(fill_valve_ip, resolved_fill_ip), (drain_valve_ip, resolved_drain_ip)]:
+        for ip_addr, resolved_ip in [
+            (fill_valve_ip, resolved_fill_ip),
+            (drain_valve_ip, resolved_drain_ip)
+        ]:
             if not ip_addr:
                 log_with_timestamp("[DEBUG] Skipping empty ip_addr for remote valves")
                 continue
 
             connect_to_remote_if_needed(resolved_ip)
-            remote_data = get_cached_remote_states(resolved_ip)
-            remote_valve_info = remote_data.get("valve_info", {})
+            remote_data         = get_cached_remote_states(resolved_ip)
+            remote_valve_info   = remote_data.get("valve_info", {})
             remote_relay_states = remote_valve_info.get("valve_relays", {})
 
             log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', found {len(remote_relay_states)} valve relays")
 
-            for label, relay_obj in remote_relay_states.items():
-                # Only add if label matches fill or drain
-                if label in [fill_valve_label, drain_valve_label]:
-                    remote_relays[label] = {
-                        "label": label,
+            # Compare numeric keys to fill_valve_id / drain_valve_id
+            for key, relay_obj in remote_relay_states.items():
+                if key == fill_valve_id or key == drain_valve_id:
+                    remote_relays[key] = {
+                        "label": relay_obj.get("label", f"Valve {key}"),
                         "status": relay_obj.get("status", "off")
                     }
 
@@ -289,11 +288,11 @@ def emit_status_update(force_emit=False):
         # 9) Build final valve_info
         valve_info = {
             "fill_valve_ip": fill_valve_ip,
-            "fill_valve": settings.get("fill_valve", ""),
-            "fill_valve_label": settings.get("fill_valve_label", ""),
+            "fill_valve": fill_valve_id,
+            "fill_valve_label": fill_valve_label,
             "drain_valve_ip": drain_valve_ip,
-            "drain_valve": settings.get("drain_valve", ""),
-            "drain_valve_label": settings.get("drain_valve_label", ""),
+            "drain_valve": drain_valve_id,
+            "drain_valve_label": drain_valve_label,
             "valve_relays": valve_relays
         }
 
@@ -340,7 +339,6 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
-
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
