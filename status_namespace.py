@@ -211,11 +211,16 @@ def emit_status_update(force_emit=False):
             valve_labels = settings.get("valve_labels", {})
             for i in range(1, 9):
                 # Use the custom label if present, otherwise fallback
-                label = valve_labels.get(str(i), f"Valve {i}")
-                aggregator_map[label] = {
-                    "label": label,
-                    "status": get_valve_status(i)
-                }
+                label_dict = settings.get("valve_labels", {})
+                for i in range(1, 9):
+                    # numeric key as string
+                    key = str(i)
+                    # actual label
+                    custom_label = label_dict.get(key, f"Valve {i}")
+                    aggregator_map[key] = {
+                        "label": custom_label,
+                        "status": get_valve_status(i)
+                    }
         else:
             # Otherwise, keep the original fill/drain logic
             fill_valve_id = settings.get("fill_valve", "")
