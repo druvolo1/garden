@@ -216,21 +216,22 @@ def emit_status_update(force_emit=False):
             for i in range(1, 9):
                 numeric_id = str(i)
                 custom_label = label_dict.get(numeric_id, f"Valve {numeric_id}")
-                aggregator_map[numeric_id] = {
+                aggregator_map[custom_label] = {
                     "label": custom_label,
                     "status": get_valve_status(i)
                 }
+
+        # If NO local_valve_device, we just do fill/drain by label:
         else:
-            # If no local USB, we just add fill/drain by numeric ID
             if fill_valve_id.isdigit():
                 st = get_valve_status(int(fill_valve_id))
-                aggregator_map[fill_valve_id] = {
+                aggregator_map[fill_valve_label] = {
                     "label": fill_valve_label,
                     "status": st
                 }
             if drain_valve_id.isdigit():
                 st = get_valve_status(int(drain_valve_id))
-                aggregator_map[drain_valve_id] = {
+                aggregator_map[drain_valve_label] = {
                     "label": drain_valve_label,
                     "status": st
                 }
