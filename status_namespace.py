@@ -329,7 +329,7 @@ def emit_status_update(force_emit=False):
         if not changes:
             log_with_timestamp("[DEBUG] No changes detected in status, skipping emit.")
             return
-
+ 
         log_with_timestamp(f"[DEBUG] Changes detected in status: {changes}")
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
