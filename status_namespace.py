@@ -126,6 +126,7 @@ def connect_to_remote_if_needed(remote_ip):
     def on_remote_status_update(data):
         REMOTE_STATES[original_name] = data  # store under the original .local name
         log_with_timestamp(f"[AGG] on_remote_status_update from {original_name}, keys: {list(data.keys())}")
+        emit_status_update(force_emit=True)
 
     url = f"http://{resolved_ip}:8000"
     try:
