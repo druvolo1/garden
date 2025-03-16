@@ -181,27 +181,25 @@
         // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
-  
-          // These are the actual remote labels the user picked/assigned.
+
+          // Instead of looping over labelKey in relays, do direct lookups:
           const fillLabel  = data.settings?.fill_valve_label  || "";
           const drainLabel = data.settings?.drain_valve_label || "";
-  
-          for (let labelKey in relays) {
-            const rInfo   = relays[labelKey];
-            const rLabel  = rInfo.label;      // e.g. "Zone 1 Fill"
-            const rStatus = (rInfo.status || "").toLowerCase();
-  
-            // Match the aggregator's label to our fill_valve_label
-            if (rLabel && rLabel === fillLabel) {
-              document.getElementById("local-fill-status").textContent = (rStatus === "on") ? "On" : "Off";
-              updateLocalValveButtons("fill", rStatus);
-            }
-  
-            // Similarly, match aggregator label to drain_valve_label
-            if (rLabel && rLabel === drainLabel) {
-              document.getElementById("local-drain-status").textContent = (rStatus === "on") ? "On" : "Off";
-              updateLocalValveButtons("drain", rStatus);
-            }
+
+          // 1) Fill valve direct lookup
+          if (fillLabel && relays[fillLabel]) {
+            const fillRelay  = relays[fillLabel];
+            const fillStatus = (fillRelay.status || "").toLowerCase();
+            document.getElementById("local-fill-status").textContent = (fillStatus === "on") ? "On" : "Off";
+            updateLocalValveButtons("fill", fillStatus);
+          }
+
+          // 2) Drain valve direct lookup
+          if (drainLabel && relays[drainLabel]) {
+            const drainRelay  = relays[drainLabel];
+            const drainStatus = (drainRelay.status || "").toLowerCase();
+            document.getElementById("local-drain-status").textContent = (drainStatus === "on") ? "On" : "Off";
+            updateLocalValveButtons("drain", drainStatus);
           }
         }
       });
