@@ -171,17 +171,19 @@ def emit_status_update(force_emit=False):
         settings = load_settings()
         log_with_timestamp(f"[DEBUG] Loaded settings, system_name={settings.get('system_name')}")
 
-        # existing code for auto_dose_state, plant_info, water_level, etc. ...
-        # (omitted here for brevity)
+        # -- Code for auto_dose_copy, plant_info, water_level_info, etc. (unchanged) --
+        # Suppose you already have:
+        #   auto_dose_copy, plant_info, water_level_info, etc.
+        #   from services.valve_relay_service import get_valve_status
 
-        # 5) Local valve states via numeric keys
         from services.valve_relay_service import get_valve_status
         aggregator_map = {}
 
-        fill_valve_id   = settings.get("fill_valve", "")       # e.g. "1"
-        fill_valve_label= settings.get("fill_valve_label", "") # e.g. "Zone 1 Fill"
-        drain_valve_id  = settings.get("drain_valve", "")      # e.g. "1"
-        drain_valve_label = settings.get("drain_valve_label", "")
+        # 5) Local valve states via numeric keys
+        fill_valve_id    = settings.get("fill_valve", "")        # e.g. "1"
+        fill_valve_label = settings.get("fill_valve_label", "")  # e.g. "Zone 1 Fill"
+        drain_valve_id   = settings.get("drain_valve", "")
+        drain_valve_label= settings.get("drain_valve_label", "")
 
         # If fill_valve_id is a valid integer, store it under the numeric key
         if fill_valve_id.isdigit():
@@ -199,12 +201,29 @@ def emit_status_update(force_emit=False):
                 "status": st
             }
 
-        # 6) Keep fill_valve_ip/drain_valve_ip logic as before
-        fill_valve_ip  = settings.get("fill_valve_ip", "").strip()
-        drain_valve_ip = settings.get("drain_valve_ip", "").strip()
+        # 6) Keep fill_valve_ip / drain_valve_ip logic for possibly remote valves
+        fill_valve_ip   = settings.get("fill_valve_ip", "").strip()
+        drain_valve_ip  = settings.get("drain_valve_ip", "").strip()
 
-        # existing code to resolve .local names (resolved_fill_ip / resolved_drain_ip) ...
-        # (omitted here for brevity)
+        # Define resolved_fill_ip / resolved_drain_ip
+        resolved_fill_ip = None
+        if fill_valve_ip:
+            if fill_valve_ip.endswith(".local"):
+                resolved = resolve_mdns(fill_valve_ip)
+                resolved_fill_ip = resolved if resolved else fill_valve_ip
+            else:
+                resolved_fill_ip = fill_valve_ip
+
+        resolved_drain_ip = None
+        if drain_valve_ip:
+            if drain_valve_ip.endswith(".local"):
+                resolved = resolve_mdns(drain_valve_ip)
+                resolved_drain_ip = resolved if resolved else drain_valve_ip
+            else:
+                resolved_drain_ip = drain_valve_ip
+
+        log_with_timestamp(f"[DEBUG] fill_valve_ip='{fill_valve_ip}' => resolved='{resolved_fill_ip}'")
+        log_with_timestamp(f"[DEBUG] drain_valve_ip='{drain_valve_ip}' => resolved='{resolved_drain_ip}'")
 
         # 7) Pull in remote valve states, matching numeric IDs
         remote_relays = {}
@@ -219,8 +238,7 @@ def emit_status_update(force_emit=False):
             remote_valve_info   = remote_data.get("valve_info", {})
             remote_relay_states = remote_valve_info.get("valve_relays", {})
 
-            log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', "
-                               f"found {len(remote_relay_states)} valve relays")
+            log_with_timestamp(f"[DEBUG] From remote '{resolved_ip}', found {len(remote_relay_states)} valve relays")
 
             # Compare numeric keys to fill_valve_id / drain_valve_id
             for key, relay_obj in remote_relay_states.items():
@@ -246,7 +264,7 @@ def emit_status_update(force_emit=False):
             "valve_relays": valve_relays
         }
 
-        # 10) Build final payload and emit
+        # 10) Build final payload
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
