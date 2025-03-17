@@ -58,30 +58,46 @@ def log_with_timestamp(msg):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
+import socket
+
 def get_local_ip_addresses():
     """
-    Return a set of IPv4 addresses for this machine using just the standard library.
-    This approach uses the machine's hostname plus gethostbyname_ex() to gather IPs.
+    Return a set of IPv4 addresses on this machine using only stdlib getaddrinfo().
+    This often enumerates all interfaces that the OS has bound (including WiFi, LAN, etc.).
     """
-    ips = set()
-
-    # 1) Attempt to retrieve IPs via the machine's reported hostname
-    hostname = socket.gethostname()  # e.g. "my-host"
+    local_ips = set()
+    
+    # getaddrinfo(None, 0, ...) with AI_PASSIVE typically enumerates all addresses
+    # that this machine can bind to for IPv4. We filter for family=AF_INET.
     try:
-        # gethostbyname_ex() returns a tuple (canonical_hostname, aliaslist, ipaddrlist)
-        # Example: ('my-host', [], ['192.168.1.10', '172.16.1.148'])
-        host_info = socket.gethostbyname_ex(hostname)
-        for ip in host_info[2]:
-            ips.add(ip)
+        addrinfo_list = socket.getaddrinfo(
+            None,
+            0,
+            family=socket.AF_INET,
+            type=socket.SOCK_DGRAM,
+            proto=0,
+            flags=socket.AI_PASSIVE
+        )
+        # Each addrinfo is (family, socktype, proto, canonname, (ip, port))
+        for addrinfo in addrinfo_list:
+            ip = addrinfo[4][0]
+            local_ips.add(ip)
     except socket.gaierror:
         pass
-
-    # 2) Optionally add the loopback address
-    #    If you want to treat "127.0.0.1" as local
-    ips.add("127.0.0.1")
-
-    return ips
-
+    
+    # Optionally also add the loopback
+    local_ips.add("127.0.0.1")
+    
+    # You can also incorporate the gethostbyname_ex() approach if you want:
+    try:
+        hostname = socket.gethostname()
+        host_info = socket.gethostbyname_ex(hostname)
+        for ip in host_info[2]:
+            local_ips.add(ip)
+    except socket.gaierror:
+        pass
+    
+    return local_ips
 
 def is_local_host(host: str, local_names=None):
     """
