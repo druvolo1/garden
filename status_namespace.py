@@ -5,7 +5,6 @@ import socket
 import subprocess
 import json
 import os
-import netifaces
 
 
 # Import DNS helpers from your new file:
@@ -60,49 +59,61 @@ def log_with_timestamp(msg):
 
 
 def get_local_ip_addresses():
-    """Return a set of all IPv4 addresses on this machine."""
+    """
+    Return a set of IPv4 addresses for this machine using just the standard library.
+    This approach uses the machine's hostname plus gethostbyname_ex() to gather IPs.
+    """
     ips = set()
-    for interface in netifaces.interfaces():
-        addrs = netifaces.ifaddresses(interface).get(netifaces.AF_INET, [])
-        for addrinfo in addrs:
-            ip = addrinfo.get('addr')
-            if ip:
-                ips.add(ip)
+
+    # 1) Attempt to retrieve IPs via the machine's reported hostname
+    hostname = socket.gethostname()  # e.g. "my-host"
+    try:
+        # gethostbyname_ex() returns a tuple (canonical_hostname, aliaslist, ipaddrlist)
+        # Example: ('my-host', [], ['192.168.1.10', '172.16.1.148'])
+        host_info = socket.gethostbyname_ex(hostname)
+        for ip in host_info[2]:
+            ips.add(ip)
+    except socket.gaierror:
+        pass
+
+    # 2) Optionally add the loopback address
+    #    If you want to treat "127.0.0.1" as local
+    ips.add("127.0.0.1")
+
     return ips
+
 
 def is_local_host(host: str, local_names=None):
     """
-    Decide if `host` is local or truly remote.
+    Decide if `host` is local or truly remote, using only the standard library.
 
-    Expands beyond just localhost/127.0.0.1 by also checking
-    all NIC IP addresses on this machine.
+    1) If empty / 'localhost' / '127.0.0.1', treat as local.
+    2) If matches an optional local_names list or <something>.local, treat as local.
+    3) If IP is in get_local_ip_addresses(), treat as local.
+    4) Otherwise, treat as remote.
     """
-    if not host:
-        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/None)")
+    # If no host, or explicitly localhost/127.0.0.1
+    if not host or host.lower() in ("localhost", "127.0.0.1"):
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
         return True
 
-    # 1) If it's localhost or 127.0.0.1
-    host_lower = host.lower()
-    if host_lower in ("localhost", "127.0.0.1"):
-        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (localhost/127.0.0.1)")
-        return True
-
-    # 2) If local_names (optional custom hostnames) is provided, check that
+    # If local_names are provided, check them
     if local_names:
+        host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
-            # e.g. host="zone1.local" => matches "Zone1"
-            if (host_lower == ln_lower) or host_lower == f"{ln_lower}.local":
+            if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
                 log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")
                 return True
 
-    # 3) Gather all IPs on this device & compare
+    # Compare against the IPs known to be on this device
     local_ips = get_local_ip_addresses()
     if host in local_ips:
         log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (found in local IP list)")
         return True
 
-    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False (not local)")
+    # Otherwise, not local
+    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
 
 
