@@ -554,7 +554,10 @@
 
     // Handle "Retrieve" clicks for fill/drain
     document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
-      const fillMode = document.getElementById('fill-valve-mode').value;
+      const fillMode   = document.getElementById('fill-valve-mode').value; // "local" or "remote"
+      const fillValve  = document.getElementById('fill-valve').value;
+      const fillIp     = (fillMode === 'local') ? "" : document.getElementById('fill-valve-ip').value.trim();
+
       if (fillMode === 'local') {
         retrieveLocalValves('fill-valve')
           .then(valves => console.log("Local fill valves retrieved:", valves))
@@ -568,7 +571,10 @@
     });
 
     document.getElementById('retrieve-drain-valves').addEventListener('click', () => {
-      const drainMode = document.getElementById('drain-valve-mode').value;
+      const drainMode = document.getElementById('drain-valve-mode').value; // "local" or "remote"
+      const drainValve  = document.getElementById('drain-valve').value;
+      const drainIp     = (drainMode === 'local') ? "" : document.getElementById('drain-valve-ip').value.trim();
+      
       if (drainMode === 'local') {
         retrieveLocalValves('drain-valve')
           .then(vals => console.log("Local drain valves retrieved:", vals))
