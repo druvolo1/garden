@@ -233,7 +233,9 @@ def emit_status_update(force_emit=False):
 
         settings = load_settings()
 
-        # Grab the modes, IPs, etc.
+        # -----------------------------------------------------------
+        #  1) Retrieve local roles (fill/drain) and valve_relay device
+        # -----------------------------------------------------------
         fill_mode  = settings.get("fill_valve_mode", "local")
         drain_mode = settings.get("drain_valve_mode", "local")
 
@@ -248,87 +250,107 @@ def emit_status_update(force_emit=False):
         usb_roles = settings.get("usb_roles", {})
         local_valve_device = usb_roles.get("valve_relay", None)
 
-        # ---------------
-        # PART 1: Get local status for fill/drain if mode=local
-        # ---------------
-        local_fill_status  = None
-        local_drain_status = None
-
-        if local_valve_device:
-            # If fill is local, read its current on/off status
-            if fill_mode == "local" and fill_id.isdigit():
-                from services.valve_relay_service import get_valve_status
-                local_fill_status = get_valve_status(int(fill_id))
-
-            # If drain is local, read its current on/off status
-            if drain_mode == "local" and drain_id.isdigit():
-                from services.valve_relay_service import get_valve_status
-                local_drain_status = get_valve_status(int(drain_id))
-
-        # ---------------
-        # PART 2: Connect to remote if mode=remote
-        # ---------------
+        # -----------------------------------------------------------
+        #  2) Connect to remote if fill/drain is remote
+        # -----------------------------------------------------------
         if fill_mode == "remote" and fill_ip:
             connect_to_remote_if_needed(fill_ip)
         if drain_mode == "remote" and drain_ip:
             connect_to_remote_if_needed(drain_ip)
 
-        # Grab whichever remote states we have cached
-        remote_relays = {}
+        # -----------------------------------------------------------
+        #  3) Gather any local valve statuses
+        # -----------------------------------------------------------
+        from services.valve_relay_service import get_valve_status
+        local_valve_map = {}  # label -> status
+
+        if local_valve_device:
+            # (A) Check if either fill_valve or drain_valve is assigned locally:
+            local_assignments = False
+
+            if fill_mode == "local" and fill_id.isdigit():
+                local_assignments = True
+                st = get_valve_status(int(fill_id))
+                local_valve_map[fill_label] = st or "off"
+
+            if drain_mode == "local" and drain_id.isdigit():
+                local_assignments = True
+                st = get_valve_status(int(drain_id))
+                local_valve_map[drain_label] = st or "off"
+
+            # (B) If no local fill/drain assignment, broadcast *all* 8 channels
+            if not local_assignments:
+                label_dict = settings.get("valve_labels", {})
+                for i in range(1, 9):
+                    key = str(i)
+                    label = label_dict.get(key, f"Valve {key}")
+                    st = get_valve_status(i)
+                    local_valve_map[label] = st or "off"
+
+        # -----------------------------------------------------------
+        #  4) Gather any remote valve statuses (because fill/drain could be remote)
+        # -----------------------------------------------------------
+        remote_valve_map = {}
         for ip_addr in [fill_ip, drain_ip]:
             if ip_addr:
-                remote_data = get_cached_remote_states(ip_addr)
-                valve_info  = remote_data.get("valve_info", {})
-                r_valves    = valve_info.get("valve_relays", {})
-                # Merge them into one big dict, keyed by label
+                remote_data   = get_cached_remote_states(ip_addr)
+                valve_info    = remote_data.get("valve_info", {})
+                r_valves      = valve_info.get("valve_relays", {})
+                # Merge them into remote_valve_map by label
                 for lbl, state_dict in r_valves.items():
-                    remote_relays[lbl] = state_dict
+                    remote_valve_map[lbl] = state_dict.get("status", "off")
 
-        # ---------------
-        # PART 3: Build the final valve_relays dict with exactly two keys
-        # ---------------
+        # -----------------------------------------------------------
+        #  5) Build final valve_relays: fill + drain if assigned, OR all 8 if no local assignment
+        # -----------------------------------------------------------
         valve_relays = {}
 
-        # FILL entry
-        if fill_mode == "local" and fill_label:
-            # local_fill_status should be either "on" or "off"
-            valve_relays[fill_label] = {"status": local_fill_status or "off"}
+        # Fill
+        if fill_mode == "local" and fill_label in local_valve_map:
+            valve_relays[fill_label] = {"status": local_valve_map[fill_label]}
         elif fill_mode == "remote" and fill_label:
-            # Remote has a dictionary keyed by label, e.g. "Zone 4 Fill"
-            remote_entry = remote_relays.get(fill_label, {"status": "off"})
-            valve_relays[fill_label] = {"status": remote_entry["status"]}
+            # Pull from remote map if present
+            st = remote_valve_map.get(fill_label, "off")
+            valve_relays[fill_label] = {"status": st}
 
-        # DRAIN entry
-        if drain_mode == "local" and drain_label:
-            valve_relays[drain_label] = {"status": local_drain_status or "off"}
+        # Drain
+        if drain_mode == "local" and drain_label in local_valve_map:
+            valve_relays[drain_label] = {"status": local_valve_map[drain_label]}
         elif drain_mode == "remote" and drain_label:
-            remote_entry = remote_relays.get(drain_label, {"status": "off"})
-            valve_relays[drain_label] = {"status": remote_entry["status"]}
+            st = remote_valve_map.get(drain_label, "off")
+            valve_relays[drain_label] = {"status": st}
 
-        # Now build valve_info for the JSON
+        # (Optional) Also include the enumerated valves if no local assignment:
+        # i.e. if you enumerated them in local_valve_map, you might want to pass them all:
+        if local_valve_device:
+            # If you want to always pass all localValves that you found in step 3B, do this:
+            for lbl, st in local_valve_map.items():
+                # If fill/drain keys are already in valve_relays, skip to avoid overwriting
+                if lbl not in valve_relays:
+                    valve_relays[lbl] = {"status": st}
+
+        # Build the final valve_info
         valve_info = {
-            "fill_valve_ip":     fill_ip,
-            "fill_valve":        fill_id,
-            "fill_valve_label":  fill_label,
-            "drain_valve_ip":    drain_ip,
-            "drain_valve":       drain_id,
-            "drain_valve_label": drain_label,
-            "valve_relays":      valve_relays
+            "fill_valve_ip":    fill_ip,
+            "fill_valve":       fill_id,
+            "fill_valve_label": fill_label,
+            "drain_valve_ip":   drain_ip,
+            "drain_valve":      drain_id,
+            "drain_valve_label":drain_label,
+            "valve_relays":     valve_relays
         }
 
-        # ---------------
-        # PART 4: Rest of your payload
-        # ---------------
+        # -----------------------------------------------------------
+        #  6) Build final payload + emit
+        # -----------------------------------------------------------
         status_payload = {
             "settings": settings,
             "current_ph": get_latest_ph_reading(),
             "current_ec": get_latest_ec_reading(),
-            # ...
             "valve_info": valve_info,
-            # ...
+            # ... rest of your existing fields ...
         }
 
-        # Emit logic as normal...
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
 
@@ -336,6 +358,7 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
