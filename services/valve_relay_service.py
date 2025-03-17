@@ -89,12 +89,16 @@ def parse_hardware_response(response):
     and updates valve_status accordingly.
     Expected response (example): {0x01}{0x00}{0x00}{0x00}{0x00}{0x00}{0x00}{0x01}{0xFF}
     """
+    log_with_timestamp(f"[Valve] parse_hardware_response got raw: {response.hex(' ')}")
+
     if not response:
         return
     data = response[:8]
     for i in range(1, 9):
         idx = i - 1
         valve_status[i] = "on" if idx < len(data) and data[idx] == 1 else "off"
+    
+    log_with_timestamp(f"[Valve] Updated valve_status: {valve_status}")
 
 # 1) At the top, import emit_status_update so we can call it:
 from status_namespace import emit_status_update
