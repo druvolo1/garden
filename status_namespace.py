@@ -321,11 +321,8 @@ def emit_status_update(force_emit=False):
             valve_relays[drain_label] = {"status": st}
 
         # (Optional) Also include the enumerated valves if no local assignment:
-        # i.e. if you enumerated them in local_valve_map, you might want to pass them all:
         if local_valve_device:
-            # If you want to always pass all localValves that you found in step 3B, do this:
             for lbl, st in local_valve_map.items():
-                # If fill/drain keys are already in valve_relays, skip to avoid overwriting
                 if lbl not in valve_relays:
                     valve_relays[lbl] = {"status": st}
 
@@ -336,7 +333,7 @@ def emit_status_update(force_emit=False):
             "fill_valve_label": fill_label,
             "drain_valve_ip":   drain_ip,
             "drain_valve":      drain_id,
-            "drain_valve_label":drain_label,
+            "drain_valve_label": drain_label,
             "valve_relays":     valve_relays
         }
 
@@ -351,6 +348,11 @@ def emit_status_update(force_emit=False):
             # ... rest of your existing fields ...
         }
 
+        # >>> ADD: Skip re-emit if payload is unchanged and force_emit is False <<<
+        if not force_emit and LAST_EMITTED_STATUS == status_payload:
+            log_with_timestamp("[DEBUG] No changes; skipping emit.")
+            return
+
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
 
@@ -358,6 +360,7 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 
 class StatusNamespace(Namespace):
