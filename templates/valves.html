@@ -28,8 +28,8 @@
     <table id="valve-table" border="1" cellpadding="8" cellspacing="0">
       <thead>
         <tr>
-          <th>Valve Label</th>
-          <th>Rename</th>
+          <th>Valve ID</th>
+          <th>Rename (Label)</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -42,51 +42,55 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // 1) Do the initial fetch to populate the table
+      // 1) Initial fetch to populate the table
       fetchValveStatus();
 
-      // 2) Set up our WebSocket (Socket.IO) connection for real-time updates
+      // 2) Set up Socket.IO for real-time status updates
       const socket = io("/status");  // '/status' must match your server's namespace
-
       socket.on("connect", () => {
         console.log("[valves.html] Connected to /status via Socket.IO");
       });
-
       socket.on("disconnect", () => {
         console.log("[valves.html] Disconnected from /status");
       });
 
-      // 3) On each "status_update", see if there's valve info => update the table
+      // 3) On each "status_update", if there's valve info, update the table
       socket.on("status_update", (data) => {
-        // Check if 'valve_info' and 'valve_relays' exist
         if (data.valve_info && data.valve_info.valve_relays) {
           const relays = data.valve_info.valve_relays; 
-          // relays is like {"Zone 1 Drain": {status: "off"}, "Zone 2 Drain": {...}, ...}
-          for (let labelKey in relays) {
-            const relay = relays[labelKey];
+          // relays might look like {"Zone 1 Drain": {status:"off"}, ...} if label-based,
+          // or "Valve #1": {status:"on"} if ID-based. But your aggregator is label-based.
+          // If your aggregator is numeric-based, adapt accordingly.
+          // In your case, the aggregator might be label-based, so this direct
+          // mapping might need a tweak. If the aggregator is numeric-based, it matches below.
+          // 
+          // Check your aggregator to confirm. If the aggregator is using numeric ID keys,
+          // you can do the same approach as below. Otherwise, you might need to re-map.
+          // 
+          // For now, let's assume it's numeric-based. 
+          for (let numericId in relays) {
+            const relay = relays[numericId];
             const newStatus = relay.status || "off";
-            // Update the table cell for that label (if it exists)
-            const statusCell = document.getElementById(`valve-status-${labelKey}`);
+            const statusCell = document.getElementById(`valve-status-${numericId}`);
             if (statusCell) {
               statusCell.textContent = newStatus;
             }
-            // Color the On/Off buttons
-            updateValveDisplay(labelKey, newStatus.toLowerCase());
+            updateValveDisplay(numericId, newStatus.toLowerCase());
           }
         }
       });
     });
 
-    // ============== Populate table from a JSON endpoint =============
+    // ============== 1) Fetch numeric-based statuses =============
     function fetchValveStatus() {
       fetch("/api/valve_relay/all_status")
         .then(response => response.json())
         .then(data => {
           if (data.status === "success") {
-            // data.valves is presumably something like:
+            // data.valves might be:
             // {
-            //   "Zone 1 Drain": {"status": "off"},
-            //   "Zone 2 Drain": {"status": "on"},
+            //   "1": { "label": "Zone 1 Drain", "status": "off" },
+            //   "2": { "label": "Zone 2 Drain", "status": "on" },
             //   ...
             // }
             populateTable(data.valves);
@@ -99,24 +103,25 @@
         });
     }
 
+    // ============== 2) Build the table =============
     function populateTable(valves) {
       const tbody = document.querySelector("#valve-table tbody");
       tbody.innerHTML = ""; // Clear existing rows
 
-      // 'valveKey' will be something like "Zone 4 Drain"
+      // valveKey is the numeric ID as a string, e.g. "1", "2", ...
       Object.keys(valves).forEach(valveKey => {
         const info = valves[valveKey];
+        const label = info.label || `Valve ${valveKey}`;
         const status = info.status || "unknown";
 
         const tr = document.createElement('tr');
 
-        // (A) Valve label cell
-        const labelCell = document.createElement('td');
-        labelCell.textContent = valveKey;  // "Zone 4 Drain"
-        tr.appendChild(labelCell);
+        // Column A: Valve ID (the numeric key)
+        const idCell = document.createElement('td');
+        idCell.textContent = valveKey;  
+        tr.appendChild(idCell);
 
-        // (B) Label rename cell (optional if you still want to rename by the key)
-        // You might remove or adapt this if your "label is key" approach doesn't allow dynamic renaming
+        // Column B: Rename input (current label)
         const renameCell = document.createElement('td');
         const renameWrapper = document.createElement('div');
         renameWrapper.style.display = "inline-flex";
@@ -124,12 +129,13 @@
 
         const renameInput = document.createElement('input');
         renameInput.type = "text";
-        renameInput.value = valveKey;
+        renameInput.value = label;
         renameInput.id = `valve-rename-${valveKey}`;
         renameInput.style.width = "180px";
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = "Save";
+        // On click => call saveLabel(valveKey)
         saveBtn.onclick = () => saveLabel(valveKey);
 
         renameWrapper.appendChild(renameInput);
@@ -137,13 +143,13 @@
         renameCell.appendChild(renameWrapper);
         tr.appendChild(renameCell);
 
-        // (C) Status cell
+        // Column C: Status
         const statusCell = document.createElement('td');
         statusCell.id = `valve-status-${valveKey}`;
         statusCell.textContent = status;
         tr.appendChild(statusCell);
 
-        // (D) Action cell (On/Off)
+        // Column D: Action buttons (On/Off)
         const actionCell = document.createElement('td');
         const onBtn = document.createElement('button');
         onBtn.textContent = "ON";
@@ -159,43 +165,50 @@
         actionCell.appendChild(offBtn);
         tr.appendChild(actionCell);
 
+        // Add row to table
         tbody.appendChild(tr);
 
+        // Update button styles
         updateValveDisplay(valveKey, status.toLowerCase());
       });
     }
 
-    // ============== Example: rename the valve key (if you allow that) =============
-    function saveLabel(oldLabel) {
-      const newLabel = document.getElementById(`valve-rename-${oldLabel}`).value;
-      // If your backend still expects numeric IDs or some unique ID, you'll need to adapt this.
-      // For now, we assume there's an endpoint that can rename from oldLabel->newLabel
-      fetch(`/api/valve_relay/rename`, {
+    // ============== 3) Rename a valve by numeric ID =============
+    function saveLabel(valveId) {
+      // Read the new label from the input
+      const newLabel = document.getElementById(`valve-rename-${valveId}`).value.trim();
+      if (!newLabel) {
+        alert("Please enter a label.");
+        return;
+      }
+      // POST to /api/valve_relay/label/<valve_id>
+      fetch(`/api/valve_relay/label/${valveId}`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ old_label: oldLabel, new_label: newLabel })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: newLabel })
       })
       .then(r => r.json())
       .then(data => {
         if (data.status === "success") {
-          console.log(`Renamed valve from "${oldLabel}" to "${newLabel}"`);
-          // Possibly re-fetch or reload the table
+          console.log(`Renamed valve #${valveId} to "${newLabel}".`);
+          // Refresh table
           fetchValveStatus();
         } else {
           console.error("Failed to rename label:", data.error);
         }
       })
-      .catch(err => console.error("Error renaming label:", err));
+      .catch(err => console.error("Error renaming valve:", err));
     }
 
-    // ============== Turn valve on/off by label =============
-    function turnValveOn(label) {
-      fetch(`/api/valve_relay/${encodeURIComponent(label)}/on`, {method: "POST"})
+    // ============== 4) Turn valve on/off by numeric ID =============
+    function turnValveOn(valveId) {
+      // Calls /api/valve_relay/<int:valveId>/on
+      fetch(`/api/valve_relay/${encodeURIComponent(valveId)}/on`, { method: "POST" })
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            document.getElementById(`valve-status-${label}`).textContent = "on";
-            updateValveDisplay(label, "on");
+            document.getElementById(`valve-status-${valveId}`).textContent = "on";
+            updateValveDisplay(valveId, "on");
           } else {
             console.error("Failed to turn valve on:", data.error);
           }
@@ -203,13 +216,13 @@
         .catch(err => console.error("Error turning valve on:", err));
     }
 
-    function turnValveOff(label) {
-      fetch(`/api/valve_relay/${encodeURIComponent(label)}/off`, {method: "POST"})
+    function turnValveOff(valveId) {
+      fetch(`/api/valve_relay/${encodeURIComponent(valveId)}/off`, { method: "POST" })
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            document.getElementById(`valve-status-${label}`).textContent = "off";
-            updateValveDisplay(label, "off");
+            document.getElementById(`valve-status-${valveId}`).textContent = "off";
+            updateValveDisplay(valveId, "off");
           } else {
             console.error("Failed to turn valve off:", data.error);
           }
@@ -217,10 +230,10 @@
         .catch(err => console.error("Error turning valve off:", err));
     }
 
-    // ============== UI styling for on/off buttons =============
-    function updateValveDisplay(label, newStatus) {
-      const onButton  = document.getElementById(`valve-${label}-on`);
-      const offButton = document.getElementById(`valve-${label}-off`);
+    // ============== 5) UI styling for On/Off buttons =============
+    function updateValveDisplay(valveId, newStatus) {
+      const onButton  = document.getElementById(`valve-${valveId}-on`);
+      const offButton = document.getElementById(`valve-${valveId}-off`);
       if (!onButton || !offButton) return;
 
       onButton.classList.remove("btn-on-active","btn-off-active","btn-inactive");
