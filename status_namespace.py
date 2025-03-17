@@ -83,7 +83,12 @@ def connect_to_remote_if_needed(remote_ip):
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
-
+    
+    # 1) If it's local, skip
+    if is_local_host(remote_ip):
+        log_with_timestamp(f"[DEBUG] Not connecting to local IP '{remote_ip}' to avoid loop.")
+        return
+    
     original_name = remote_ip  # Preserve .local for stored data
 
     # Resolve .local names **only** for connection
