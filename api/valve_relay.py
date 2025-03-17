@@ -95,6 +95,27 @@ def valve_on_by_name(valve_name):
             "error": data.get("error", f"Remote call failed with status {resp.status_code}")
         }), resp.status_code
 
+@valve_relay_blueprint.route('/rename', methods=['POST'])
+def rename_valve():
+    data = request.get_json() or {}
+    old_label = data.get("old_label")
+    new_label = data.get("new_label")
+    if not old_label or not new_label:
+        return jsonify({"status": "failure", "error": "Missing old_label or new_label"}), 400
+    
+    # Find numeric ID by old_label
+    valve_id = get_valve_id_by_name(old_label)
+    if valve_id is None:
+        return jsonify({"status": "failure", "error": f"No valve found with name {old_label}"}), 404
+
+    # Save new label in settings
+    settings = load_settings()
+    if "valve_labels" not in settings:
+        settings["valve_labels"] = {}
+    settings["valve_labels"][str(valve_id)] = new_label
+    save_settings(settings)
+
+    return jsonify({"status": "success"})
 
 @valve_relay_blueprint.route('/<string:valve_name>/off', methods=['POST'])
 def valve_off_by_name(valve_name):
