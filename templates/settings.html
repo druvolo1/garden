@@ -95,35 +95,14 @@
       
         <!-- NEW/CHANGED: Valve Relay with Local/Remote option -->
         <form id="valve-relay-form">
-          <label>Valve Relay Mode:</label>
-          <select id="valve-relay-mode">
-            <!-- We'll hide "Local" if no local valve_relay is detected -->
-            <option value="local">Local (USB)</option>
-            <option value="remote">Remote (IP)</option>
+          <label for="valve-relay-device">Valve Relay Module:</label>
+          <select id="valve-relay-device" name="valve-relay-device">
+            <option value="">Select a device</option>
+            <!-- Populated dynamically with /dev/serial/... devices -->
           </select>
-      
-          <br><br>
-      
-          <!-- This section is shown ONLY if mode=local -->
-          <div id="valve-relay-local-section">
-            <label for="valve-relay-device">Valve Relay Module:</label>
-            <select id="valve-relay-device" name="valve-relay-device">
-              <option value="">Select a device</option>
-            </select>
-          </div>
-      
-          <br>
-      
-          <!-- This section is shown ONLY if mode=remote -->
-          <div id="valve-relay-remote-section" style="display: none;">
-            <label for="valve-relay-ip">Remote Valve Relay IP:</label>
-            <input type="text" id="valve-relay-ip" placeholder="e.g. 192.168.0.50">
-          </div>
-      
-          <br>
+        
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-        <!-- END Valve Relay Form -->
       
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
