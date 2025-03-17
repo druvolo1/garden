@@ -5,6 +5,7 @@ import socket
 import subprocess
 import json
 import os
+import netifaces
 
 
 # Import DNS helpers from your new file:
@@ -58,20 +59,50 @@ def log_with_timestamp(msg):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
+def get_local_ip_addresses():
+    """Return a set of all IPv4 addresses on this machine."""
+    ips = set()
+    for interface in netifaces.interfaces():
+        addrs = netifaces.ifaddresses(interface).get(netifaces.AF_INET, [])
+        for addrinfo in addrs:
+            ip = addrinfo.get('addr')
+            if ip:
+                ips.add(ip)
+    return ips
+
 def is_local_host(host: str, local_names=None):
-    """ Decide if `host` is local or truly remote. """
-    if not host or host.lower() in ("localhost", "127.0.0.1"):
-        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
+    """
+    Decide if `host` is local or truly remote.
+
+    Expands beyond just localhost/127.0.0.1 by also checking
+    all NIC IP addresses on this machine.
+    """
+    if not host:
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/None)")
         return True
+
+    # 1) If it's localhost or 127.0.0.1
+    host_lower = host.lower()
+    if host_lower in ("localhost", "127.0.0.1"):
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (localhost/127.0.0.1)")
+        return True
+
+    # 2) If local_names (optional custom hostnames) is provided, check that
     if local_names:
-        host_lower = host.lower()
         for ln in local_names:
             ln_lower = ln.lower()
             # e.g. host="zone1.local" => matches "Zone1"
-            if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
+            if (host_lower == ln_lower) or host_lower == f"{ln_lower}.local":
                 log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")
                 return True
-    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
+
+    # 3) Gather all IPs on this device & compare
+    local_ips = get_local_ip_addresses()
+    if host in local_ips:
+        log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (found in local IP list)")
+        return True
+
+    log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False (not local)")
     return False
 
 
