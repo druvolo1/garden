@@ -93,14 +93,13 @@
           <button type="submit">Save Dosing Relay Module</button>
         </form>
       
-        <!-- NEW/CHANGED: Valve Relay with Local/Remote option -->
+        <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
           <label for="valve-relay-device">Valve Relay Module:</label>
           <select id="valve-relay-device" name="valve-relay-device">
             <option value="">Select a device</option>
             <!-- Populated dynamically with /dev/serial/... devices -->
           </select>
-        
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
       
@@ -112,7 +111,6 @@
           </select>
           <button type="submit">Save EC Meter</button>
         </form>
-
 
         <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
         <div id="status"></div>
@@ -246,7 +244,7 @@
           </select>
           <!-- ... then the rest of the fill logic ... -->
 
-          <!-- DRY the same approach for Drain -->
+          <!-- Drain Valve -->
           <h3>Drain Valve Assignment</h3>
 
           <label for="drain-valve-mode">Drain Valve Mode:</label>
@@ -276,7 +274,6 @@
           </select>
 
           <hr>
-
           <button type="submit">Save Valve Assignments</button>
         </form>
       </div>
@@ -396,88 +393,197 @@
   </main>
 
   <script>
+    /***************************************************************/
+    /**   retrieveValvesFromIP - existing remote IP approach      **/
+    /***************************************************************/
+    function retrieveValvesFromIP(ipInput, selectElementId) {
+      console.log("[retrieveValvesFromIP] Called with ipInput =", ipInput, "and selectElementId =", selectElementId);
+
+      return new Promise((resolve, reject) => {
+        if (!ipInput) {
+          console.warn("[retrieveValvesFromIP] No IP provided, rejecting.");
+          return reject(new Error("No IP address provided"));
+        }
+
+        let [host, port] = ipInput.split(":");
+        port = port || "8000";
+
+        const url = `http://${host}:${port}/api/valve_relay/all_status`;
+        console.log("[retrieveValvesFromIP] Fetching URL:", url);
+
+        fetch(url)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data.status !== "success") {
+              throw new Error(data.error || "API returned failure");
+            }
+
+            const valveMap = data.valves || {};
+            console.log("[retrieveValvesFromIP] valveMap:", valveMap);
+
+            const sel = document.getElementById(selectElementId);
+            if (!sel) {
+              console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
+              return resolve([]);
+            }
+
+            sel.innerHTML = '<option value="">Select Valve</option>';
+            Object.keys(valveMap).forEach(valveId => {
+              const info = valveMap[valveId];
+              const label = info.label || `Valve ${valveId}`;
+              const option = new Option(label, valveId);
+              sel.add(option);
+            });
+
+            resolve(Object.keys(valveMap));
+          })
+          .catch(err => {
+            console.error("[retrieveValvesFromIP] Caught error:", err);
+            reject(err);
+          });
+      });
+    }
+
+    /***************************************************************/
+    /**   retrieveLocalValves - new local USB approach            **/
+    /***************************************************************/
+    function retrieveLocalValves(selectElementId) {
+      return new Promise((resolve, reject) => {
+        const url = "/api/valve_relay/all_status"; 
+        console.log("[retrieveLocalValves] Fetching local valves:", url);
+
+        fetch(url)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            if (data.status !== "success") {
+              throw new Error(data.error || "API returned failure");
+            }
+
+            const valveMap = data.valves || {};
+            console.log("[retrieveLocalValves] valveMap:", valveMap);
+
+            const sel = document.getElementById(selectElementId);
+            if (!sel) {
+              console.warn("[retrieveLocalValves] Could not find <select>", selectElementId);
+              return resolve([]);
+            }
+
+            sel.innerHTML = '<option value="">Select Valve</option>';
+            Object.keys(valveMap).forEach(valveId => {
+              const info = valveMap[valveId];
+              const label = info.label || `Valve ${valveId}`;
+              const option = new Option(label, valveId);
+              sel.add(option);
+            });
+
+            resolve(Object.keys(valveMap));
+          })
+          .catch(err => {
+            console.error("[retrieveLocalValves] Error:", err);
+            reject(err);
+          });
+      });
+    }
+
+    /***************************************************************/
+    /**    handleFillValveModeChange                              **/
+    /***************************************************************/
+    function handleFillValveModeChange() {
+      const mode = document.getElementById('fill-valve-mode').value;
+      const ipSection = document.getElementById('fill-valve-ip-section');
+      const fillValveSelect = document.getElementById('fill-valve');
+
+      if (mode === 'local') {
+        // Hide IP input
+        ipSection.classList.add('hidden');
+        // Populate from local
+        retrieveLocalValves('fill-valve')
+          .then(valves => console.log("Local fill valves retrieved:", valves))
+          .catch(err => console.error("Error retrieving local fill valves:", err));
+      } else {
+        // Show IP input
+        ipSection.classList.remove('hidden');
+        // Clear out the dropdown
+        fillValveSelect.innerHTML = '<option value="">Select Fill Valve</option>';
+      }
+    }
+
+    /***************************************************************/
+    /**    handleDrainValveModeChange                             **/
+    /***************************************************************/
+    function handleDrainValveModeChange() {
+      const mode = document.getElementById('drain-valve-mode').value;
+      const ipSection = document.getElementById('drain-valve-ip-section');
+      const drainValveSelect = document.getElementById('drain-valve');
+
+      if (mode === 'local') {
+        ipSection.classList.add('hidden');
+        retrieveLocalValves('drain-valve')
+          .then(vals => console.log("Local drain valves retrieved:", vals))
+          .catch(err => console.error("Error retrieving local drain valves:", err));
+      } else {
+        ipSection.classList.remove('hidden');
+        drainValveSelect.innerHTML = '<option value="">Select Drain Valve</option>';
+      }
+    }
+
+    /***************************************************************/
+    /**  Document Ready                                           **/
+    /***************************************************************/
     document.addEventListener('DOMContentLoaded', () => {
+      // Immediately fetch & populate USB devices, etc.
       fetchUsbDevices();
 
-      // Event listeners for the fill/drain mode dropdowns
-      const fillMode = document.getElementById('fill-valve-mode');
-      const drainMode = document.getElementById('drain-valve-mode');
-      fillMode.addEventListener('change', handleFillValveModeChange);
-      drainMode.addEventListener('change', handleDrainValveModeChange);
-
-      // Also call them right away in case settings are "remote"
+      // Fill/Drain mode toggles
+      document.getElementById('fill-valve-mode').addEventListener('change', handleFillValveModeChange);
+      document.getElementById('drain-valve-mode').addEventListener('change', handleDrainValveModeChange);
+      // On page load, run them once
       handleFillValveModeChange();
       handleDrainValveModeChange();
     });
 
-    // Toggle IP input for fill
-    function handleFillValveModeChange() {
-      const mode = document.getElementById('fill-valve-mode').value;
-      const ipSection = document.getElementById('fill-valve-ip-section');
-      if (mode === 'local') {
-        ipSection.classList.add('hidden');
-      } else {
-        ipSection.classList.remove('hidden');
-      }
-    }
-
-    // Toggle IP input for drain
-    function handleDrainValveModeChange() {
-      const mode = document.getElementById('drain-valve-mode').value;
-      const ipSection = document.getElementById('drain-valve-ip-section');
-      if (mode === 'local') {
-        ipSection.classList.add('hidden');
-      } else {
-        ipSection.classList.remove('hidden');
-      }
-    }
-
-    // Water Valve Form Submission
-    document.getElementById('water-valve-form').addEventListener('submit', e => {
-      e.preventDefault();
-
-      // Grab mode
-      const fillModeSelect = document.getElementById('fill-valve-mode');
-      const fillMode = fillModeSelect.value;   // 'local' or 'remote'
-      const drainModeSelect= document.getElementById('drain-valve-mode');
-      const drainMode = drainModeSelect.value; // 'local' or 'remote'
-
-      const fillValSelect = document.getElementById('fill-valve');
-      const fillValveId   = fillValSelect.value; // e.g. "1"
-      const fillValveLbl  = fillValSelect.options[fillValSelect.selectedIndex]?.text || "";
-
-      const drainValSelect= document.getElementById('drain-valve');
-      const drainValveId  = drainValSelect.value;
-      const drainValveLbl = drainValSelect.options[drainValSelect.selectedIndex]?.text || "";
-
-      // If local mode, we clear out the IP
-      let fillIp = document.getElementById('fill-valve-ip').value.trim();
+    // Handle "Retrieve" clicks for fill/drain
+    document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
+      const fillMode = document.getElementById('fill-valve-mode').value;
       if (fillMode === 'local') {
-        fillIp = "";
+        retrieveLocalValves('fill-valve')
+          .then(valves => console.log("Local fill valves retrieved:", valves))
+          .catch(err => console.error("Error retrieving local fill valves:", err));
+      } else {
+        const fillIP = document.getElementById('fill-valve-ip').value.trim();
+        retrieveValvesFromIP(fillIP, 'fill-valve')
+          .then(valves => console.log("Remote fill valves retrieved:", valves))
+          .catch(err => console.error("Error retrieving remote fill valves:", err));
       }
-
-      let drainIp = document.getElementById('drain-valve-ip').value.trim();
-      if (drainMode === 'local') {
-        drainIp = "";
-      }
-
-      const payload = {
-        fill_valve_mode:  fillMode,
-        fill_valve_ip:    fillIp,
-        fill_valve:       fillValveId,
-        fill_valve_label: fillValveLbl,
-        fill_sensor:      document.getElementById('fill-sensor').value,
-
-        drain_valve_mode: drainMode,
-        drain_valve_ip:   drainIp,
-        drain_valve:      drainValveId,
-        drain_valve_label: drainValveLbl,
-        drain_sensor:     document.getElementById('drain-sensor').value
-      };
-
-      saveSettings("/api/settings/", payload);
     });
 
+    document.getElementById('retrieve-drain-valves').addEventListener('click', () => {
+      const drainMode = document.getElementById('drain-valve-mode').value;
+      if (drainMode === 'local') {
+        retrieveLocalValves('drain-valve')
+          .then(vals => console.log("Local drain valves retrieved:", vals))
+          .catch(err => console.error("Error retrieving local drain valves:", err));
+      } else {
+        const drainIP = document.getElementById('drain-valve-ip').value.trim();
+        retrieveValvesFromIP(drainIP, 'drain-valve')
+          .then(vals => console.log("Remote drain valves retrieved:", vals))
+          .catch(err => console.error("Error retrieving remote drain valves:", err));
+      }
+    });
+
+    /***************************************************************/
+    /**      fetchUsbDevices & other existing code below...       **/
+    /***************************************************************/
     function updateWeeksSinceStart(startDateStr) {
       const weeksSpan = document.getElementById('weeks-since-start');
       if (!startDateStr) {
@@ -553,7 +659,7 @@
           }
           valveDevSelect.appendChild(valveOption);
 
-          // EC Meter (NEW)
+          // EC Meter
           const ecOption = document.createElement('option');
           ecOption.value = dev.device;
           ecOption.textContent = dev.device;
@@ -629,8 +735,6 @@
         document.getElementById('system-name').value      = settings.system_name || '';
         document.getElementById('plant-name').value       = plantInfo.name       || '';
         document.getElementById('plant-start-date').value = plantInfo.start_date || '';
-
-        // Update "Weeks Since Start" display
         updateWeeksSinceStart(plantInfo.start_date);
 
         // Dosage Strength
@@ -659,51 +763,24 @@
         document.getElementById('sensor3-label').value = sensors.sensor3.label;
         document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
 
-        // Populate the Fill & Drain Sensor dropdowns
+        // Populate the Fill/Drain Sensor dropdowns
         const fillSensorSelect  = document.getElementById('fill-sensor');
         const drainSensorSelect = document.getElementById('drain-sensor');
-
         fillSensorSelect.innerHTML  = '<option value="">Select Fill Sensor</option>';
         drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
 
         Object.keys(sensors).forEach(sensorKey => {
           const sensorLabel = sensors[sensorKey].label || sensorKey;
-
-          const fillOption = new Option(sensorLabel, sensorKey);
-          fillSensorSelect.add(fillOption);
-
-          const drainOption = new Option(sensorLabel, sensorKey);
-          drainSensorSelect.add(drainOption);
+          fillSensorSelect.add(new Option(sensorLabel, sensorKey));
+          drainSensorSelect.add(new Option(sensorLabel, sensorKey));
         });
 
         fillSensorSelect.value  = settings.fill_sensor  || '';
         drainSensorSelect.value = settings.drain_sensor || '';
 
-        // Water Valve IPs
-        document.getElementById('fill-valve-ip').value  = settings.fill_valve_ip   || '';
-        document.getElementById('drain-valve-ip').value = settings.drain_valve_ip  || '';
-
-        // If fill_valve_ip is present, fetch the valves right away
-        if (settings.fill_valve_ip) {
-          retrieveValvesFromIP(settings.fill_valve_ip, 'fill-valve')
-            .then(() => {
-              document.getElementById('fill-valve').value = settings.fill_valve || '';
-            })
-            .catch(err => console.error('Auto-retrieve fill valves error:', err));
-        }
-
-        // If drain_valve_ip is present, fetch the valves right away
-        if (settings.drain_valve_ip) {
-          retrieveValvesFromIP(settings.drain_valve_ip, 'drain-valve')
-            .then(() => {
-              document.getElementById('drain-valve').value = settings.drain_valve || '';
-            })
-            .catch(err => console.error('Auto-retrieve drain valves error:', err));
-        }
-
-        // Also set the fill/drain sensor dropdowns after you read water_level_sensors
-        document.getElementById('fill-sensor').value  = settings.fill_sensor  || '';
-        document.getElementById('drain-sensor').value = settings.drain_sensor || '';
+        // If you still want to auto-fetch remote valves at load time
+        // you can do so if "fill_valve_mode" == 'remote', etc. 
+        // (But for clarity, I'm leaving that out unless you need it.)
 
         // Additional plants
         renderAdditionalPlants(settings.additional_plants || []);
@@ -711,112 +788,11 @@
         // Program version
         document.getElementById('program-version').textContent = settings.program_version || 'N/A';
 
-        // ================= NEW: RENDER POWER OUTLETS ==================
+        // Render power outlets
         renderPowerOutlets(settings.power_controls || []);
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
-
-    /**
-    * Retrieve valves from the given IP and populate the given <select> by ID.
-    */
-    function retrieveValvesFromIP(ipInput, selectElementId) {
-      console.log("[retrieveValvesFromIP] Called with ipInput =", ipInput, "and selectElementId =", selectElementId);
-
-      return new Promise((resolve, reject) => {
-        // 1) Basic input check
-        if (!ipInput) {
-          console.warn("[retrieveValvesFromIP] No IP provided, rejecting.");
-          return reject(new Error("No IP address provided"));
-        }
-
-        // 2) Split out any custom port or default to 8000
-        let [host, port] = ipInput.split(":");
-        port = port || "8000";
-
-        // 3) Build the final URL for /api/valve_relay/all_status
-        const url = `http://${host}:${port}/api/valve_relay/all_status`;
-        console.log("[retrieveValvesFromIP] Fetching URL:", url);
-
-        // 4) Fetch from the remote system
-        fetch(url)
-          .then((res) => {
-            console.log(
-              "[retrieveValvesFromIP] fetch() first then(), response ok?",
-              res.ok,
-              "status:",
-              res.status
-            );
-            if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then((data) => {
-            console.log("[retrieveValvesFromIP] fetch() second then(), parsed JSON:", data);
-
-            // 5) Check the data structure
-            if (data.status !== "success") {
-              throw new Error(data.error || "API returned failure");
-            }
-
-            // data.valves is expected to be like:
-            // { "1": { label: "Fill", status: "on" }, "2": {...}, ... }
-            const valveMap = data.valves || {};
-            console.log("[retrieveValvesFromIP] valveMap object:", valveMap);
-
-            // 6) Grab the <select> from the DOM
-            const sel = document.getElementById(selectElementId);
-            if (!sel) {
-              // If we can't find that element, log a warning and resolve with empty
-              console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
-              return resolve([]);
-            }
-
-            // 7) Clear and repopulate the <select>
-            sel.innerHTML = '<option value="">Select Valve</option>';
-            Object.keys(valveMap).forEach((valveId) => {
-              const info = valveMap[valveId];
-              const label = info.label || `Valve ${valveId}`;
-              console.log(
-                `[retrieveValvesFromIP] Creating <option> for valveId=${valveId} label="${label}"`
-              );
-              const option = new Option(label, valveId);
-              sel.add(option);
-            });
-
-            // 8) Log the final list of IDs we found and resolve the Promise
-            const valveIds = Object.keys(valveMap);
-            console.log("[retrieveValvesFromIP] Done. Valve IDs found:", valveIds);
-            resolve(valveIds);
-          })
-          .catch((err) => {
-            // 9) Catch any error that occurred in fetch or parsing
-            console.error("[retrieveValvesFromIP] Caught error:", err);
-            reject(err);
-          });
-      });
-    }
-
-
-    // Handle clicks on the two "Retrieve" buttons
-    document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
-      const fillIP = document.getElementById('fill-valve-ip').value.trim();
-      retrieveValvesFromIP(fillIP, 'fill-valve')
-        .then(valves => {
-          console.log("Fill valves retrieved:", valves);
-        })
-        .catch(err => console.error('Error retrieving fill valves:', err));
-    });
-
-    document.getElementById('retrieve-drain-valves').addEventListener('click', () => {
-      const drainIP = document.getElementById('drain-valve-ip').value.trim();
-      retrieveValvesFromIP(drainIP, 'drain-valve')
-        .then(valves => {
-          console.log("Drain valves retrieved:", valves);
-        })
-        .catch(err => console.error('Error retrieving drain valves:', err));
-    });
 
     // USB assignment
     function saveUsbAssignment(role, device) {
@@ -846,36 +822,31 @@
       })
       .then(() => {
         console.log('Settings saved successfully');
-        // Refresh the entire settings
+        // Refresh everything
         fetchUsbDevices();
       })
       .catch(error => console.error('Error saving settings:', error));
     }
 
-    // ==================== FORM SUBMISSIONS ====================
-
-    // pH
+    // FORM SUBMISSIONS for pH, Dosing, etc.
     document.getElementById('ph-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('ph-device').value;
       saveUsbAssignment('ph_probe', dev);
     });
 
-    // Dosing Relay
     document.getElementById('dosing-relay-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('dosing-relay-device').value;
       saveUsbAssignment('relay', dev);
     });
 
-    // Valve Relay
     document.getElementById('valve-relay-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('valve-relay-device').value;
       saveUsbAssignment('valve_relay', dev);
     });
 
-    // EC Meter (NEW)
     document.getElementById('ec-meter-form').addEventListener('submit', e => {
       e.preventDefault();
       const dev = document.getElementById('ec-meter-device').value;
@@ -886,7 +857,7 @@
     document.getElementById('water-valve-form').addEventListener('submit', e => {
       e.preventDefault();
       const fillValSelect = document.getElementById('fill-valve');
-      const fillValveId   = fillValSelect.value; // e.g. "1"
+      const fillValveId   = fillValSelect.value;
       const fillValveLbl  = fillValSelect.options[fillValSelect.selectedIndex]?.text || "";
 
       const drainValSelect= document.getElementById('drain-valve');
@@ -906,7 +877,6 @@
       };
       saveSettings("/api/settings/", payload);
     });
-
 
     // pH Range
     document.getElementById('ph-range-form').addEventListener('submit', e => {
@@ -1014,7 +984,7 @@
       const container = document.getElementById('plants-list');
       container.innerHTML = ""; // clear old content
 
-      plantsArray.forEach((plant) => {
+      plantsArray.forEach(plant => {
         const rowDiv = document.createElement('div');
         rowDiv.style.display = "flex";
         rowDiv.style.justifyContent = "space-between";
@@ -1066,16 +1036,11 @@
         .catch(err => console.error("Error deleting plant:", err));
     }
 
-    //-----------------------------------------------------
     // Code Update (No Restart)
-    //-----------------------------------------------------
     document.getElementById('update-only-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to run the software update?"))
-        return;
+      if (!confirm("Are you sure you want to run the software update?")) return;
 
-      fetch("/api/system/pull_no_restart", {
-        method: "POST",
-      })
+      fetch("/api/system/pull_no_restart", { method: "POST" })
         .then(res => res.json())
         .then(data => {
           console.log("Update-only response:", data);
@@ -1093,17 +1058,13 @@
         });
     });
 
-    //-----------------------------------------------------
     // Restart Service
-    //-----------------------------------------------------
     document.getElementById('restart-service-btn').addEventListener('click', () => {
       if (!confirm("Are you sure you want to restart the garden.service now?")) {
         return;
       }
 
-      fetch("/api/system/restart", {
-        method: "POST",
-      })
+      fetch("/api/system/restart", { method: "POST" })
         .then(() => {
           document.getElementById('restart-status').textContent =
             "The program is restarting. Please wait...";
@@ -1116,124 +1077,121 @@
         });
     });
 
-
-    // =============== POWER OUTLETS SECTION ===============
+    // POWER OUTLETS SECTION
     function renderPowerOutlets(powerControls) {
-    const container = document.getElementById('power-outlets-list');
-    container.innerHTML = ""; // Clear old contents
+      const container = document.getElementById('power-outlets-list');
+      container.innerHTML = ""; // Clear old contents
 
-    powerControls.forEach((outlet, index) => {
-      const card = document.createElement('div');
-      card.classList.add('power-outlet-card');
+      powerControls.forEach((outlet, index) => {
+        const card = document.createElement('div');
+        card.classList.add('power-outlet-card');
 
-      // Title
-      const title = document.createElement('h4');
-      title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
-      card.appendChild(title);
+        // Title
+        const title = document.createElement('h4');
+        title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
+        card.appendChild(title);
 
-      // Existing tracked valves
-      const tvList = document.createElement('div');
-      tvList.id = `tv-list-${index}`;
-      (outlet.tracked_valves || []).forEach(tv => {
-        const row = document.createElement('div');
-        row.classList.add('tracked-valve-row');
+        // Existing tracked valves
+        const tvList = document.createElement('div');
+        tvList.id = `tv-list-${index}`;
+        (outlet.tracked_valves || []).forEach(tv => {
+          const row = document.createElement('div');
+          row.classList.add('tracked-valve-row');
 
-        // Show the label if it exists, else fallback to the raw valve_id
-        const displayLabel = tv.valve_label || tv.valve_id;
+          // Show the label if it exists, else fallback to the raw valve_id
+          const displayLabel = tv.valve_label || tv.valve_id;
+          row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${displayLabel}</span>`;
 
-        row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${displayLabel}</span>`;
+          const removeBtn = document.createElement('button');
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener('click', () => {
+            removeTrackedValve(index, tv.host_ip, tv.valve_id);
+          });
+          row.appendChild(removeBtn);
 
-        const removeBtn = document.createElement('button');
-        removeBtn.textContent = "Remove";
-        removeBtn.addEventListener('click', () => {
-          removeTrackedValve(index, tv.host_ip, tv.valve_id);
+          tvList.appendChild(row);
         });
-        row.appendChild(removeBtn);
+        card.appendChild(tvList);
 
-        tvList.appendChild(row);
-      });
-      card.appendChild(tvList);
+        // Add new tracked valve form
+        const addDiv = document.createElement('div');
+        addDiv.style.marginTop = "8px";
+        addDiv.innerHTML = `
+          <label>Remote IP: </label>
+          <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
+          <button id="tv-retrieve-btn-${index}">Retrieve</button>
+          <label> Valve:</label>
+          <select id="tv-select-${index}" style="margin-right:6px;">
+            <option value="">Select Valve</option>
+          </select>
+          <button id="tv-add-btn-${index}">Add Valve</button>
+        `;
+        card.appendChild(addDiv);
 
-      // Add new tracked valve form
-      const addDiv = document.createElement('div');
-      addDiv.style.marginTop = "8px";
-      addDiv.innerHTML = `
-        <label>Remote IP: </label>
-        <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
-        <button id="tv-retrieve-btn-${index}">Retrieve</button>
-        <label> Valve:</label>
-        <select id="tv-select-${index}" style="margin-right:6px;">
-          <option value="">Select Valve</option>
-        </select>
-        <button id="tv-add-btn-${index}">Add Valve</button>
-      `;
-      card.appendChild(addDiv);
-
-      // Delete-outlet button
-      const delBtn = document.createElement('button');
-      delBtn.textContent = "Delete This Outlet";
-      delBtn.style.marginTop = "10px";
-      delBtn.addEventListener('click', () => {
-        removeOutlet(index);
-      });
-      card.appendChild(delBtn);
-
-      container.appendChild(card);
-
-      // Now that it's in the DOM, attach event listeners
-      const retrieveBtn = document.getElementById(`tv-retrieve-btn-${index}`);
-      const addValveBtn = document.getElementById(`tv-add-btn-${index}`);
-      const ipField     = document.getElementById(`tv-ip-${index}`);
-      const valveSelect = document.getElementById(`tv-select-${index}`);
-
-      if (retrieveBtn) {
-        retrieveBtn.addEventListener('click', () => {
-          const ipVal = (ipField?.value || "").trim();
-          if (!ipVal) return;
-          retrieveValvesFromIP(ipVal, `tv-select-${index}`)
-            .then(vals => console.log("Valves retrieved for outlet:", vals))
-            .catch(err => console.error("Error retrieving valves:", err));
+        // Delete-outlet button
+        const delBtn = document.createElement('button');
+        delBtn.textContent = "Delete This Outlet";
+        delBtn.style.marginTop = "10px";
+        delBtn.addEventListener('click', () => {
+          removeOutlet(index);
         });
-      }
+        card.appendChild(delBtn);
 
-      if (addValveBtn) {
-        addValveBtn.addEventListener('click', () => {
-          const ipVal    = (ipField?.value || "").trim();
-          const valveVal = valveSelect?.value || "";
-          if (!ipVal || !valveVal) return;
-          addTrackedValve(index, ipVal, valveVal);
-        });
-      }
-    });
-  }
+        container.appendChild(card);
 
-  function addTrackedValve(outletIndex, host_ip, valve_id) {
-    fetch('/api/settings')
-      .then(r => r.json())
-      .then(settings => {
-        const powerControls = settings.power_controls || [];
-        if (!powerControls[outletIndex]) return;
+        // Attach event listeners
+        const retrieveBtn = document.getElementById(`tv-retrieve-btn-${index}`);
+        const addValveBtn = document.getElementById(`tv-add-btn-${index}`);
+        const ipField     = document.getElementById(`tv-ip-${index}`);
+        const valveSelect = document.getElementById(`tv-select-${index}`);
 
-        if (!powerControls[outletIndex].tracked_valves) {
-          powerControls[outletIndex].tracked_valves = [];
+        if (retrieveBtn) {
+          retrieveBtn.addEventListener('click', () => {
+            const ipVal = (ipField?.value || "").trim();
+            if (!ipVal) return;
+            retrieveValvesFromIP(ipVal, `tv-select-${index}`)
+              .then(vals => console.log("Valves retrieved for outlet:", vals))
+              .catch(err => console.error("Error retrieving valves:", err));
+          });
         }
 
-        // Get the label from the selected <option>
-        const theSelect = document.getElementById('tv-select-' + outletIndex);
-        const selectedLabel = theSelect.options[theSelect.selectedIndex].text;
+        if (addValveBtn) {
+          addValveBtn.addEventListener('click', () => {
+            const ipVal    = (ipField?.value || "").trim();
+            const valveVal = valveSelect?.value || "";
+            if (!ipVal || !valveVal) return;
+            addTrackedValve(index, ipVal, valveVal);
+          });
+        }
+      });
+    }
 
-        // Store both the ID and the label
-        powerControls[outletIndex].tracked_valves.push({
-          host_ip: host_ip,
-          valve_id: valve_id,
-          valve_label: selectedLabel
-        });
+    function addTrackedValve(outletIndex, host_ip, valve_id) {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
+          if (!powerControls[outletIndex]) return;
 
-        saveSettings("/api/settings/", { power_controls: powerControls });
-      })
-      .catch(err => console.error("Error adding tracked valve:", err));
-  }
+          if (!powerControls[outletIndex].tracked_valves) {
+            powerControls[outletIndex].tracked_valves = [];
+          }
 
+          // Get the label from the selected <option>
+          const theSelect = document.getElementById('tv-select-' + outletIndex);
+          const selectedLabel = theSelect.options[theSelect.selectedIndex].text;
+
+          // Store both ID and label
+          powerControls[outletIndex].tracked_valves.push({
+            host_ip: host_ip,
+            valve_id: valve_id,
+            valve_label: selectedLabel
+          });
+
+          saveSettings("/api/settings/", { power_controls: powerControls });
+        })
+        .catch(err => console.error("Error adding tracked valve:", err));
+    }
 
     function removeOutlet(outletIndex) {
       fetch('/api/settings')
@@ -1262,75 +1220,37 @@
         .catch(err => console.error("Error removing tracked valve:", err));
     }
 
-    // Add a new outlet
-    document.getElementById('add-outlet-btn').addEventListener('click', () => {
-      const ipVal = document.getElementById('new-outlet-ip').value.trim();
-      const labelVal = document.getElementById('new-outlet-label').value.trim();
-      if (!ipVal) {
-        alert("Please enter an outlet IP.");
-        return;
-      }
-      // Clear fields
-      document.getElementById('new-outlet-ip').value = "";
-      document.getElementById('new-outlet-label').value = "";
-
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          // Add new object
-          powerControls.push({
-            outlet_ip: ipVal,
-            label: labelVal,
-            tracked_valves: []
-          });
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error adding new outlet:", err));
+    // Export
+    document.getElementById('export-btn').addEventListener('click', () => {
+      window.location.href = '/api/settings/export';
     });
 
-    // -----------------------------------------------------
-  // EXPORT
-  // -----------------------------------------------------
-  document.getElementById('export-btn').addEventListener('click', () => {
-    // Simply navigate the browser to /api/settings/export
-    // so the user is prompted to download the file
-    window.location.href = '/api/settings/export';
-  });
+    // Import
+    document.getElementById('import-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fileInput = document.getElementById('import-file');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Please select a .json file first.");
+        return;
+      }
 
-  // -----------------------------------------------------
-  // IMPORT
-  // -----------------------------------------------------
-  document.getElementById('import-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const fileInput = document.getElementById('import-file');
-    if (!fileInput.files || fileInput.files.length === 0) {
-      alert("Please select a .json file first.");
-      return;
-    }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
 
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-
-    // Post to /api/settings/import
-    fetch('/api/settings/import', {
-      method: 'POST',
-      body: formData
-    })
+      fetch('/api/settings/import', {
+        method: 'POST',
+        body: formData
+      })
       .then(res => res.json())
       .then(data => {
         if (data.status === 'success') {
           document.getElementById('import-status').textContent =
             "Settings file imported successfully. Restarting service...";
-          // Just like your existing "Restart Service" logic:
           setTimeout(() => {
-            // This is optional: you could have the backend do the restart,
-            // but here's how to call the same /api/system/restart you already have
             fetch("/api/system/restart", { method: "POST" })
               .then(() => {
                 document.getElementById('import-status').textContent =
                   "Service is restarting. Please wait...";
-                // Wait 5 seconds, then reload
                 setTimeout(() => window.location.reload(), 5000);
               })
               .catch(() => {
@@ -1348,8 +1268,7 @@
         document.getElementById('import-status').textContent =
           "Fetch error: " + err;
       });
-  });
-
+    });
   </script>
 </body>
 </html>
