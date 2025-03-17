@@ -353,6 +353,11 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
             return
 
+        if not force_emit:
+            for key in status_payload:
+                if status_payload[key] != LAST_EMITTED_STATUS.get(key):
+                    log_with_timestamp(f"[DEBUG] Key '{key}' changed: old={LAST_EMITTED_STATUS.get(key)} new={status_payload[key]}")
+
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
 
