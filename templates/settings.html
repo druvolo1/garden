@@ -46,6 +46,9 @@
       margin-bottom: 4px;
       gap: 10px;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -71,7 +74,7 @@
       <!-- USB Device Assignment -->
       <div class="data-container">
         <h2>Assign USB Devices</h2>
-
+      
         <!-- pH Probe Form -->
         <form id="ph-form">
           <label for="ph-device">pH Probe:</label>
@@ -80,7 +83,7 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-
+      
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
@@ -89,17 +92,40 @@
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-
-        <!-- Valve Relay Module Form -->
+      
+        <!-- NEW/CHANGED: Valve Relay with Local/Remote option -->
         <form id="valve-relay-form">
-          <label for="valve-relay-device">Valve Relay Module:</label>
-          <select id="valve-relay-device" name="valve-relay-device">
-            <option value="">Select a device</option>
+          <label>Valve Relay Mode:</label>
+          <select id="valve-relay-mode">
+            <!-- We'll hide "Local" if no local valve_relay is detected -->
+            <option value="local">Local (USB)</option>
+            <option value="remote">Remote (IP)</option>
           </select>
-          <button type="submit">Save Valve Relay Module</button>
+      
+          <br><br>
+      
+          <!-- This section is shown ONLY if mode=local -->
+          <div id="valve-relay-local-section">
+            <label for="valve-relay-device">Valve Relay Module:</label>
+            <select id="valve-relay-device" name="valve-relay-device">
+              <option value="">Select a device</option>
+            </select>
+          </div>
+      
+          <br>
+      
+          <!-- This section is shown ONLY if mode=remote -->
+          <div id="valve-relay-remote-section" style="display: none;">
+            <label for="valve-relay-ip">Remote Valve Relay IP:</label>
+            <input type="text" id="valve-relay-ip" placeholder="e.g. 192.168.0.50">
+          </div>
+      
+          <br>
+          <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-
-        <!-- EC Meter Form (NEW) -->
+        <!-- END Valve Relay Form -->
+      
+        <!-- EC Meter Form -->
         <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
           <select id="ec-meter-device" name="ec-meter-device">
@@ -107,7 +133,7 @@
           </select>
           <button type="submit">Save EC Meter</button>
         </form>
-        <!-- END of new form -->
+
 
         <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
         <div id="status"></div>
@@ -211,9 +237,22 @@
 
           <!-- Fill Valve -->
           <h3>Fill Valve Assignment</h3>
-          <label for="fill-valve-ip">Fill Valve IP:</label>
-          <input type="text" id="fill-valve-ip">
-          <button type="button" id="retrieve-fill-valves">Retrieve Fill Valves</button>
+
+          <!-- Mode dropdown -->
+          <label for="fill-valve-mode">Fill Valve Mode:</label>
+          <select id="fill-valve-mode">
+            <option value="local">Local (USB)</option>
+            <option value="remote">Remote (IP)</option>
+          </select>
+
+          <br><br>
+
+          <!-- IP input section hidden if "local" -->
+          <div id="fill-valve-ip-section">
+            <label for="fill-valve-ip">Fill Valve IP:</label>
+            <input type="text" id="fill-valve-ip">
+            <button type="button" id="retrieve-fill-valves">Retrieve Fill Valves</button>
+          </div>
 
           <br><br>
           <label for="fill-valve">Fill Valve:</label>
@@ -226,14 +265,24 @@
           <select id="fill-sensor">
             <option value="">Select Fill Sensor</option>
           </select>
+          <!-- ... then the rest of the fill logic ... -->
 
-          <hr>
-
-          <!-- Drain Valve -->
+          <!-- DRY the same approach for Drain -->
           <h3>Drain Valve Assignment</h3>
-          <label for="drain-valve-ip">Drain Valve IP:</label>
-          <input type="text" id="drain-valve-ip">
-          <button type="button" id="retrieve-drain-valves">Retrieve Drain Valves</button>
+
+          <label for="drain-valve-mode">Drain Valve Mode:</label>
+          <select id="drain-valve-mode">
+            <option value="local">Local (USB)</option>
+            <option value="remote">Remote (IP)</option>
+          </select>
+
+          <br><br>
+
+          <div id="drain-valve-ip-section">
+            <label for="drain-valve-ip">Drain Valve IP:</label>
+            <input type="text" id="drain-valve-ip">
+            <button type="button" id="retrieve-drain-valves">Retrieve Drain Valves</button>
+          </div>
 
           <br><br>
           <label for="drain-valve">Drain Valve:</label>
@@ -369,8 +418,85 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // We only call fetchUsbDevices() now – the rest flows from there
       fetchUsbDevices();
+
+      // Event listeners for the fill/drain mode dropdowns
+      const fillMode = document.getElementById('fill-valve-mode');
+      const drainMode = document.getElementById('drain-valve-mode');
+      fillMode.addEventListener('change', handleFillValveModeChange);
+      drainMode.addEventListener('change', handleDrainValveModeChange);
+
+      // Also call them right away in case settings are "remote"
+      handleFillValveModeChange();
+      handleDrainValveModeChange();
+    });
+
+    // Toggle IP input for fill
+    function handleFillValveModeChange() {
+      const mode = document.getElementById('fill-valve-mode').value;
+      const ipSection = document.getElementById('fill-valve-ip-section');
+      if (mode === 'local') {
+        ipSection.classList.add('hidden');
+      } else {
+        ipSection.classList.remove('hidden');
+      }
+    }
+
+    // Toggle IP input for drain
+    function handleDrainValveModeChange() {
+      const mode = document.getElementById('drain-valve-mode').value;
+      const ipSection = document.getElementById('drain-valve-ip-section');
+      if (mode === 'local') {
+        ipSection.classList.add('hidden');
+      } else {
+        ipSection.classList.remove('hidden');
+      }
+    }
+
+    // Water Valve Form Submission
+    document.getElementById('water-valve-form').addEventListener('submit', e => {
+      e.preventDefault();
+
+      // Grab mode
+      const fillModeSelect = document.getElementById('fill-valve-mode');
+      const fillMode = fillModeSelect.value;   // 'local' or 'remote'
+      const drainModeSelect= document.getElementById('drain-valve-mode');
+      const drainMode = drainModeSelect.value; // 'local' or 'remote'
+
+      const fillValSelect = document.getElementById('fill-valve');
+      const fillValveId   = fillValSelect.value; // e.g. "1"
+      const fillValveLbl  = fillValSelect.options[fillValSelect.selectedIndex]?.text || "";
+
+      const drainValSelect= document.getElementById('drain-valve');
+      const drainValveId  = drainValSelect.value;
+      const drainValveLbl = drainValSelect.options[drainValSelect.selectedIndex]?.text || "";
+
+      // If local mode, we clear out the IP
+      let fillIp = document.getElementById('fill-valve-ip').value.trim();
+      if (fillMode === 'local') {
+        fillIp = "";
+      }
+
+      let drainIp = document.getElementById('drain-valve-ip').value.trim();
+      if (drainMode === 'local') {
+        drainIp = "";
+      }
+
+      const payload = {
+        fill_valve_mode:  fillMode,
+        fill_valve_ip:    fillIp,
+        fill_valve:       fillValveId,
+        fill_valve_label: fillValveLbl,
+        fill_sensor:      document.getElementById('fill-sensor').value,
+
+        drain_valve_mode: drainMode,
+        drain_valve_ip:   drainIp,
+        drain_valve:      drainValveId,
+        drain_valve_label: drainValveLbl,
+        drain_sensor:     document.getElementById('drain-sensor').value
+      };
+
+      saveSettings("/api/settings/", payload);
     });
 
     function updateWeeksSinceStart(startDateStr) {
