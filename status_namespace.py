@@ -338,7 +338,12 @@ def emit_status_update(force_emit=False):
         }
 
         # -----------------------------------------------------------
-        #  6) Build final payload
+        #  6) ADD: Water level sensors
+        # -----------------------------------------------------------
+        water_level_info = get_water_level_status()  # <--- from water_level_service.py
+
+        # -----------------------------------------------------------
+        #  7) Build final payload
         # -----------------------------------------------------------
         status_payload = {
             "settings": settings,
@@ -349,7 +354,7 @@ def emit_status_update(force_emit=False):
         }
 
         # -----------------------------------------------------------
-        #  7) (ADDED) Log changes if not force_emit
+        #  8) (ADDED) Log changes if not force_emit
         # -----------------------------------------------------------
         if not force_emit and LAST_EMITTED_STATUS is not None:
             # Check if there's any difference at the top level:
@@ -362,7 +367,7 @@ def emit_status_update(force_emit=False):
                     )
 
         # -----------------------------------------------------------
-        #  8) Skip re-emit if payload is unchanged and force_emit is False
+        #  9) Skip re-emit if payload is unchanged and force_emit is False
         # -----------------------------------------------------------
         if not force_emit and LAST_EMITTED_STATUS == status_payload:
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
