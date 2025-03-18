@@ -615,23 +615,23 @@
       .then(([devices, settings]) => {
         console.log('Devices:', devices);
         console.log('Settings:', settings);
-  
+
         // For each role, we'll re-populate the dropdown
         const phDevSelect     = document.getElementById('ph-device');
         const dosingDevSelect = document.getElementById('dosing-relay-device');
         const valveDevSelect  = document.getElementById('valve-relay-device');
         const ecMeterSelect   = document.getElementById('ec-meter-device'); // NEW
-  
+
         const assignedPh      = settings.usb_roles?.ph_probe    || "";
         const assignedDosing  = settings.usb_roles?.relay       || "";
         const assignedValve   = settings.usb_roles?.valve_relay || "";
         const assignedEC      = settings.usb_roles?.ec_meter    || ""; // NEW
-  
+
         phDevSelect.innerHTML     = '<option value="">Select a device</option>';
         dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
         valveDevSelect.innerHTML  = '<option value="">Select a device</option>';
         ecMeterSelect.innerHTML   = '<option value="">Select a device</option>';
-  
+
         devices.forEach(dev => {
           // pH Option
           const phOption = document.createElement('option');
@@ -641,7 +641,7 @@
             phOption.selected = true;
           }
           phDevSelect.appendChild(phOption);
-  
+
           // Dosing Relay
           const dosingOption = document.createElement('option');
           dosingOption.value = dev.device;
@@ -650,7 +650,7 @@
             dosingOption.selected = true;
           }
           dosingDevSelect.appendChild(dosingOption);
-  
+
           // Valve Relay
           const valveOption = document.createElement('option');
           valveOption.value = dev.device;
@@ -659,7 +659,7 @@
             valveOption.selected = true;
           }
           valveDevSelect.appendChild(valveOption);
-  
+
           // EC Meter
           const ecOption = document.createElement('option');
           ecOption.value = dev.device;
@@ -669,7 +669,7 @@
           }
           ecMeterSelect.appendChild(ecOption);
         });
-  
+
         // 1) If NO pH probe => disable pH range
         const isPhProbeAssigned = Boolean(assignedPh);
         const phRangeContainer  = document.getElementById('ph-range-container');
@@ -680,77 +680,77 @@
           phRangeContainer.classList.remove('disabled-section');
           phRangeContainer.removeAttribute('data-disabled-title');
         }
-  
+
         // 2) If NO pH OR NO dosing => disable the big 4
         const isDosingRelayAssigned = Boolean(assignedDosing);
         const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
-  
+
         const generalSettings  = document.getElementById('general-settings-container');
         const dosageStrength   = document.getElementById('dosage-strength-container');
         const pumpCalibration  = document.getElementById('pump-calibration-container');
         const relayPortSection = document.getElementById('relay-port-container');
-  
+
         if (mustDisableBig4) {
           generalSettings.classList.add('disabled-section');
           generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-  
+
           dosageStrength.classList.add('disabled-section');
           dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-  
+
           pumpCalibration.classList.add('disabled-section');
           pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-  
+
           relayPortSection.classList.add('disabled-section');
           relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
         } else {
           generalSettings.classList.remove('disabled-section');
           generalSettings.removeAttribute('data-disabled-title');
-  
+
           dosageStrength.classList.remove('disabled-section');
           dosageStrength.removeAttribute('data-disabled-title');
-  
+
           pumpCalibration.classList.remove('disabled-section');
           pumpCalibration.removeAttribute('data-disabled-title');
-  
+
           relayPortSection.classList.remove('disabled-section');
           relayPortSection.removeAttribute('data-disabled-title');
         }
-  
+
         // Show/hide the Dosing Relay warning
         const relayWarning = document.getElementById('relay-warning');
         relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
-  
+
         // pH Range
         document.getElementById('ph-min').value = settings.ph_range?.min || '';
         document.getElementById('ph-max').value = settings.ph_range?.max || '';
-  
+
         // General (dosing) settings
         document.getElementById('ph-target').value       = settings.ph_target         || '5.8';
         document.getElementById('max-dosing').value      = settings.max_dosing_amount || '0';
         document.getElementById('dosing-interval').value = settings.dosing_interval   || '1';
         document.getElementById('system-volume').value   = settings.system_volume     || '';
         document.getElementById('auto-dosing').checked   = !!settings.auto_dosing_enabled;
-  
+
         // System Info
         const plantInfo = settings.plant_info || {};
         document.getElementById('system-name').value      = settings.system_name || '';
         document.getElementById('plant-name').value       = plantInfo.name       || '';
         document.getElementById('plant-start-date').value = plantInfo.start_date || '';
         updateWeeksSinceStart(plantInfo.start_date);
-  
+
         // Dosage Strength
         document.getElementById('ph-up-strength').value   = settings.dosage_strength?.ph_up   || '';
         document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
-  
+
         // Pump Calibration
         document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
         document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
-  
+
         // Relay Ports
         const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
         document.getElementById('ph-up-relay-port').value   = relayPorts.ph_up;
         document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
-  
+
         // Water Level Sensors
         const sensors = settings.water_level_sensors || {
           sensor1: { label: "Full", pin: 22 },
@@ -763,37 +763,45 @@
         document.getElementById('sensor2-pin').value   = sensors.sensor2.pin;
         document.getElementById('sensor3-label').value = sensors.sensor3.label;
         document.getElementById('sensor3-pin').value   = sensors.sensor3.pin;
-  
+
         // Populate the Fill/Drain Sensor dropdowns
         const fillSensorSelect  = document.getElementById('fill-sensor');
         const drainSensorSelect = document.getElementById('drain-sensor');
         fillSensorSelect.innerHTML  = '<option value="">Select Fill Sensor</option>';
         drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
-  
+
         Object.keys(sensors).forEach(sensorKey => {
           const sensorLabel = sensors[sensorKey].label || sensorKey;
           fillSensorSelect.add(new Option(sensorLabel, sensorKey));
           drainSensorSelect.add(new Option(sensorLabel, sensorKey));
         });
-  
+
         fillSensorSelect.value  = settings.fill_sensor  || '';
         drainSensorSelect.value = settings.drain_sensor || '';
-  
-        /*************************************************************/
-        /** Below is the crucial part for the fill/drain valve mode **/
-        /*************************************************************/
-        // Set the fill/drain mode dropdown to the saved setting, or default "local"
+
+        /*************************************************************
+         *    Re-populate Fill/Drain Valve info
+         *************************************************************/
+        // 1) Set the local/remote mode from settings
         document.getElementById('fill-valve-mode').value  = settings.fill_valve_mode  || 'local';
         document.getElementById('drain-valve-mode').value = settings.drain_valve_mode || 'local';
-  
-        // Fill side:
+
+        // 2) Update the IP text fields from settings
+        //    so that if the mode is remote, the user sees the old IP.
+        document.getElementById('fill-valve-ip').value  = settings.fill_valve_ip  || "";
+        document.getElementById('drain-valve-ip').value = settings.drain_valve_ip || "";
+
+        // 3) Immediately call the mode-change handlers so the UI toggles
+        handleFillValveModeChange();
+        handleDrainValveModeChange();
+
+        // 4) If fill mode is local => retrieveLocalValves(...).value = fill_valve
+        //    If fill mode is remote => retrieveValvesFromIP(fill_valve_ip, "fill-valve").value = fill_valve
         if (settings.fill_valve_mode === 'local') {
-          document.getElementById('fill-valve-ip-section').classList.add('hidden');
           retrieveLocalValves('fill-valve').then(() => {
             document.getElementById('fill-valve').value = settings.fill_valve || '';
           });
         } else {
-          document.getElementById('fill-valve-ip-section').classList.remove('hidden');
           if (settings.fill_valve_ip) {
             retrieveValvesFromIP(settings.fill_valve_ip, 'fill-valve').then(() => {
               document.getElementById('fill-valve').value = settings.fill_valve || '';
@@ -802,15 +810,13 @@
             document.getElementById('fill-valve').innerHTML = '<option value="">Select Fill Valve</option>';
           }
         }
-  
-        // Drain side:
+
+        // 5) Same approach for the drain side:
         if (settings.drain_valve_mode === 'local') {
-          document.getElementById('drain-valve-ip-section').classList.add('hidden');
           retrieveLocalValves('drain-valve').then(() => {
             document.getElementById('drain-valve').value = settings.drain_valve || '';
           });
         } else {
-          document.getElementById('drain-valve-ip-section').classList.remove('hidden');
           if (settings.drain_valve_ip) {
             retrieveValvesFromIP(settings.drain_valve_ip, 'drain-valve').then(() => {
               document.getElementById('drain-valve').value = settings.drain_valve || '';
@@ -819,18 +825,19 @@
             document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
           }
         }
-  
+
         // Additional plants
         renderAdditionalPlants(settings.additional_plants || []);
-  
+
         // Program version
         document.getElementById('program-version').textContent = settings.program_version || 'N/A';
-  
+
         // Render power outlets
         renderPowerOutlets(settings.power_controls || []);
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
+
   
     // USB assignment
     function saveUsbAssignment(role, device) {
