@@ -23,7 +23,7 @@ stop_event = event.Event()
 
 ph_lock = semaphore.Semaphore()
 
-PH_FLOAT_REGEX = re.compile(r'^[0-9]{1,2}\.[0-9]+$')
+PH_FLOAT_REGEX = re.compile(r'^(?:[0-9]|1[0-3]|14)(?:\.\d+)?$')
 
 buffer = ""             # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
