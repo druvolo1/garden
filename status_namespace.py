@@ -358,7 +358,7 @@ def emit_status_update(force_emit=False):
                 new_val = status_payload[key]
                 if new_val != old_val:
                     log_with_timestamp(
-                        f"[DEBUG] '{key}' changed from {old_val} to {new_val}"
+                        f"[DEBUG]-[WEBSOCKET CHANGED] '{key}' changed from {old_val} to {new_val}"
                     )
 
         # -----------------------------------------------------------
