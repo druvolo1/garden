@@ -252,7 +252,7 @@ def serial_reader():
     consecutive_read_errors = 0        # times read() returned zero bytes
     consecutive_fatal_exceptions = 0   # times OSError / SerialException in a row
     MAX_FAILS = 5
-    READ_ERROR_THRESHOLD = 3    # how many consecutive empty reads are allowed
+    READ_ERROR_THRESHOLD = 10    # how many consecutive empty reads are allowed
     FATAL_ERROR_THRESHOLD = 2   # how many consecutive fatal exceptions we allow
     last_no_reading_error_time = None
 
