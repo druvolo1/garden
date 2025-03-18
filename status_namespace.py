@@ -223,6 +223,8 @@ def get_cached_remote_states(remote_ip):
     return data
 
 
+from services.water_level_service import get_water_level_status
+
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
 
@@ -265,7 +267,7 @@ def emit_status_update(force_emit=False):
         local_valve_map = {}  # label -> status
 
         if local_valve_device:
-            # (A) Check if either fill_valve or drain_valve is assigned locally:
+            # (A) Check if fill_valve or drain_valve is assigned locally:
             local_assignments = False
 
             if fill_mode == "local" and fill_id.isdigit():
@@ -309,7 +311,6 @@ def emit_status_update(force_emit=False):
         if fill_mode == "local" and fill_label in local_valve_map:
             valve_relays[fill_label] = {"status": local_valve_map[fill_label]}
         elif fill_mode == "remote" and fill_label:
-            # Pull from remote map if present
             st = remote_valve_map.get(fill_label, "off")
             valve_relays[fill_label] = {"status": st}
 
@@ -320,7 +321,7 @@ def emit_status_update(force_emit=False):
             st = remote_valve_map.get(drain_label, "off")
             valve_relays[drain_label] = {"status": st}
 
-        # (Optional) Also include the enumerated valves if no local assignment:
+        # (Optional) Also include enumerated valves if no local assignment:
         if local_valve_device:
             for lbl, st in local_valve_map.items():
                 if lbl not in valve_relays:
@@ -346,29 +347,22 @@ def emit_status_update(force_emit=False):
         #  7) Build final payload
         # -----------------------------------------------------------
         status_payload = {
-            "settings": settings,
-            "current_ph": get_latest_ph_reading(),
-            "current_ec": get_latest_ec_reading(),
-            "valve_info": valve_info,
-            # ... rest of your existing fields ...
+            "settings":     settings,
+            "current_ph":   get_latest_ph_reading(),
+            "current_ec":   get_latest_ec_reading(),
+            "valve_info":   valve_info,
+            "water_level":  water_level_info,  # <--- RE-ADDED LINE
+            # ... any additional fields ...
         }
 
-        # -----------------------------------------------------------
-        #  8) (ADDED) Log changes if not force_emit
-        # -----------------------------------------------------------
+        # (Optional) Compare to LAST_EMITTED_STATUS, skip if no changes, etc.
         if not force_emit and LAST_EMITTED_STATUS is not None:
-            # Check if there's any difference at the top level:
             for key in status_payload:
                 old_val = LAST_EMITTED_STATUS.get(key)
                 new_val = status_payload[key]
                 if new_val != old_val:
-                    log_with_timestamp(
-                        f"[DEBUG]-[WEBSOCKET CHANGED] '{key}' changed from {old_val} to {new_val}"
-                    )
+                    log_with_timestamp(f"[DEBUG] '{key}' changed from {old_val} to {new_val}")
 
-        # -----------------------------------------------------------
-        #  9) Skip re-emit if payload is unchanged and force_emit is False
-        # -----------------------------------------------------------
         if not force_emit and LAST_EMITTED_STATUS == status_payload:
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
             return
@@ -380,6 +374,7 @@ def emit_status_update(force_emit=False):
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
