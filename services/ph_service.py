@@ -7,6 +7,7 @@ eventlet.monkey_patch()  # Ensure all standard libs are patched early
 import signal
 import serial
 import subprocess
+import re
 from queue import Queue
 from datetime import datetime, timedelta
 from eventlet import tpool
@@ -21,6 +22,8 @@ command_queue = Queue()
 stop_event = event.Event()
 
 ph_lock = semaphore.Semaphore()
+
+PH_FLOAT_REGEX = re.compile(r'^[0-9]{1,2}\.[0-9]+$')
 
 buffer = ""             # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
@@ -116,7 +119,7 @@ def parse_buffer(ser):
         if line.upper().startswith("?SLOPE,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
             try:
-                payload = line[7:]  # or line.split(",", 1)[1]
+                payload = line[7:]  # e.g., everything after "?SLOPE,"
                 parts = payload.split(",")  # e.g. ["110.2", "92.1", "4.67"]
                 acid = float(parts[0])
                 base = float(parts[1])
@@ -153,7 +156,13 @@ def parse_buffer(ser):
 
         # ---------------------------------------------------------
         # 3) Otherwise, assume it might be a numeric pH reading
+        #    but first check the format with a regex:
         # ---------------------------------------------------------
+        if not PH_FLOAT_REGEX.match(line):
+            # It's not a valid single float like "8.28", so skip it.
+            log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': does not match PH_FLOAT_REGEX")
+            continue
+
         try:
             ph_value = round(float(line), 2)
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
@@ -167,18 +176,15 @@ def parse_buffer(ser):
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
-            # We'll define 'delta' in all cases, so there's no NameError
             if old_ph_value is None:
-                # First reading after startup
                 delta = 0.0
             else:
                 delta = abs(ph_value - old_ph_value)
 
             log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
 
-            # Now handle big-jump logic vs. normal logic
+            # Big-jump logic
             if old_ph_value is not None and delta > 1.0:
-                # It's a big jump
                 now = datetime.now()
                 ph_jumps.append(now)
                 cutoff = now - timedelta(seconds=60)
@@ -191,26 +197,21 @@ def parse_buffer(ser):
                     set_status("ph_probe", "probe_health", "ok",
                                "Readings appear normal.")
 
-                # Important: update old_ph_value so we don't keep comparing
-                # new readings to a stale baseline
+                # Update old_ph_value so we don't keep comparing
                 old_ph_value = ph_value
-
-                # Also update latest_ph_value if you want the UI to see it
                 with ph_lock:
                     latest_ph_value = ph_value
 
-                # This 'continue' means we skip the normal “accepted reading” logic
-                # If you actually want to accept big-jump readings, remove 'continue'.
+                # If you want to reject big jumps entirely, continue here
+                # Otherwise, remove 'continue' if you want to accept them:
                 continue
+
             else:
-                # Either it's the first reading (old_ph_value is None) or delta <= 1.0
                 accepted_this_reading = True
-
                 if old_ph_value is None:
-                    # Definitely the first valid pH reading
-                    set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
+                    set_status("ph_probe", "probe_health", "ok",
+                               "First valid pH reading received.")
 
-            # If we get here, we accept this reading as valid
             if accepted_this_reading:
                 with ph_lock:
                     latest_ph_value = ph_value
@@ -219,7 +220,6 @@ def parse_buffer(ser):
                 old_ph_value = ph_value
                 last_read_time = datetime.now()
 
-                # Check if reading is in recommended pH range
                 s = load_settings()
                 ph_min = s.get("ph_range", {}).get("min", 5.5)
                 ph_max = s.get("ph_range", {}).get("max", 6.5)
@@ -230,12 +230,11 @@ def parse_buffer(ser):
                     set_status("ph_probe", "within_range", "ok",
                                f"pH is within recommended range [{ph_min}, {ph_max}].")
 
-            # Finally emit a status_update
+            # Emit the status update
             from status_namespace import emit_status_update
             emit_status_update()
 
         except ValueError as e:
-            # We got a non-numeric or nonsense line
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': {e}")
 
     # end while '\r' in buffer
