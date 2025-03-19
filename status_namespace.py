@@ -223,8 +223,6 @@ def get_cached_remote_states(remote_ip):
     return data
 
 
-from services.water_level_service import get_water_level_status
-
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
 
