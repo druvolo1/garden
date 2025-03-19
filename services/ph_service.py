@@ -14,7 +14,7 @@ from eventlet import tpool
 from eventlet import semaphore, event
 
 from services.error_service import set_error, clear_error
-from services.notification_service import set_status, clear_status
+from services.notification_service import set_status, clear_status,report_condition_error
 from utils.settings_utils import load_settings, save_settings
 
 # Shared queue for commands sent to the probe
@@ -75,6 +75,15 @@ def parse_buffer(ser):
     """
     Reads data from `buffer`, splitting on '\r',
     and applies these rules for pH readings, slope, etc.
+
+    - If line is "*OK" or "*ER", it's a response to the last sent command.
+    - If line starts with "?SLOPE", it's slope info from the pH probe.
+    - Otherwise, if it matches a numeric pH float (PH_FLOAT_REGEX), we parse it:
+      * If 0.0 or 14.0 => unrealistic reading => report_condition_error
+      * If <1.0 => ignore
+      * If jump >1.0 => track big jumps and possibly report_condition_error for "unstable_readings"
+      * If out of recommended range => report_condition_error for "out_of_range"
+      * Else mark the reading "ok"
     """
 
     global buffer, latest_ph_value, last_sent_command
@@ -165,17 +174,25 @@ def parse_buffer(ser):
 
         try:
             ph_value = round(float(line), 2)
+            # Mark that we're receiving data
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
             log_with_timestamp(f"[DEBUG] parse_buffer: recognized numeric pH => {ph_value}")
 
+            # 3a) Check for "unrealistic reading"
             if ph_value == 0 or ph_value == 14:
-                set_status("ph_probe", "probe_health", "error",
-                           f"Unrealistic reading ({ph_value}). Probe may be bad.")
+                # Use repeated-condition approach
+                report_condition_error(
+                    "ph_probe",
+                    "unrealistic_reading",
+                    f"Unrealistic reading ({ph_value}). Probe may be bad."
+                )
                 continue
 
+            # 3b) If <1.0, skip (treat as noise)
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
+            # 3c) Compare to old_ph_value for big jumps
             if old_ph_value is None:
                 delta = 0.0
             else:
@@ -183,7 +200,6 @@ def parse_buffer(ser):
 
             log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
 
-            # Big-jump logic
             if old_ph_value is not None and delta > 1.0:
                 now = datetime.now()
                 ph_jumps.append(now)
@@ -191,57 +207,64 @@ def parse_buffer(ser):
                 ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
                 if len(ph_jumps) >= 5:
-                    set_status("ph_probe", "probe_health", "error",
-                               "Unstable readings detected (5 large jumps in last minute).")
+                    # Instead of spamming set_status, do repeated-condition
+                    report_condition_error(
+                        "ph_probe",
+                        "unstable_readings",
+                        "Unstable readings detected (5 large jumps in last minute)."
+                    )
                 else:
-                    set_status("ph_probe", "probe_health", "ok",
-                               "Readings appear normal.")
+                    # Mark them as normal
+                    set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
 
                 # Update old_ph_value so we don't keep comparing
                 old_ph_value = ph_value
                 with ph_lock:
                     latest_ph_value = ph_value
 
-                # If you want to reject big jumps entirely, continue here
-                # Otherwise, remove 'continue' if you want to accept them:
+                # Optionally skip processing the reading further
                 continue
-
             else:
-                accepted_this_reading = True
+                # This reading is "accepted"
                 if old_ph_value is None:
-                    set_status("ph_probe", "probe_health", "ok",
-                               "First valid pH reading received.")
+                    # First valid reading
+                    set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
 
-            if accepted_this_reading:
-                with ph_lock:
-                    latest_ph_value = ph_value
-                    log_with_timestamp(f"Accepted new pH reading: {ph_value}")
+            # Actually store the new reading
+            with ph_lock:
+                latest_ph_value = ph_value
+                log_with_timestamp(f"Accepted new pH reading: {ph_value}")
 
-                old_ph_value = ph_value
-                last_read_time = datetime.now()
+            old_ph_value = ph_value
+            last_read_time = datetime.now()
 
-                s = load_settings()
-                ph_min = s.get("ph_range", {}).get("min", 5.5)
-                ph_max = s.get("ph_range", {}).get("max", 6.5)
-                if ph_value < ph_min or ph_value > ph_max:
-                    set_status("ph_probe", "within_range", "error",
-                               f"pH {ph_value} out of recommended range [{ph_min}, {ph_max}].")
-                else:
-                    set_status("ph_probe", "within_range", "ok",
-                               f"pH is within recommended range [{ph_min}, {ph_max}].")
+            # 3d) Check if out of recommended range
+            s = load_settings()
+            ph_min = s.get("ph_range", {}).get("min", 5.5)
+            ph_max = s.get("ph_range", {}).get("max", 6.5)
+            if ph_value < ph_min or ph_value > ph_max:
+                report_condition_error(
+                    "ph_probe",
+                    "out_of_range",
+                    f"pH {ph_value} is outside the recommended range [{ph_min}, {ph_max}]."
+                )
+            else:
+                # Mark in-range as normal
+                set_status("ph_probe", "within_range", "ok",
+                           f"pH is within recommended range [{ph_min}, {ph_max}].")
 
-            # Emit the status update
+            # Emit a status update to the UI
             from status_namespace import emit_status_update
             emit_status_update()
 
         except ValueError as e:
+            # e.g. "Ignoring pH <1.0"
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': {e}")
 
     # end while '\r' in buffer
 
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
-
 
 def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time

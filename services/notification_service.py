@@ -187,3 +187,84 @@ def _send_telegram_and_discord(alert_text: str):
                 print(f"[ERROR] Discord send failed: {ex}")
         else:
             print("[DEBUG] Discord enabled but missing webhook_url, skipping...")
+
+# -----------------------------------------------------------------------------
+# NEW CODE to track per-condition errors: 5 times in 24h => mute
+# -----------------------------------------------------------------------------
+
+_condition_lock = threading.Lock()
+
+# Example:
+# {
+#    (device, condition_key): {
+#        "error_timestamps": [datetime objects],
+#        "muted_until": datetime or None
+#    }
+# }
+_condition_counters = {}
+
+def report_condition_error(device: str, condition_key: str, message: str):
+    """
+    For repeated error conditions. If called 5 times in 24 hours, we send
+    a "muting for 24 hours" notice and skip further notifications for this
+    (device, condition_key) until that 24h is up.
+
+    Example usage from ph_service.py:
+       report_condition_error("ph_probe", "unrealistic_reading",
+           "Unrealistic pH reading (0.0). Probe may be disconnected.")
+    """
+    now = datetime.now()
+
+    with _condition_lock:
+        info = _condition_counters.get((device, condition_key), {
+            "error_timestamps": [],
+            "muted_until": None
+        })
+
+        # If we're already muted, check if it expired
+        if info["muted_until"] and now < info["muted_until"]:
+            print(f"[DEBUG] {device}/{condition_key} still muted until {info['muted_until']}, skipping.")
+            return
+        elif info["muted_until"] and now >= info["muted_until"]:
+            # Mute expired => unmute
+            info["muted_until"] = None
+            print(f"[DEBUG] {device}/{condition_key} => Mute has expired, continuing.")
+
+        # Remove old timestamps > 24h
+        original_count = len(info["error_timestamps"])
+        info["error_timestamps"] = [
+            t for t in info["error_timestamps"]
+            if (now - t) < timedelta(hours=24)
+        ]
+        removed = original_count - len(info["error_timestamps"])
+        if removed > 0:
+            print(f"[DEBUG] Removed {removed} stale timestamps for {device}/{condition_key}.")
+
+        # Add this new occurrence
+        info["error_timestamps"].append(now)
+        count_24h = len(info["error_timestamps"])
+        print(f"[DEBUG] {device}/{condition_key} triggered => {count_24h} times in last 24h.")
+
+        # If it's the 5th time, we append the muting note
+        final_message = message
+        if count_24h == 5:
+            final_message += "\n[muting this condition for 24 hours due to repeated triggers]"
+            info["muted_until"] = now + timedelta(hours=24)
+            print(f"[DEBUG] {device}/{condition_key} => set muted_until={info['muted_until']}")
+
+        # Actually send it
+        _send_telegram_and_discord(f"{device}/{condition_key}\n{final_message}")
+
+        # Save updated data
+        _condition_counters[(device, condition_key)] = info
+
+
+def clear_condition(device: str, condition_key: str):
+    """
+    If user hits "Clear" in the UI for a specific condition, reset counters.
+    This is separate from clear_status(), which was for the ok→error approach.
+    """
+    with _condition_lock:
+        _condition_counters.pop((device, condition_key), None)
+        print(f"[DEBUG] Cleared condition counters => {device}/{condition_key}")
+
