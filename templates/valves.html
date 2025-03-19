@@ -46,6 +46,10 @@
   </main>
 
   <script>
+    // We'll store label => valveId here, so we can match "Drain 4" from the socket
+    // to the correct row in the table:
+    const labelToValveId = {};
+
     document.addEventListener('DOMContentLoaded', () => {
       // (1) Immediately do an initial fetch to populate the table
       fetchValveStatus();
@@ -65,26 +69,30 @@
         console.log("[valves.html] Disconnected from /status");
       });
 
-      // (3) On each "status_update", if valve_info is present, update
+      // (3) On each "status_update", if valve_relays is present, update by label
       socket.on("status_update", (data) => {
         console.log("[valves.html] Received status_update:", data);
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
-          Object.keys(relays).forEach(valveId => {
-            const relay = relays[valveId];
+          Object.keys(relays).forEach(label => {
+            const relay = relays[label];   // e.g. { status: "off" }
             const newStatus = relay.status || "off";
+
+            // Look up which numeric valveId corresponds to this label
+            const valveId = labelToValveId[label];
+            if (!valveId) {
+              // We have a label from the server that doesn't match any local row
+              // Possibly the user changed the name or there's an untracked label.
+              console.log(`[valves.html] No local match for label="${label}". Skipping.`);
+              return;
+            }
+            
+            // If we do have a match, update the row:
             const statusCell = document.getElementById(`valve-status-${valveId}`);
             if (statusCell) {
               statusCell.textContent = newStatus;
             }
             updateValveDisplay(valveId, newStatus.toLowerCase());
-
-            if (relay.label) {
-              const renameInput = document.getElementById(`valve-rename-${valveId}`);
-              if (renameInput && renameInput.value !== relay.label) {
-                renameInput.value = relay.label;
-              }
-            }
           });
         }
       });
@@ -131,6 +139,11 @@
      * Build the table dynamically if valves are present
      */
     function populateTable(valves) {
+      // Clear the labelToValveId map each time we repopulate
+      for (const key in labelToValveId) {
+        delete labelToValveId[key];
+      }
+
       const noValveMsgDiv = document.getElementById("no-valve-msg");
       noValveMsgDiv.style.display = "none"; // ensure hidden if success
 
@@ -140,10 +153,20 @@
       const tbody = tableEl.querySelector("tbody");
       tbody.innerHTML = ""; // Clear old rows
 
+      // 'valves' has a structure like:
+      // {
+      //   "1": { label: "Drain 4", status: "off" },
+      //   "2": { label: "Fill 4", status: "off" },
+      //   ...
+      // }
+      // We'll create one row per numeric valveId
       Object.keys(valves).forEach(valveId => {
         const info = valves[valveId];
         const label = info.label || `Valve ${valveId}`;
         const status = info.status || "unknown";
+
+        // Map the label => valveId for quick lookups
+        labelToValveId[label] = valveId;
 
         const tr = document.createElement('tr');
 
