@@ -15,6 +15,11 @@ _notifications = {}  # Current "snapshot" of device/key states
 # }
 __tracking = {}
 
+def log_notify_debug(msg: str):
+    from status_namespace import is_debug_enabled
+    """Logs messages only if 'notifications' debug is ON."""
+    if is_debug_enabled("notifications"):
+        log_notify_debug(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def set_status(device: str, key: str, state: str, message: str = ""):
     """
@@ -47,7 +52,7 @@ def clear_status(device: str, key: str):
     with _notifications_lock:
         _notifications.pop((device, key), None)
         __tracking.pop((device, key), None)
-        print(f"[DEBUG] clear_status called for (device={device}, key={key}); reset counters & removed from tracking")
+        log_notify_debug(f"[DEBUG] clear_status called for (device={device}, key={key}); reset counters & removed from tracking")
 
     broadcast_notifications_update()
 
@@ -62,7 +67,7 @@ def broadcast_notifications_update():
 
     debug_cfg = load_debug_settings()
     if not debug_cfg.get("notifications", True):
-        print("[DEBUG] Notifications are turned OFF in debug settings, skipping broadcast.")
+        log_notify_debug("[DEBUG] Notifications are turned OFF in debug settings, skipping broadcast.")
         return
 
     all_notifs = get_all_notifications()
@@ -103,16 +108,16 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
             "muted_until": None
         })
 
-    print(f"[DEBUG] handle_notification_transition device={device}, key={key}")
-    print(f"        old_state={old_state}, new_state={new_state}, track={track}")
+    log_notify_debug(f"[DEBUG] handle_notification_transition device={device}, key={key}")
+    log_notify_debug(f"        old_state={old_state}, new_state={new_state}, track={track}")
 
     # -------- ERROR -> OK transition --------
     if old_state == "error" and new_state == "ok":
         # If we're currently muted, skip sending "cleared"
         if track["muted_until"] and now < track["muted_until"]:
-            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping 'cleared' notification.")
+            log_notify_debug(f"[DEBUG] Currently muted until {track['muted_until']} - skipping 'cleared' notification.")
         else:
-            print("[DEBUG] Transition: ERROR -> OK - sending 'cleared' notification.")
+            log_notify_debug("[DEBUG] Transition: ERROR -> OK - sending 'cleared' notification.")
             _send_telegram_and_discord(f"Device={device}, Key={key}\nIssue cleared; now OK.")
         # Notice: we do NOT clear timestamps or unmute.
         # They stay until 24h passes or the user manually clears.
@@ -120,7 +125,7 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
     # -------- OK -> ERROR transition --------
     elif old_state != "error" and new_state == "error":
         if track["muted_until"] and now < track["muted_until"]:
-            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping ERROR notification.")
+            log_notify_debug(f"[DEBUG] Currently muted until {track['muted_until']} - skipping ERROR notification.")
         else:
             # Remove stale timestamps older than 24h
             original_count = len(track["error_timestamps"])
@@ -130,20 +135,20 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
             ]
             removed_count = original_count - len(track["error_timestamps"])
             if removed_count > 0:
-                print(f"[DEBUG] Removed {removed_count} old error timestamps (>24h).")
+                log_notify_debug(f"[DEBUG] Removed {removed_count} old error timestamps (>24h).")
 
             # Append this new error occurrence
             track["error_timestamps"].append(now)
             new_count = len(track["error_timestamps"])
-            print(f"[DEBUG] error_timestamps has {new_count} in last 24h: {track['error_timestamps']}")
+            log_notify_debug(f"[DEBUG] error_timestamps has {new_count} in last 24h: {track['error_timestamps']}")
 
             # If this is the 5th error, set a 24h mute
             if new_count == 5:
                 message += "\n[muting this notification for 24 hours due to excessive triggering]"
                 track["muted_until"] = now + timedelta(hours=24)
-                print(f"[DEBUG] Setting muted_until to {track['muted_until']}")
+                log_notify_debug(f"[DEBUG] Setting muted_until to {track['muted_until']}")
 
-            print("[DEBUG] Sending notification to Telegram/Discord.")
+            log_notify_debug("[DEBUG] Sending notification to Telegram/Discord.")
             _send_telegram_and_discord(f"Device={device}, Key={key}\n{message}")
 
     # Update last_state
@@ -159,7 +164,7 @@ def _send_telegram_and_discord(alert_text: str):
     """
     cfg = load_settings()
 
-    print(f"[DEBUG] _send_telegram_and_discord called with text:\n{alert_text}")
+    log_notify_debug(f"[DEBUG] _send_telegram_and_discord called with text:\n{alert_text}")
 
     # --- Telegram ---
     if cfg.get("telegram_enabled"):
@@ -170,11 +175,11 @@ def _send_telegram_and_discord(alert_text: str):
                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
                 payload = {"chat_id": chat_id, "text": alert_text}
                 resp = requests.post(url, json=payload, timeout=10)
-                print(f"[DEBUG] Telegram POST => {resp.status_code}")
+                log_notify_debug(f"[DEBUG] Telegram POST => {resp.status_code}")
             except Exception as ex:
-                print(f"[ERROR] Telegram send failed: {ex}")
+                log_notify_debug(f"[ERROR] Telegram send failed: {ex}")
         else:
-            print("[DEBUG] Telegram enabled but missing bot_token/chat_id, skipping...")
+            log_notify_debug("[DEBUG] Telegram enabled but missing bot_token/chat_id, skipping...")
 
     # --- Discord ---
     if cfg.get("discord_enabled"):
@@ -182,11 +187,11 @@ def _send_telegram_and_discord(alert_text: str):
         if webhook_url:
             try:
                 resp = requests.post(webhook_url, json={"content": alert_text}, timeout=10)
-                print(f"[DEBUG] Discord POST => {resp.status_code}")
+                log_notify_debug(f"[DEBUG] Discord POST => {resp.status_code}")
             except Exception as ex:
-                print(f"[ERROR] Discord send failed: {ex}")
+                log_notify_debug(f"[ERROR] Discord send failed: {ex}")
         else:
-            print("[DEBUG] Discord enabled but missing webhook_url, skipping...")
+            log_notify_debug("[DEBUG] Discord enabled but missing webhook_url, skipping...")
 
 # -----------------------------------------------------------------------------
 # NEW CODE to track per-condition errors: 5 times in 24h => mute
@@ -223,12 +228,12 @@ def report_condition_error(device: str, condition_key: str, message: str):
 
         # If we're already muted, check if it expired
         if info["muted_until"] and now < info["muted_until"]:
-            print(f"[DEBUG] {device}/{condition_key} still muted until {info['muted_until']}, skipping.")
+            log_notify_debug(f"[DEBUG] {device}/{condition_key} still muted until {info['muted_until']}, skipping.")
             return
         elif info["muted_until"] and now >= info["muted_until"]:
             # Mute expired => unmute
             info["muted_until"] = None
-            print(f"[DEBUG] {device}/{condition_key} => Mute has expired, continuing.")
+            log_notify_debug(f"[DEBUG] {device}/{condition_key} => Mute has expired, continuing.")
 
         # Remove old timestamps > 24h
         original_count = len(info["error_timestamps"])
@@ -238,19 +243,19 @@ def report_condition_error(device: str, condition_key: str, message: str):
         ]
         removed = original_count - len(info["error_timestamps"])
         if removed > 0:
-            print(f"[DEBUG] Removed {removed} stale timestamps for {device}/{condition_key}.")
+            log_notify_debug(f"[DEBUG] Removed {removed} stale timestamps for {device}/{condition_key}.")
 
         # Add this new occurrence
         info["error_timestamps"].append(now)
         count_24h = len(info["error_timestamps"])
-        print(f"[DEBUG] {device}/{condition_key} triggered => {count_24h} times in last 24h.")
+        log_notify_debug(f"[DEBUG] {device}/{condition_key} triggered => {count_24h} times in last 24h.")
 
         # If it's the 5th time, we append the muting note
         final_message = message
         if count_24h == 5:
             final_message += "\n[muting this condition for 24 hours due to repeated triggers]"
             info["muted_until"] = now + timedelta(hours=24)
-            print(f"[DEBUG] {device}/{condition_key} => set muted_until={info['muted_until']}")
+            log_notify_debug(f"[DEBUG] {device}/{condition_key} => set muted_until={info['muted_until']}")
 
         # Actually send it
         _send_telegram_and_discord(f"{device}/{condition_key}\n{final_message}")
@@ -266,5 +271,5 @@ def clear_condition(device: str, condition_key: str):
     """
     with _condition_lock:
         _condition_counters.pop((device, condition_key), None)
-        print(f"[DEBUG] Cleared condition counters => {device}/{condition_key}")
+        log_notify_debug(f"[DEBUG] Cleared condition counters => {device}/{condition_key}")
 
