@@ -44,16 +44,24 @@ def clear_status(device: str, key: str):
 
     broadcast_notifications_update()
 
-
 def broadcast_notifications_update():
+    # Import your debug settings loader. Adjust import path as needed.
+    from debug import load_debug_settings
     from app import socketio  # local import to avoid circular dependency
+    
+    # Check if notifications are enabled in debug settings
+    debug_cfg = load_debug_settings()
+    if not debug_cfg.get("notifications", True):
+        print("[DEBUG] Notifications are turned OFF in debug settings, skipping broadcast.")
+        return
+
+    # If still on, proceed with the normal broadcast
     all_notifs = get_all_notifications()
     socketio.emit(
         "notifications_update",
         {"notifications": all_notifs},
         namespace="/status"
     )
-
 
 def get_all_notifications():
     with _notifications_lock:
