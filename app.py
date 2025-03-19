@@ -30,6 +30,8 @@ from api.notifications import notifications_blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
+from .status_namespace import is_debug_enabled
+
 
 # Services
 from services.auto_dose_state import auto_dose_state
@@ -50,7 +52,8 @@ socketio = SocketIO(
 )
 
 def log_with_timestamp(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+    if is_debug_enabled("websocket"):
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
