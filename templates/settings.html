@@ -898,6 +898,11 @@
         // Discord fields
         document.getElementById('discord-enabled').checked = !!settings.discord_enabled;
         document.getElementById('discord-webhook-url').value = settings.discord_webhook_url || '';
+
+        // Telegram fields (NEW)
+        document.getElementById('telegram-enabled').checked = !!settings.telegram_enabled;
+        document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
+        document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
