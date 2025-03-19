@@ -81,7 +81,7 @@ if not os.path.exists(SETTINGS_FILE):
 
             # NEW: Default Discord notification settings
             "discord_enabled": False,
-            "discord_webhook_url": ""
+            "discord_webhook_url": "",
 
             "telegram_enabled": False,
             "telegram_bot_token": ""
