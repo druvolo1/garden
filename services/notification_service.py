@@ -19,7 +19,7 @@ def log_notify_debug(msg: str):
     from status_namespace import is_debug_enabled
     """Logs messages only if 'notifications' debug is ON."""
     if is_debug_enabled("notifications"):
-        log_notify_debug(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def set_status(device: str, key: str, state: str, message: str = ""):
     """
