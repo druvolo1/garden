@@ -353,6 +353,30 @@
       </div>
       <!-- END POWER OUTLETS UI -->
 
+       <!-- Discord Notifications Section -->
+       <div class="data-container" id="discord-container">
+        <h2>Discord Notifications</h2>
+        <form id="discord-form">
+          <div>
+            <label for="discord-enabled">Enable Discord Notifications:</label>
+            <input type="checkbox" id="discord-enabled">
+          </div>
+          <br>
+          <div>
+            <label for="discord-webhook-url">Discord Webhook URL:</label>
+            <input type="text" id="discord-webhook-url" style="width: 300px;">
+          </div>
+          <br>
+          <button type="submit">Save Discord Settings</button>
+        </form>
+        <hr>
+        <h3>Test Discord Notification</h3>
+        <label for="discord-test-message">Test Message:</label>
+        <input type="text" id="discord-test-message" style="width: 280px;">
+        <button id="discord-test-send-btn">Send Test</button>
+        <div id="discord-test-result" style="margin-top:8px; color: #e0e0e0;"></div>
+      </div>
+
       <!-- Code Update / Restart Section -->
       <div class="data-container">
         <h2>Code Update</h2>
@@ -834,6 +858,10 @@
 
         // Render power outlets
         renderPowerOutlets(settings.power_controls || []);
+
+        // Discord fields
+        document.getElementById('discord-enabled').checked = !!settings.discord_enabled;
+        document.getElementById('discord-webhook-url').value = settings.discord_webhook_url || '';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -1328,6 +1356,48 @@
       .catch(err => {
         document.getElementById('import-status').textContent =
           "Fetch error: " + err;
+      });
+    });
+
+    // ============ Discord Form + Test =============
+    document.getElementById('discord-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const enabled   = document.getElementById('discord-enabled').checked;
+      const webhook   = document.getElementById('discord-webhook-url').value.trim();
+      const payload = {
+        discord_enabled: enabled,
+        discord_webhook_url: webhook
+      };
+      saveSettings("/api/settings/", payload);
+    });
+
+    document.getElementById('discord-test-send-btn').addEventListener('click', () => {
+      const testMessage = document.getElementById('discord-test-message').value.trim();
+      if (!testMessage) {
+        alert("Please enter a test message to send to Discord.");
+        return;
+      }
+      // POST to /api/settings/test_discord
+      fetch("/api/settings/test_discord", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_message: testMessage })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const resultDiv = document.getElementById('discord-test-result');
+        if (data.status === "success") {
+          resultDiv.style.color = "#7CFC00"; // greenish
+          resultDiv.textContent = `Success: ${data.info || 'Message sent!'}`;
+        } else {
+          resultDiv.style.color = "#FF4444";
+          resultDiv.textContent = `Failed: ${data.error || 'Unknown error'}`;
+        }
+      })
+      .catch(err => {
+        const resultDiv = document.getElementById('discord-test-result');
+        resultDiv.style.color = "#FF4444";
+        resultDiv.textContent = `Exception: ${err}`;
       });
     });
   </script>

@@ -1,25 +1,25 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template, send_file
 import json
 import os
 import subprocess
 import stat
+from datetime import datetime
+
 from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
-from datetime import datetime
 from utils.settings_utils import load_settings, save_settings
 
-from flask import send_file
+import requests  # For sending the Discord test POST
 
-# Create the Blueprint for settings
 settings_blueprint = Blueprint('settings', __name__)
 
 # Path to the settings file
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.57"
+PROGRAM_VERSION = "1.0.58"
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
@@ -69,15 +69,19 @@ if not os.path.exists(SETTINGS_FILE):
             # Let them store fill_valve_ip, fill_valve, fill_valve_label, etc.
             "fill_valve_ip": "",
             "fill_valve": "",
-            "fill_valve_label": "",      # <--- newly introduced
+            "fill_valve_label": "",
             "drain_valve_ip": "",
             "drain_valve": "",
-            "drain_valve_label": "",     # <--- newly introduced
+            "drain_valve_label": "",
             "fill_sensor": "",
             "drain_sensor": "",
 
             # For Shelly or other power outlets
-            "power_controls": []
+            "power_controls": [],
+
+            # NEW: Default Discord notification settings
+            "discord_enabled": False,
+            "discord_webhook_url": ""
         }, f, indent=4)
 
 
@@ -102,9 +106,13 @@ def ensure_script_executable(script_path: str):
 
 @settings_blueprint.route('/', methods=['POST'])
 def update_settings():
-    """ Merge new settings into current_settings.json and emit a status update. """
+    """
+    Merge new settings into current_settings.json and emit a status update.
+    This can handle many fields including the new Discord fields:
+      "discord_enabled", "discord_webhook_url".
+    """
     new_settings = request.get_json() or {}
-    print(f"[DEBUG] update_settings received new_settings = {new_settings}")  # <-- optional debug line
+    print(f"[DEBUG] update_settings received new_settings = {new_settings}")
 
     current_settings = load_settings()
 
@@ -141,6 +149,7 @@ def update_settings():
         del new_settings["power_controls"]
 
     # 4) Merge everything else (system_name, fill_valve, fill_valve_label, etc.)
+    #    This includes our new Discord fields if present: "discord_enabled", "discord_webhook_url"
     current_settings.update(new_settings)
     save_settings(current_settings)
 
@@ -153,7 +162,7 @@ def update_settings():
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # If system_name changed, rename the OS to exactly "new_system_name"
+    # If system_name changed, rename the OS
     new_system_name = current_settings.get("system_name", "Garden")
     if new_system_name != old_system_name:
         print(f"System name changed from {old_system_name} to {new_system_name}.")
@@ -162,32 +171,14 @@ def update_settings():
         ensure_script_executable(script_path)
 
         try:
-            # Pass the system name exactly (no "-pc" appended)
             subprocess.run(["sudo", script_path, new_system_name], check=True)
             print(f"Successfully updated system hostname to {new_system_name}.")
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Unable to change system hostname: {e}")
 
-        # Comment out or remove the extra mDNS calls
-        # Avahi will automatically advertise "new_system_name.local"
-        # so we don't need to manually register an extra service:
-        # try:
-        #     register_mdns_pc_hostname(new_system_name, 8000)
-        #     print(f"[mDNS] Registered service for {new_system_name}.local")
-        # except:
-        #     pass
-
-        # try:
-        #     register_mdns_pure_system_name(new_system_name, 8000)
-        #     print(f"[mDNS] Also pure name: {new_system_name}.local")
-        # except:
-        #     pass
-
         emit_status_update()
         return jsonify({"status": "success", "settings": current_settings})
 
-
-    # Otherwise, just emit status
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
 
@@ -242,7 +233,11 @@ def reset_settings():
         },
         "plant_info": {},
         "additional_plants": [],
-        "power_controls": []
+        "power_controls": [],
+
+        # Also reset Discord to default
+        "discord_enabled": False,
+        "discord_webhook_url": ""
     }
     save_settings(default_settings)
 
@@ -266,7 +261,6 @@ def list_usb_devices():
         print(f"Unexpected error: {e}")
         devices = []
 
-    # If an assigned device is missing, clear it out
     settings = load_settings()
     usb_roles = settings.get("usb_roles", {})
     connected_paths = [d["device"] for d in devices]
@@ -299,7 +293,6 @@ def assign_usb_device():
     settings = load_settings()
     old_device = settings.get("usb_roles", {}).get(role)
 
-    # If switching valve_relay devices, stop old thread
     if role == "valve_relay" and old_device != device:
         stop_valve_thread()
 
@@ -402,7 +395,6 @@ def import_settings():
         except Exception as ex:
             print(f"[IMPORT] Service re-init failed: {ex}")
             # Possibly restart the entire system:
-            import subprocess
             try:
                 subprocess.run(["sudo", "systemctl", "restart", "garden.service"], check=True)
                 print("[IMPORT] Triggered service restart due to re-init failure.")
@@ -416,3 +408,41 @@ def import_settings():
         return jsonify({"status": "failure", "error": "Invalid JSON in uploaded file."}), 400
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
+
+
+@settings_blueprint.route('/test_discord', methods=['POST'])
+def test_discord_webhook():
+    """
+    POST JSON like:
+    {
+      "test_message": "Hello from my garden!"
+    }
+    We'll retrieve settings.discord_webhook_url and settings.discord_enabled,
+    then attempt to POST to Discord.
+    """
+    data = request.get_json() or {}
+    test_message = data.get("test_message", "").strip()
+    if not test_message:
+        return jsonify({"status": "failure", "error": "No test_message provided"}), 400
+
+    settings = load_settings()
+    if not settings.get("discord_enabled", False):
+        return jsonify({"status": "failure", "error": "Discord notifications are disabled"}), 400
+
+    webhook_url = settings.get("discord_webhook_url", "").strip()
+    if not webhook_url:
+        return jsonify({"status": "failure", "error": "No Discord webhook URL is configured"}), 400
+
+    # Attempt to send
+    try:
+        resp = requests.post(webhook_url, json={"content": test_message}, timeout=10)
+        if 200 <= resp.status_code < 300:
+            return jsonify({"status": "success", "info": f"Message delivered (HTTP {resp.status_code})."})
+        else:
+            return jsonify({
+                "status": "failure",
+                "error": f"Discord webhook returned {resp.status_code} {resp.text}"
+            }), 400
+    except Exception as ex:
+        return jsonify({"status": "failure", "error": f"Exception sending webhook: {ex}"}), 400
+
