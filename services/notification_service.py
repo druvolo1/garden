@@ -2,47 +2,50 @@ from datetime import datetime, timedelta
 import threading
 import requests
 
-# Adjust import if you use your own settings load function
-from utils.settings_utils import load_settings
+from utils.settings_utils import load_settings  # Adjust if needed
 
 _notifications_lock = threading.Lock()
 _notifications = {}
 
-# Tracking structure for error states & counts
-__tracking = {}  
+__tracking = {}
 # {
-#    (device, key): {
+#   (device, key): {
 #       "last_state": "ok"/"error",
-#       "error_timestamps": [datetime objects within last 24 hours],
+#       "error_timestamps": [datetimes within last 24 hours],
 #       "muted_until": datetime or None
-#    }
+#   }
 # }
+
 
 def set_status(device: str, key: str, state: str, message: str = ""):
     with _notifications_lock:
         old_status = _notifications.get((device, key))
         old_state = old_status["state"] if old_status else "ok"
+        print(f"[DEBUG] set_status for device={device}, key={key}, old_state={old_state}, new_state={state}")
+        
         _notifications[(device, key)] = {
             "state": state,
             "message": message,
             "timestamp": datetime.now()
         }
 
-    # Added: handle transitions and possibly send notifications
+    # Let’s debug right before we call the transition handler
     handle_notification_transition(device, key, old_state, state, message)
 
-    # Broadcast to the UI
+    # Then broadcast to the UI
     broadcast_notifications_update()
+
 
 def clear_status(device: str, key: str):
     with _notifications_lock:
         _notifications.pop((device, key), None)
         __tracking.pop((device, key), None)
+        print(f"[DEBUG] clear_status called for device={device}, key={key}; removed from tracking")
 
     broadcast_notifications_update()
 
+
 def broadcast_notifications_update():
-    """Emit the updated notifications via Socket.IO."""
     from app import socketio  # local import to avoid circular dependency
     all_notifs = get_all_notifications()
     socketio.emit(
@@ -50,6 +53,7 @@ def broadcast_notifications_update():
         {"notifications": all_notifs},
         namespace="/status"
     )
+
 
 def get_all_notifications():
     with _notifications_lock:
@@ -64,10 +68,12 @@ def get_all_notifications():
             })
         return results
 
+
 def handle_notification_transition(device: str, key: str, old_state: str, new_state: str, message: str):
     now = datetime.now()
+    old_state = old_state.lower()
+    new_state = new_state.lower()
 
-    # Grab or create the tracking object
     with _notifications_lock:
         track = __tracking.get((device, key), {
             "last_state": "ok",
@@ -75,54 +81,63 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
             "muted_until": None
         })
 
-    old_state = old_state.lower()
-    new_state = new_state.lower()
+    print(f"[DEBUG] handle_notification_transition device={device}, key={key}")
+    print(f"        old_state={old_state}, new_state={new_state}, track={track}")
 
-    # ----- ERROR → OK transition -----
+    # -------- ERROR -> OK transition --------
     if old_state == "error" and new_state == "ok":
-        # We’ll send a one-time "cleared" notification here:
-        _send_telegram_and_discord(
-            f"Device={device}, Key={key}\nIssue cleared; now back to OK."
-        )
+        print("[DEBUG] Transition: ERROR -> OK")
+        # Send a “cleared” notification
+        _send_telegram_and_discord(f"Device={device}, Key={key}\nIssue cleared; now OK.")
 
-        # Reset counters and mute
+        # Reset counters / unmute
         track["error_timestamps"].clear()
         track["muted_until"] = None
+        print("[DEBUG] Cleared error_timestamps and un-muted this device/key.")
 
-    # ----- OK → ERROR transition -----
+    # -------- OK -> ERROR transition --------
     elif old_state != "error" and new_state == "error":
-        # If we are muted and still within the mute period, skip
+        print("[DEBUG] Transition: OK -> ERROR (or not-error -> ERROR)")
         if track["muted_until"] and now < track["muted_until"]:
-            pass
+            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping notification.")
         else:
-            # Clean out old timestamps > 24h
+            # Clean out timestamps older than 24 hours
+            original_count = len(track["error_timestamps"])
             track["error_timestamps"] = [
                 t for t in track["error_timestamps"]
                 if (now - t) < timedelta(hours=24)
             ]
-            # Add new error trigger time
-            track["error_timestamps"].append(now)
+            removed_count = original_count - len(track["error_timestamps"])
+            if removed_count > 0:
+                print(f"[DEBUG] Removed {removed_count} stale error timestamps (>24h old).")
 
-            # If hitting 5th time, append the muting message + set mute
-            if len(track["error_timestamps"]) == 5:
+            # Append this new error occurrence
+            track["error_timestamps"].append(now)
+            new_count = len(track["error_timestamps"])
+            print(f"[DEBUG] error_timestamps has {new_count} in last 24h: {track['error_timestamps']}")
+
+            # If this is the 5th time in 24h, add muting text
+            if new_count == 5:
+                print("[DEBUG] This is the 5th error in 24h. Mute for 24h.")
                 message += "\n[muting this notification for 24 hours due to excessive triggering]"
                 track["muted_until"] = now + timedelta(hours=24)
+                print(f"[DEBUG] Setting muted_until to {track['muted_until']}")
 
-            # Send the “ok → error” alert
-            _send_telegram_and_discord(
-                f"Device={device}, Key={key}\n{message}"
-            )
+            # Actually send the notification
+            print("[DEBUG] Sending notification to Telegram/Discord.")
+            _send_telegram_and_discord(f"Device={device}, Key={key}\n{message}")
 
-    # Update tracking
+    # Update last_state
     track["last_state"] = new_state
+
     with _notifications_lock:
         __tracking[(device, key)] = track
 
+
 def _send_telegram_and_discord(alert_text: str):
-    """
-    Helper: loads Telegram/Discord settings and sends if enabled.
-    """
     cfg = load_settings()
+
+    print(f"[DEBUG] _send_telegram_and_discord called with text:\n{alert_text}")
 
     # --- Telegram ---
     if cfg.get("telegram_enabled"):
@@ -132,15 +147,21 @@ def _send_telegram_and_discord(alert_text: str):
             try:
                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
                 payload = {"chat_id": chat_id, "text": alert_text}
-                requests.post(url, json=payload, timeout=10)
+                resp = requests.post(url, json=payload, timeout=10)
+                print(f"[DEBUG] Telegram POST status={resp.status_code}")
             except Exception as ex:
                 print(f"[ERROR] Telegram send failed: {ex}")
+        else:
+            print("[DEBUG] Telegram enabled but missing bot_token/chat_id, skipping...")
 
     # --- Discord ---
     if cfg.get("discord_enabled"):
         webhook_url = cfg.get("discord_webhook_url", "").strip()
         if webhook_url:
             try:
-                requests.post(webhook_url, json={"content": alert_text}, timeout=10)
+                resp = requests.post(webhook_url, json={"content": alert_text}, timeout=10)
+                print(f"[DEBUG] Discord POST status={resp.status_code}")
             except Exception as ex:
                 print(f"[ERROR] Discord send failed: {ex}")
+        else:
+            print("[DEBUG] Discord enabled but missing webhook_url, skipping...")
