@@ -30,7 +30,7 @@ from api.notifications import notifications_blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
-from .status_namespace import is_debug_enabled
+from status_namespace import is_debug_enabled
 
 
 # Services
