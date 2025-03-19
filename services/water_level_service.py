@@ -4,6 +4,9 @@ import requests
 
 # Import your new helper
 from utils.network_utils import standardize_host_ip
+from utils.settings_utils import load_settings
+from services.valve_relay_service import turn_off_valve as turn_off_valve_local
+from services.valve_relay_service import turn_on_valve as turn_on_valve_local
 
 try:
     import RPi.GPIO as GPIO
@@ -60,6 +63,98 @@ def force_cleanup_and_init():
         _pins_inited = False
         ensure_pins_inited()
 
+def turn_off_fill_valve():
+    """
+    Checks settings to see if fill_valve is 'local' or 'remote',
+    then calls the correct approach.
+    """
+    settings = load_settings()
+    fill_mode = settings.get("fill_valve_mode", "local")  # or "remote"
+    fill_valve_id_str = settings.get("fill_valve")        # e.g. "1"
+    fill_valve_label  = settings.get("fill_valve_label")  # e.g. "Fill 4"
+
+    if fill_mode == "local":
+        # Use the local approach
+        if not fill_valve_id_str:
+            print("[ERROR] fill_valve is not set, can't turn off locally.")
+            return
+        try:
+            numeric_id = int(fill_valve_id_str)
+            print(f"[DEBUG] Turning OFF fill valve locally, valve_id={numeric_id}")
+            turn_off_valve_local(numeric_id)
+        except Exception as ex:
+            print(f"[ERROR] turn_off_fill_valve local failed: {ex}")
+    else:
+        # Remote approach: see if we have fill_valve_ip
+        fill_ip = settings.get("fill_valve_ip", "")
+        if not fill_ip:
+            print("[ERROR] fill_valve_mode=remote but no fill_valve_ip is configured.")
+            return
+        final_ip = standardize_host_ip(fill_ip)
+        if final_ip:
+            fill_ip = final_ip
+        if not fill_valve_label:
+            # fallback to something
+            fill_valve_label = "FillValve"
+        # Now do exactly what your old code does: call the “IP approach”
+        url = f"http://{fill_ip}:8000/api/valve_relay/{fill_valve_label}/off"
+        try:
+            resp = requests.post(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "success":
+                    print(f"[DEBUG] Fill valve OFF success (remote).")
+                else:
+                    print(f"[ERROR] Fill valve OFF remote error: {data.get('error')}")
+            else:
+                print(f"[ERROR] Fill valve OFF returned HTTP {resp.status_code}")
+        except Exception as ex:
+            print(f"[ERROR] Remote fill valve OFF failed: {ex}")
+
+
+def turn_off_drain_valve():
+    """
+    Exactly the same pattern, but for drain_valve_mode, drain_valve_ip, etc.
+    """
+    settings = load_settings()
+    drain_mode = settings.get("drain_valve_mode", "local")
+    drain_valve_id_str = settings.get("drain_valve")
+    drain_valve_label  = settings.get("drain_valve_label", "")
+
+    if drain_mode == "local":
+        if not drain_valve_id_str:
+            print("[ERROR] drain_valve is not set, can't turn off locally.")
+            return
+        try:
+            numeric_id = int(drain_valve_id_str)
+            print(f"[DEBUG] Turning OFF drain valve locally, valve_id={numeric_id}")
+            turn_off_valve_local(numeric_id)
+        except Exception as ex:
+            print(f"[ERROR] turn_off_drain_valve local failed: {ex}")
+    else:
+        # Remote approach
+        drain_ip = settings.get("drain_valve_ip", "")
+        if not drain_ip:
+            print("[ERROR] drain_valve_mode=remote but no drain_valve_ip is configured.")
+            return
+        final_ip = standardize_host_ip(drain_ip)
+        if final_ip:
+            drain_ip = final_ip
+        if not drain_valve_label:
+            drain_valve_label = "DrainValve"
+        url = f"http://{drain_ip}:8000/api/valve_relay/{drain_valve_label}/off"
+        try:
+            resp = requests.post(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "success":
+                    print(f"[DEBUG] Drain valve OFF success (remote).")
+                else:
+                    print(f"[ERROR] Drain valve OFF remote error: {data.get('error')}")
+            else:
+                print(f"[ERROR] Drain valve OFF returned HTTP {resp.status_code}")
+        except Exception as ex:
+            print(f"[ERROR] Remote drain valve OFF failed: {ex}")
 
 def get_water_level_status():
     sensors = load_water_level_sensors()
@@ -90,53 +185,32 @@ def get_water_level_status():
 
     return status
 
-
 def monitor_water_level_sensors():
-    from status_namespace import emit_status_update
-    global _last_sensor_state
-
+    ...
     while True:
-        try:
-            current_state = get_water_level_status()
+        current_state = get_water_level_status()
+        if current_state != _last_sensor_state:
+            _last_sensor_state = current_state
+            settings = load_settings()
 
-            # Only act when sensor states change
-            if current_state != _last_sensor_state:
-                _last_sensor_state = current_state
-                settings = load_settings()
+            fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
+            drain_sensor_key = settings.get("drain_sensor", "sensor3")
 
-                fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
-                drain_sensor_key = settings.get("drain_sensor", "sensor3")
-                fill_valve_id    = settings.get("fill_valve")
-                drain_valve_id   = settings.get("drain_valve")
-                fill_valve_ip    = settings.get("fill_valve_ip")
-                drain_valve_ip   = settings.get("drain_valve_ip")
+            # If fill sensor is no longer triggered => we want to turn off fill valve
+            if fill_sensor_key in current_state:
+                fill_triggered = current_state[fill_sensor_key]["triggered"]
+                if not fill_triggered:
+                    # call our new turn_off_fill_valve
+                    turn_off_fill_valve()
 
-                valve_labels = settings.get("valve_labels", {})
-                fill_valve_label  = settings.get("fill_valve_label")  or valve_labels.get(fill_valve_id,  fill_valve_id)
-                drain_valve_label = settings.get("drain_valve_label") or valve_labels.get(drain_valve_id, drain_valve_id)
+            # If drain sensor is triggered => we want to turn off drain valve
+            if drain_sensor_key in current_state:
+                drain_triggered = current_state[drain_sensor_key]["triggered"]
+                if drain_triggered:
+                    turn_off_drain_valve()
 
-                resolved_fill_ip  = standardize_host_ip(fill_valve_ip)
-                resolved_drain_ip = standardize_host_ip(drain_valve_ip)
-
-                # Fill logic
-                if fill_sensor_key in current_state:
-                    fill_triggered = current_state[fill_sensor_key]["triggered"]
-                    if not fill_triggered and fill_valve_label:
-                        turn_off_valve(fill_valve_label, resolved_fill_ip)
-
-                # Drain logic
-                if drain_sensor_key in current_state:
-                    drain_triggered = current_state[drain_sensor_key]["triggered"]
-                    if drain_triggered and drain_valve_label:
-                        turn_off_valve(drain_valve_label, resolved_drain_ip)
-
-                emit_status_update()
-
-        except Exception as e:
-            print(f"Exception in monitor_water_level_sensors: {e}")
-
+            emit_status_update()
         time.sleep(0.5)
-
 
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
