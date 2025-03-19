@@ -209,6 +209,7 @@ def monitor_water_level_sensors():
                 if drain_triggered:
                     turn_off_drain_valve()
 
+            from status_namespace import emit_status_update
             emit_status_update()
         time.sleep(0.5)
 
