@@ -16,7 +16,6 @@ from services.ec_service import get_latest_ec_reading
 from utils.settings_utils import load_settings
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
-from services.water_level_service import get_water_level_status
 from services.notification_service import get_all_notifications
 
 _socketio = None
@@ -223,6 +222,7 @@ def get_cached_remote_states(remote_ip):
     return data
 
 
+
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
 
@@ -339,6 +339,7 @@ def emit_status_update(force_emit=False):
         # -----------------------------------------------------------
         #  6) ADD: Water level sensors
         # -----------------------------------------------------------
+        from services.water_level_service import get_water_level_status
         water_level_info = get_water_level_status()  # <--- from water_level_service.py
 
         # -----------------------------------------------------------
