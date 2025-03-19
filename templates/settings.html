@@ -353,9 +353,12 @@
       </div>
       <!-- END POWER OUTLETS UI -->
 
-       <!-- Discord Notifications Section -->
-       <div class="data-container" id="discord-container">
-        <h2>Discord Notifications</h2>
+      <!-- Notifications Section -->
+      <div class="data-container" id="notifications-container">
+        <h2>Notifications</h2>
+
+        <!-- ===================== Discord Settings ====================== -->
+        <h3>Discord Settings</h3>
         <form id="discord-form">
           <div>
             <label for="discord-enabled">Enable Discord Notifications:</label>
@@ -369,13 +372,41 @@
           <br>
           <button type="submit">Save Discord Settings</button>
         </form>
+
         <hr>
-        <h3>Test Discord Notification</h3>
+        <h4>Test Discord Notification</h4>
         <label for="discord-test-message">Test Message:</label>
         <input type="text" id="discord-test-message" style="width: 280px;">
         <button id="discord-test-send-btn">Send Test</button>
         <div id="discord-test-result" style="margin-top:8px; color: #e0e0e0;"></div>
+
+        <hr>
+
+        <!-- ===================== Telegram Settings ====================== -->
+        <h3>Telegram Settings</h3>
+        <form id="telegram-form">
+          <div>
+            <label for="telegram-enabled">Enable Telegram Notifications:</label>
+            <input type="checkbox" id="telegram-enabled">
+          </div>
+          <br>
+          <div>
+            <label for="telegram-bot-token">Telegram Bot Token:</label>
+            <input type="text" id="telegram-bot-token" style="width: 300px;">
+          </div>
+          <br>
+          <button type="submit">Save Telegram Settings</button>
+        </form>
+
+        <hr>
+        <h4>Test Telegram Notification</h4>
+        <label for="telegram-test-message">Test Message:</label>
+        <input type="text" id="telegram-test-message" style="width: 280px;">
+        <button id="telegram-test-send-btn">Send Test</button>
+        <div id="telegram-test-result" style="margin-top:8px; color: #e0e0e0;"></div>
+
       </div>
+
 
       <!-- Code Update / Restart Section -->
       <div class="data-container">
@@ -1400,6 +1431,49 @@
         resultDiv.textContent = `Exception: ${err}`;
       });
     });
+
+    // ============ Telegram Form + Test =============
+    document.getElementById('telegram-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const enabled  = document.getElementById('telegram-enabled').checked;
+      const botToken = document.getElementById('telegram-bot-token').value.trim();
+      const payload = {
+        telegram_enabled: enabled,
+        telegram_bot_token: botToken
+      };
+      saveSettings("/api/settings/", payload);
+    });
+
+    document.getElementById('telegram-test-send-btn').addEventListener('click', () => {
+      const testMessage = document.getElementById('telegram-test-message').value.trim();
+      if (!testMessage) {
+        alert("Please enter a test message for Telegram.");
+        return;
+      }
+      // POST to /api/settings/test_telegram
+      fetch("/api/settings/test_telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_message: testMessage })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const resultDiv = document.getElementById('telegram-test-result');
+        if (data.status === "success") {
+          resultDiv.style.color = "#7CFC00"; // greenish
+          resultDiv.textContent = `Success: ${data.info || 'Message sent!'}`;
+        } else {
+          resultDiv.style.color = "#FF4444";
+          resultDiv.textContent = `Failed: ${data.error || 'Unknown error'}`;
+        }
+      })
+      .catch(err => {
+        const resultDiv = document.getElementById('telegram-test-result');
+        resultDiv.style.color = "#FF4444";
+        resultDiv.textContent = `Exception: ${err}`;
+      });
+    });
+
   </script>
   
 </body>

@@ -82,6 +82,9 @@ if not os.path.exists(SETTINGS_FILE):
             # NEW: Default Discord notification settings
             "discord_enabled": False,
             "discord_webhook_url": ""
+
+            "telegram_enabled": False,
+            "telegram_bot_token": ""
         }, f, indent=4)
 
 
@@ -445,4 +448,52 @@ def test_discord_webhook():
             }), 400
     except Exception as ex:
         return jsonify({"status": "failure", "error": f"Exception sending webhook: {ex}"}), 400
+
+@settings_blueprint.route('/test_telegram', methods=['POST'])
+def test_telegram_webhook():
+    """
+    POST JSON like:
+    {
+      "test_message": "Hello from my garden!"
+    }
+    We'll retrieve settings.telegram_bot_token and settings.telegram_enabled,
+    then attempt to POST to Telegram's Bot API using raw HTTP.
+    """
+    data = request.get_json() or {}
+    test_message = data.get("test_message", "").strip()
+    if not test_message:
+        return jsonify({"status": "failure", "error": "No test_message provided"}), 400
+
+    settings = load_settings()
+    if not settings.get("telegram_enabled", False):
+        return jsonify({"status": "failure", "error": "Telegram notifications are disabled"}), 400
+
+    bot_token = settings.get("telegram_bot_token", "").strip()
+    if not bot_token:
+        return jsonify({"status": "failure", "error": "No Telegram bot token is configured"}), 400
+
+    # For a real integration, you also need a chat_id or channel username.
+    # For testing, either store "telegram_chat_id" in settings or accept in request.
+    # Example: let's just assume we store it in the settings:
+    chat_id = settings.get("telegram_chat_id", "").strip()
+    if not chat_id:
+        return jsonify({"status": "failure", "error": "No Telegram chat_id is configured"}), 400
+
+    # Attempt to send a message via raw POST
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": test_message
+        }
+        resp = requests.post(url, json=payload, timeout=10)
+        if 200 <= resp.status_code < 300:
+            return jsonify({"status": "success", "info": f"Message delivered (HTTP {resp.status_code})."})
+        else:
+            return jsonify({
+                "status": "failure",
+                "error": f"Telegram API returned {resp.status_code} {resp.text}"
+            }), 400
+    except Exception as ex:
+        return jsonify({"status": "failure", "error": f"Exception sending Telegram message: {ex}"}), 400
 
