@@ -186,7 +186,7 @@ def get_water_level_status():
     return status
 
 def monitor_water_level_sensors():
-    ...
+    global _last_sensor_state
     while True:
         current_state = get_water_level_status()
         if current_state != _last_sensor_state:
