@@ -92,15 +92,10 @@ def get_all_notifications():
 
 
 def handle_notification_transition(device: str, key: str, old_state: str, new_state: str, message: str):
-    """
-    Core logic to track "error_timestamps" for each device/key, possibly setting 'muted_until'
-    after 5 errors in 24 hours, and skipping notifications when muted.
-    """
     now = datetime.now()
     old_state = old_state.lower()
     new_state = new_state.lower()
 
-    # Grab or create the tracking record
     with _notifications_lock:
         track = __tracking.get((device, key), {
             "last_state": "ok",
@@ -108,28 +103,26 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
             "muted_until": None
         })
 
-    # 1) If we were "error" and now "ok", we do NOT reset the timestamps.
-    #    We simply note that the state changed, optionally notify of "cleared",
-    #    but do NOT clear the error_timestamps. They will expire naturally.
-    if old_state == "error" and new_state == "ok":
-        # Example: We can send a "cleared" notification if desired
-        # (comment this out if you don't want it)
-        _send_telegram_and_discord(
-            f"Device={device}, Key={key}\nIssue cleared; now OK."
-        )
-        # We do NOT do: track["error_timestamps"].clear()
-        # Because we want to keep counting total errors in the last 24h
-        # We also do not automatically unmute here. If you want to unmute
-        # on OK, you could do: track["muted_until"] = None
+    print(f"[DEBUG] handle_notification_transition device={device}, key={key}")
+    print(f"        old_state={old_state}, new_state={new_state}, track={track}")
 
-    # 2) If we go from OK -> ERROR (or from any non-error to error),
-    #    we add a timestamp, check how many are in the last 24 hours, see if we are muted, etc.
-    elif old_state != "error" and new_state == "error":
-        # If we are still muted, skip sending
+    # -------- ERROR -> OK transition --------
+    if old_state == "error" and new_state == "ok":
+        # If we're currently muted, skip sending "cleared"
         if track["muted_until"] and now < track["muted_until"]:
-            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping notification.")
+            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping 'cleared' notification.")
         else:
-            # Remove any error timestamps older than 24h
+            print("[DEBUG] Transition: ERROR -> OK - sending 'cleared' notification.")
+            _send_telegram_and_discord(f"Device={device}, Key={key}\nIssue cleared; now OK.")
+        # Notice: we do NOT clear timestamps or unmute.
+        # They stay until 24h passes or the user manually clears.
+
+    # -------- OK -> ERROR transition --------
+    elif old_state != "error" and new_state == "error":
+        if track["muted_until"] and now < track["muted_until"]:
+            print(f"[DEBUG] Currently muted until {track['muted_until']} - skipping ERROR notification.")
+        else:
+            # Remove stale timestamps older than 24h
             original_count = len(track["error_timestamps"])
             track["error_timestamps"] = [
                 t for t in track["error_timestamps"]
@@ -137,28 +130,27 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
             ]
             removed_count = original_count - len(track["error_timestamps"])
             if removed_count > 0:
-                print(f"[DEBUG] Removed {removed_count} stale error timestamps (older than 24h).")
+                print(f"[DEBUG] Removed {removed_count} old error timestamps (>24h).")
 
-            # Add this new error occurrence
+            # Append this new error occurrence
             track["error_timestamps"].append(now)
             new_count = len(track["error_timestamps"])
-            print(f"[DEBUG] error_timestamps count is {new_count}: {track['error_timestamps']}")
+            print(f"[DEBUG] error_timestamps has {new_count} in last 24h: {track['error_timestamps']}")
 
-            # If this is the 5th error, append muting text and set muted_until
+            # If this is the 5th error, set a 24h mute
             if new_count == 5:
                 message += "\n[muting this notification for 24 hours due to excessive triggering]"
                 track["muted_until"] = now + timedelta(hours=24)
-                print(f"[DEBUG] This is the 5th error within 24h; muting until {track['muted_until']}")
+                print(f"[DEBUG] Setting muted_until to {track['muted_until']}")
 
-            # Send the notification
+            print("[DEBUG] Sending notification to Telegram/Discord.")
             _send_telegram_and_discord(f"Device={device}, Key={key}\n{message}")
 
     # Update last_state
     track["last_state"] = new_state
-
-    # Save the updated tracking
     with _notifications_lock:
         __tracking[(device, key)] = track
+
 
 
 def _send_telegram_and_discord(alert_text: str):
