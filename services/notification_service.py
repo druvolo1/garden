@@ -46,7 +46,7 @@ def clear_status(device: str, key: str):
 
 def broadcast_notifications_update():
     # Import your debug settings loader. Adjust import path as needed.
-    from debug import load_debug_settings
+    from api.debug import load_debug_settings
     from app import socketio  # local import to avoid circular dependency
     
     # Check if notifications are enabled in debug settings
