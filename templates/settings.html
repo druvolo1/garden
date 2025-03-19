@@ -1419,7 +1419,7 @@
         return;
       }
       // POST to /api/settings/test_discord
-      fetch("/api/settings/test_discord", {
+      fetch("/api/settings/discord_message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ test_message: testMessage })
@@ -1463,7 +1463,7 @@
         return;
       }
       // POST to /api/settings/test_telegram
-      fetch("/api/settings/test_telegram", {
+      fetch("/api/settings/telegram_message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ test_message: testMessage })

@@ -414,8 +414,8 @@ def import_settings():
         return jsonify({"status": "failure", "error": str(e)}), 500
 
 
-@settings_blueprint.route('/test_discord', methods=['POST'])
-def test_discord_webhook():
+@settings_blueprint.route('/discord_message', methods=['POST'])
+def discord_webhook():
     """
     POST JSON like:
     {
@@ -450,8 +450,8 @@ def test_discord_webhook():
     except Exception as ex:
         return jsonify({"status": "failure", "error": f"Exception sending webhook: {ex}"}), 400
 
-@settings_blueprint.route('/test_telegram', methods=['POST'])
-def test_telegram_webhook():
+@settings_blueprint.route('/telegram_message', methods=['POST'])
+def telegram_webhook():
     """
     POST JSON like:
     {
