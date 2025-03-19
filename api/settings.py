@@ -84,7 +84,8 @@ if not os.path.exists(SETTINGS_FILE):
             "discord_webhook_url": "",
 
             "telegram_enabled": False,
-            "telegram_bot_token": ""
+            "telegram_bot_token": "",
+            "telegram_chat_id": ""
         }, f, indent=4)
 
 

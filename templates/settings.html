@@ -395,6 +395,11 @@
             <input type="text" id="telegram-bot-token" style="width: 300px;">
           </div>
           <br>
+          <div>
+            <label for="telegram-chat-id">Telegram Chat ID:</label>
+            <input type="text" id="telegram-chat-id" style="width: 300px;">
+          </div>
+          <br>
           <button type="submit">Save Telegram Settings</button>
         </form>
 
@@ -1435,11 +1440,13 @@
     // ============ Telegram Form + Test =============
     document.getElementById('telegram-form').addEventListener('submit', e => {
       e.preventDefault();
-      const enabled  = document.getElementById('telegram-enabled').checked;
-      const botToken = document.getElementById('telegram-bot-token').value.trim();
+      const enabled   = document.getElementById('telegram-enabled').checked;
+      const botToken  = document.getElementById('telegram-bot-token').value.trim();
+      const chatId    = document.getElementById('telegram-chat-id').value.trim(); // <-- read the chat_id
       const payload = {
         telegram_enabled: enabled,
-        telegram_bot_token: botToken
+        telegram_bot_token: botToken,
+        telegram_chat_id: chatId           // <-- store the chat_id in settings
       };
       saveSettings("/api/settings/", payload);
     });
