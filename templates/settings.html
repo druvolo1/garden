@@ -702,6 +702,21 @@
     }
   
     function fetchUsbDevices() {
+      const phCalibrationLink = document.getElementById('ph-calibration-link');
+      const valveRelayLink   = document.getElementById('valve-relay-link');
+
+      if (assignedPh) {
+        phCalibrationLink.style.display = 'inline';
+      } else {
+        phCalibrationLink.style.display = 'none';
+      }
+
+      if (assignedValve) {
+        valveRelayLink.style.display = 'inline';
+      } else {
+        valveRelayLink.style.display = 'none';
+      }
+      
       console.log('Rescanning USB devices...');
       Promise.all([
         fetch("/api/settings/usb_devices").then(r => r.json()),
