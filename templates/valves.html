@@ -13,11 +13,7 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
-      <!--<li><a href="/dosage">Dosage</a></li>-->
-      <!--<li><a href="/calibration">Calibration</a></li>-->
-      <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
-      <!--<li><a href="/valves">Valves</a></li>-->
     </ul>
   </nav>
 
@@ -26,35 +22,33 @@
     <p>This page allows you to name each valve and turn them on/off.</p>
 
     <div id="no-valve-msg" style="display:none;">
-      <!-- We'll show this only if there's no assigned valve device. -->
       <p>No Valve assigned in <a href="/settings">Settings</a>.</p>
     </div>
 
-    <table id="valve-table" border="1" cellpadding="8" cellspacing="0">
-      <thead>
-        <tr>
-          <th>Valve ID</th>
-          <th>Rename (Label)</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Rows will be populated by JavaScript -->
-      </tbody>
-    </table>
+    <!-- Wrap your table in a responsive container -->
+    <div class="table-responsive">
+      <table id="valve-table">
+        <thead>
+          <tr>
+            <th>Valve ID</th>
+            <th>Rename (Label)</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows will be populated by JavaScript -->
+        </tbody>
+      </table>
+    </div>
   </main>
 
   <script>
-    // We'll store label => valveId here, so we can match "Drain 4" from the socket
-    // to the correct row in the table:
     const labelToValveId = {};
 
     document.addEventListener('DOMContentLoaded', () => {
-      // (1) Immediately do an initial fetch to populate the table
       fetchValveStatus();
 
-      // (2) Set up Socket.IO for real-time status updates from /status
       const socket = io("/status", {
         transports: ["websocket"],
         reconnectionAttempts: Infinity,
@@ -69,25 +63,16 @@
         console.log("[valves.html] Disconnected from /status");
       });
 
-      // (3) On each "status_update", if valve_relays is present, update by label
       socket.on("status_update", (data) => {
         console.log("[valves.html] Received status_update:", data);
         if (data.valve_info?.valve_relays) {
           const relays = data.valve_info.valve_relays;
           Object.keys(relays).forEach(label => {
-            const relay = relays[label];   // e.g. { status: "off" }
+            const relay = relays[label];
             const newStatus = relay.status || "off";
-
-            // Look up which numeric valveId corresponds to this label
             const valveId = labelToValveId[label];
-            if (!valveId) {
-              // We have a label from the server that doesn't match any local row
-              // Possibly the user changed the name or there's an untracked label.
-              console.log(`[valves.html] No local match for label="${label}". Skipping.`);
-              return;
-            }
-            
-            // If we do have a match, update the row:
+            if (!valveId) return; // no local match
+
             const statusCell = document.getElementById(`valve-status-${valveId}`);
             if (statusCell) {
               statusCell.textContent = newStatus;
@@ -98,11 +83,6 @@
       });
     });
 
-    /**
-     * Fetch current statuses from /api/valve_relay/all_status
-     * If no valve device is assigned, the server will typically return an error,
-     * and we show a "No Valve assigned" message instead of the table.
-     */
     function fetchValveStatus() {
       fetch("/api/valve_relay/all_status")
         .then(response => response.json())
@@ -111,61 +91,36 @@
             populateTable(data.valves);
           } else {
             console.warn("Failed to fetch valve status:", data.error || data);
-            // If the error suggests no device is assigned, hide the table and show our message.
-            // This depends on how your server error is phrased. 
-            if ((data.error || "").includes("No valve relay device configured")) {
-              showNoValveAssigned();
-            }
-            else {
-              // Another error, do what you like (show a generic message, etc.)
-              showNoValveAssigned(); 
-            }
+            showNoValveAssigned();
           }
         })
         .catch(err => {
           console.error("Error fetching valve status:", err);
-          // On a fetch error, also show "No Valve" or some error message
           showNoValveAssigned();
         });
     }
 
     function showNoValveAssigned() {
-      // Hide the table, show the message
       document.getElementById("valve-table").style.display = "none";
       document.getElementById("no-valve-msg").style.display = "block";
     }
 
-    /**
-     * Build the table dynamically if valves are present
-     */
     function populateTable(valves) {
-      // Clear the labelToValveId map each time we repopulate
       for (const key in labelToValveId) {
         delete labelToValveId[key];
       }
 
-      const noValveMsgDiv = document.getElementById("no-valve-msg");
-      noValveMsgDiv.style.display = "none"; // ensure hidden if success
-
+      document.getElementById("no-valve-msg").style.display = "none";
       const tableEl = document.getElementById("valve-table");
-      tableEl.style.display = "table"; // ensure table is shown
+      tableEl.style.display = "table";
 
       const tbody = tableEl.querySelector("tbody");
-      tbody.innerHTML = ""; // Clear old rows
+      tbody.innerHTML = "";
 
-      // 'valves' has a structure like:
-      // {
-      //   "1": { label: "Drain 4", status: "off" },
-      //   "2": { label: "Fill 4", status: "off" },
-      //   ...
-      // }
-      // We'll create one row per numeric valveId
       Object.keys(valves).forEach(valveId => {
         const info = valves[valveId];
         const label = info.label || `Valve ${valveId}`;
         const status = info.status || "unknown";
-
-        // Map the label => valveId for quick lookups
         labelToValveId[label] = valveId;
 
         const tr = document.createElement('tr');
@@ -175,20 +130,21 @@
         idCell.textContent = valveId;
         tr.appendChild(idCell);
 
-        // B: Rename input
+        // B: Rename input + Save button (// CHANGED)
         const renameCell = document.createElement('td');
+        renameCell.classList.add('valve-rename-cell'); // We'll style this in CSS
         const renameInput = document.createElement('input');
         renameInput.type = "text";
         renameInput.value = label;
         renameInput.id = `valve-rename-${valveId}`;
-        renameInput.style.width = "180px";
 
         const saveBtn = document.createElement('button');
         saveBtn.textContent = "Save";
+        saveBtn.classList.add('small-btn'); // override the global big button style
         saveBtn.addEventListener('click', () => saveLabel(valveId));
+
         renameCell.appendChild(renameInput);
         renameCell.appendChild(saveBtn);
-
         tr.appendChild(renameCell);
 
         // C: Status cell
@@ -215,14 +171,10 @@
 
         tbody.appendChild(tr);
 
-        // Apply styling
         updateValveDisplay(valveId, status.toLowerCase());
       });
     }
 
-    /**
-     * Save label via /api/valve_relay/label/<valveId>
-     */
     function saveLabel(valveId) {
       const newLabel = document.getElementById(`valve-rename-${valveId}`).value.trim();
       if (!newLabel) {
@@ -237,9 +189,7 @@
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
-          console.log(`Renamed valve #${valveId} to "${newLabel}".`);
-          // Re-fetch or rely on the next status_update
-          fetchValveStatus(); 
+          fetchValveStatus();
         } else {
           console.error("Failed to rename valve:", data.error);
         }
@@ -247,15 +197,11 @@
       .catch(err => console.error("Error renaming valve:", err));
     }
 
-    /**
-     * Turn the valve on/off
-     */
     function turnValve(valveId, action) {
       fetch(`/api/valve_relay/${encodeURIComponent(valveId)}/${action}`, { method: "POST" })
         .then(r => r.json())
         .then(data => {
           if (data.status === "success") {
-            // Optimistically update local UI
             document.getElementById(`valve-status-${valveId}`).textContent = action;
             updateValveDisplay(valveId, action);
           } else {
@@ -265,9 +211,6 @@
         .catch(err => console.error(`Error turning valve ${action}:`, err));
     }
 
-    /**
-     * Update the On/Off button styles
-     */
     function updateValveDisplay(valveId, newStatus) {
       const onBtn  = document.getElementById(`valve-${valveId}-on`);
       const offBtn = document.getElementById(`valve-${valveId}-off`);
