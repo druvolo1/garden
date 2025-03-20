@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Ensure mobile responsiveness -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Dosage Info</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
@@ -41,6 +44,7 @@
             <p><strong>Next Dose Time:</strong> <span id="next-dose-time">{{ dosage_data.next_dose_time }}</span></p>
         </div>
 
+        <!-- Wrap these in a .dosage-section so they can be flexed/responsive -->
         <div class="dosage-section">
 
             <!-- pH Up Dosing -->
@@ -55,7 +59,6 @@
                 </p>
                 <button id="ph-up-calc-dispense">Dispense Calculated</button>
 
-                <!-- Potential feedback messages for pH Up -->
                 {% if dosage_data.feedback_up %}
                     <p class="error-message">{{ dosage_data.feedback_up|safe }}</p>
                 {% endif %}
@@ -81,7 +84,6 @@
                 </p>
                 <button id="ph-down-calc-dispense">Dispense Calculated</button>
 
-                <!-- Potential feedback messages for pH Down -->
                 {% if dosage_data.feedback_down %}
                     <p class="error-message">{{ dosage_data.feedback_down|safe }}</p>
                 {% endif %}
@@ -97,18 +99,19 @@
         </div>
     </main>
 
+    <!-- RESPONSIVE LOGIC -->
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const socket = io.connect(window.location.origin);
 
-            // 1) Refresh dosage info from server
+            // Refresh dosage info from server
             async function refreshDosageInfo() {
                 try {
                     const response = await fetch('/api/dosage/info');
                     const d = await response.json();
 
-                    document.getElementById('current-ph').textContent = d.current_ph;
-                    document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
+                    document.getElementById('current-ph').textContent     = d.current_ph;
+                    document.getElementById('ph-up-amount').textContent   = d.ph_up_amount;
                     document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
                     document.getElementById('last-dose-time').textContent = d.last_dose_time;
                     document.getElementById('last-dose-type').textContent = d.last_dose_type;
@@ -119,7 +122,6 @@
                 }
             }
 
-            // 2) WebSocket listener for real-time pH updates
             socket.on('ph_update', function(data) {
                 console.log("Received pH update via socket:", data.ph);
                 refreshDosageInfo();
@@ -127,7 +129,7 @@
 
             await refreshDosageInfo();
 
-            // 3) Single function to handle dispensing
+            // Reusable function
             async function dispensePh(type, amount) {
                 if (amount <= 0) {
                     alert(`Invalid or zero amount specified for pH ${type.toUpperCase()}.`);
@@ -148,26 +150,22 @@
                 }
             }
 
-            // 4) Manual Dosing Buttons
+            // Manual
             document.getElementById('ph-up-dispense').addEventListener('click', () => {
-                const amount = parseFloat(document.getElementById('ph-up-manual-amount').value) || 0;
-                dispensePh('up', amount);
+                const amt = parseFloat(document.getElementById('ph-up-manual-amount').value) || 0;
+                dispensePh('up', amt);
             });
-
             document.getElementById('ph-down-dispense').addEventListener('click', () => {
-                const amount = parseFloat(document.getElementById('ph-down-manual-amount').value) || 0;
-                dispensePh('down', amount);
+                const amt = parseFloat(document.getElementById('ph-down-manual-amount').value) || 0;
+                dispensePh('down', amt);
             });
 
-            // 5) Calculated Dosing Buttons
-            //   Here we read the text from #ph-up-amount or #ph-down-amount
-            //   and pass it to the same dispensing function
+            // Calculated
             document.getElementById('ph-up-calc-dispense').addEventListener('click', () => {
                 const calcStr = document.getElementById('ph-up-amount').textContent.trim();
                 const calcVal = parseFloat(calcStr) || 0;
                 dispensePh('up', calcVal);
             });
-
             document.getElementById('ph-down-calc-dispense').addEventListener('click', () => {
                 const calcStr = document.getElementById('ph-down-amount').textContent.trim();
                 const calcVal = parseFloat(calcStr) || 0;

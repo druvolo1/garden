@@ -109,6 +109,11 @@ h1 {
         flex-wrap: wrap;
     }
 }
+@media (max-width: 768px) {
+    .dosage-section {
+      flex-direction: column;
+    }
+  }
 
 /* =========================
    FORMS & INPUTS
