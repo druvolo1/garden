@@ -49,17 +49,6 @@
     .hidden {
       display: none;
     }
-    .usb-assign-form {
-      margin-bottom: 1.5em; /* adjust as you like */
-    }
-
-    /* Use flex rows for the label+link and for the select+button */
-    .usb-assign-row {
-      display: flex;
-      align-items: center;
-      gap: 1em; /* spacing between elements in the row */
-      margin-bottom: 0.4em; /* small spacing between rows */
-    }
   </style>
 </head>
 <body>
@@ -87,68 +76,42 @@
         <h2>Assign USB Devices</h2>
       
         <!-- pH Probe Form -->
-        <form id="ph-form" class="usb-assign-form">
-          <!-- One row for label + link -->
-          <div class="usb-assign-row">
-            <label for="ph-device">
-              pH Probe:
-              <!-- Link sits inline, right after the label -->
-              <a id="ph-calibration-link"
-                href="/calibration"
-                style="margin-left: 10px; display: none;">
-                Go to Calibration
-              </a>
-            </label>
-          </div>
-
-          <!-- Second row for the dropdown and button -->
-          <div class="usb-assign-row">
-            <select id="ph-device" name="ph-device">
-              <option value="">Select a device</option>
-              <!-- Options populated by JS -->
-            </select>
-            <button type="submit">Save pH Probe</button>
-          </div>
+        <form id="ph-form">
+          <label for="ph-device">pH Probe:</label>
+          <select id="ph-device" name="ph-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save pH Probe</button>
         </form>
-
-
-        <!-- Dosing Relay Module Form (unchanged except for adding the same .usb-assign-form class) -->
-        <form id="dosing-relay-form" class="usb-assign-form">
+        <!-- ADD THIS LINK for /calibration, hidden by default -->
+        <a id="ph-calibration-link" href="/calibration" style="display: none; margin-bottom: 1em; display: inline-block;">
+          Go to Calibration
+        </a>
+      
+        <!-- Dosing Relay Module Form -->
+        <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
           <select id="dosing-relay-device" name="dosing-relay-device">
             <option value="">Select a device</option>
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-
-
-        <!-- Valve Relay Module Form -->
-        <form id="valve-relay-form" class="usb-assign-form">
-          <!-- One row for label + link -->
-          <div class="usb-assign-row">
-            <label for="valve-relay-device">
-              Valve Relay Module:
-              <!-- Link sits inline -->
-              <a id="valve-relay-link"
-                href="/valves"
-                style="margin-left: 10px; display: none;">
-                Manage Valves
-              </a>
-            </label>
-          </div>
-
-          <!-- Second row for the dropdown and button -->
-          <div class="usb-assign-row">
-            <select id="valve-relay-device" name="valve-relay-device">
-              <option value="">Select a device</option>
-              <!-- Options populated by JS -->
-            </select>
-            <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
-          </div>
+      
+        <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
+        <form id="valve-relay-form">
+          <label for="valve-relay-device">Valve Relay Module:</label>
+          <select id="valve-relay-device" name="valve-relay-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-
-        <!-- EC Meter Form remains the same (just give it the same .usb-assign-form class for spacing) -->
-        <form id="ec-meter-form" class="usb-assign-form">
+        <!-- ADD THIS LINK for /valves, hidden by default -->
+        <a id="valve-relay-link" href="/valves" style="display: none; margin-top: 1em; display: inline-block;">
+          Manage Valves
+        </a>
+      
+        <!-- EC Meter Form -->
+        <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
           <select id="ec-meter-device" name="ec-meter-device">
             <option value="">Select a device</option>
@@ -156,9 +119,13 @@
           <button type="submit">Save EC Meter</button>
         </form>
 
-        <!-- Rescan USB Devices -->
         <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
         <div id="status"></div>
+
+        <div id="relay-warning" class="error-message" style="display: none;">
+          <strong>Dosing Relay module not assigned. Dosing-related settings are disabled.</strong>
+        </div>
+      </div>
 
       <!-- pH Min/Max Range -->
       <div class="data-container" id="ph-range-container">
