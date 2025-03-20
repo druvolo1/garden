@@ -83,9 +83,16 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-        <!-- ADD THIS LINK for /calibration, hidden by default -->
-        <a id="ph-calibration-link" href="/calibration" style="display: none; margin-bottom: 1em; display: inline-block;">
-          Go to Calibration
+        
+        <!-- Link that goes to Calibration - hidden by default and not blue -->
+        <a id="ph-calibration-link"
+           href="/calibration"
+           style="display: none;
+                  margin-bottom: 1em;
+                  text-decoration: underline;
+                  color: #ccc;  /* or whatever color you like */
+                  cursor: pointer;">
+           Click here for Calibration
         </a>
       
         <!-- Dosing Relay Module Form -->
@@ -105,9 +112,16 @@
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-        <!-- ADD THIS LINK for /valves, hidden by default -->
-        <a id="valve-relay-link" href="/valves" style="display: none; margin-top: 1em; display: inline-block;">
-          Manage Valves
+        
+        <!-- Link that goes to Valves page - hidden by default and not blue -->
+        <a id="valve-relay-link"
+           href="/valves"
+           style="display: none;
+                  margin-top: 1em;
+                  text-decoration: underline;
+                  color: #ccc;  /* or whatever color you like */
+                  cursor: pointer;">
+           Click here to Manage Valves
         </a>
       
         <!-- EC Meter Form -->
@@ -743,6 +757,8 @@
         if (!isPhProbeAssigned) {
           phRangeContainer.classList.add('disabled-section');
           phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
+          const phCalibrationLink = document.getElementById('ph-calibration-link');
+          phCalibrationLink.style.display = isPhProbeAssigned ? 'inline-block' : 'none';
         } else {
           phRangeContainer.classList.remove('disabled-section');
           phRangeContainer.removeAttribute('data-disabled-title');
