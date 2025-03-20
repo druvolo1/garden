@@ -55,7 +55,7 @@
                 </p>
                 <button id="ph-up-calc-dispense">Dispense Calculated</button>
 
-                <!-- Potential feedback messages -->
+                <!-- Potential feedback messages for pH Up -->
                 {% if dosage_data.feedback_up %}
                     <p class="error-message">{{ dosage_data.feedback_up|safe }}</p>
                 {% endif %}
@@ -81,7 +81,7 @@
                 </p>
                 <button id="ph-down-calc-dispense">Dispense Calculated</button>
 
-                <!-- Potential feedback messages -->
+                <!-- Potential feedback messages for pH Down -->
                 {% if dosage_data.feedback_down %}
                     <p class="error-message">{{ dosage_data.feedback_down|safe }}</p>
                 {% endif %}
@@ -101,7 +101,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const socket = io.connect(window.location.origin);
 
-            // Refresh dosage info from server
+            // 1) Refresh dosage info from server
             async function refreshDosageInfo() {
                 try {
                     const response = await fetch('/api/dosage/info');
@@ -119,6 +119,7 @@
                 }
             }
 
+            // 2) WebSocket listener for real-time pH updates
             socket.on('ph_update', function(data) {
                 console.log("Received pH update via socket:", data.ph);
                 refreshDosageInfo();
@@ -126,16 +127,12 @@
 
             await refreshDosageInfo();
 
-            // Manual dispensing
-            async function dispenseManual(type) {
-                const manualAmountInput = document.getElementById(`ph-${type}-manual-amount`);
-                const amount = parseFloat(manualAmountInput.value) || 0;
-
+            // 3) Single function to handle dispensing
+            async function dispensePh(type, amount) {
                 if (amount <= 0) {
-                    alert(`Please enter a valid amount for pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
+                    alert(`Invalid or zero amount specified for pH ${type.toUpperCase()}.`);
                     return;
                 }
-
                 try {
                     const response = await fetch('/api/dosage/manual', {
                         method: 'POST',
@@ -143,7 +140,7 @@
                         body: JSON.stringify({ type: type, amount: amount })
                     });
                     const data = await response.json();
-                    alert(`Manual pH ${type} dispense triggered: ` + data.message);
+                    alert(`pH ${type.toUpperCase()} dispense triggered: ` + data.message);
                     refreshDosageInfo();
                 } catch (error) {
                     console.error(`Error dispensing pH ${type}:`, error);
@@ -151,31 +148,31 @@
                 }
             }
 
-            // Calculated dispensing
-            async function dispenseCalculated(type) {
-                try {
-                    // Possibly you call a different endpoint? e.g. '/api/dosage/calculated'
-                    // Or pass {calculated: true}. Example:
-                    const response = await fetch('/api/dosage/manual', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: type, calculated: true })
-                    });
-                    const data = await response.json();
-                    alert(`Calculated pH ${type} dispense triggered: ` + data.message);
-                    refreshDosageInfo();
-                } catch (error) {
-                    console.error(`Error dispensing pH ${type} (calculated):`, error);
-                    alert(`Failed to dispense pH ${type} (calculated).`);
-                }
-            }
+            // 4) Manual Dosing Buttons
+            document.getElementById('ph-up-dispense').addEventListener('click', () => {
+                const amount = parseFloat(document.getElementById('ph-up-manual-amount').value) || 0;
+                dispensePh('up', amount);
+            });
 
-            // Attach event listeners
-            document.getElementById('ph-up-dispense').addEventListener('click', () => dispenseManual('up'));
-            document.getElementById('ph-down-dispense').addEventListener('click', () => dispenseManual('down'));
+            document.getElementById('ph-down-dispense').addEventListener('click', () => {
+                const amount = parseFloat(document.getElementById('ph-down-manual-amount').value) || 0;
+                dispensePh('down', amount);
+            });
 
-            document.getElementById('ph-up-calc-dispense').addEventListener('click', () => dispenseCalculated('up'));
-            document.getElementById('ph-down-calc-dispense').addEventListener('click', () => dispenseCalculated('down'));
+            // 5) Calculated Dosing Buttons
+            //   Here we read the text from #ph-up-amount or #ph-down-amount
+            //   and pass it to the same dispensing function
+            document.getElementById('ph-up-calc-dispense').addEventListener('click', () => {
+                const calcStr = document.getElementById('ph-up-amount').textContent.trim();
+                const calcVal = parseFloat(calcStr) || 0;
+                dispensePh('up', calcVal);
+            });
+
+            document.getElementById('ph-down-calc-dispense').addEventListener('click', () => {
+                const calcStr = document.getElementById('ph-down-amount').textContent.trim();
+                const calcVal = parseFloat(calcStr) || 0;
+                dispensePh('down', calcVal);
+            });
         });
     </script>
 
