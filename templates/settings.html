@@ -77,15 +77,30 @@
       
         <!-- pH Probe Form -->
         <form id="ph-form">
-          <label for="ph-device">pH Probe:</label>
+          <label for="ph-device" style="display: inline-block; margin-bottom: 8px;">
+            pH Probe: 
+            <!-- Put the "calibrate pH" link right after the label, hidden by default -->
+            <span
+              id="ph-calibration-link"
+              onclick="window.location.href='/calibration'"
+              style="
+                display: none;           /* default hidden, set to inline in JS */
+                margin-left: 10px;
+                text-decoration: underline;
+                color: #f4c531;         /* nice highlight color */
+                font-weight: 600;
+                cursor: pointer;
+              "
+            >
+              Click here to calibrate pH
+            </span>
+          </label>
+          <br>
           <select id="ph-device" name="ph-device">
             <option value="">Select a device</option>
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-        <a id="ph-calibration-link" href="/calibration" style="display: none; margin-bottom: 1em; display: inline-block;">
-          Go to Calibration
-        </a>
       
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
@@ -98,16 +113,30 @@
       
         <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
-          <label for="valve-relay-device">Valve Relay Module:</label>
+          <label for="valve-relay-device" style="display: inline-block; margin-bottom: 8px;">
+            Valve Relay Module:
+            <!-- Put the "configure valves" link right after the label, hidden by default -->
+            <span
+              id="valve-relay-link"
+              onclick="window.location.href='/valves'"
+              style="
+                display: none;         /* default hidden, set to inline in JS */
+                margin-left: 10px;
+                text-decoration: underline;
+                color: #f4c531;
+                font-weight: 600;
+                cursor: pointer;
+              "
+            >
+              Click here to configure valves
+            </span>
+          </label>
+          <br>
           <select id="valve-relay-device" name="valve-relay-device">
             <option value="">Select a device</option>
-            <!-- Populated dynamically with /dev/serial/... devices -->
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-        <a id="valve-relay-link" href="/valves" style="display: none; margin-top: 1em; display: inline-block;">
-          Manage Valves
-        </a>
       
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
