@@ -701,22 +701,7 @@
       weeksSpan.textContent = weeks.toString();
     }
   
-    function fetchUsbDevices() {
-      const phCalibrationLink = document.getElementById('ph-calibration-link');
-      const valveRelayLink   = document.getElementById('valve-relay-link');
-
-      if (assignedPh) {
-        phCalibrationLink.style.display = 'inline';
-      } else {
-        phCalibrationLink.style.display = 'none';
-      }
-
-      if (assignedValve) {
-        valveRelayLink.style.display = 'inline';
-      } else {
-        valveRelayLink.style.display = 'none';
-      }
-      
+    function fetchUsbDevices() { 
       console.log('Rescanning USB devices...');
       Promise.all([
         fetch("/api/settings/usb_devices").then(r => r.json()),
@@ -725,6 +710,28 @@
       .then(([devices, settings]) => {
         console.log('Devices:', devices);
         console.log('Settings:', settings);
+
+        // 1) Grab references to your link <span> elements:
+        const phCalibrationLink = document.getElementById('ph-calibration-link');
+        const valveRelayLink    = document.getElementById('valve-relay-link');
+
+        // 2) Figure out what’s currently assigned:
+        const assignedPh     = settings.usb_roles?.ph_probe    || "";
+        const assignedValve  = settings.usb_roles?.valve_relay || "";
+
+        // 3) Toggle their visibility:
+        if (assignedPh) {
+          phCalibrationLink.style.display = 'inline';
+        } else {
+          phCalibrationLink.style.display = 'none';
+        }
+
+        if (assignedValve) {
+          valveRelayLink.style.display = 'inline';
+        } else {
+          valveRelayLink.style.display = 'none';
+        }
+
 
         // For each role, we'll re-populate the dropdown
         const phDevSelect     = document.getElementById('ph-device');
