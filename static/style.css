@@ -266,6 +266,20 @@ legend {
     margin: 0 auto;
     border-collapse: collapse;
 }
+.valve-rename-cell {
+    display: flex;            /* horizontal layout */
+    align-items: center;      /* vertically center them */
+    gap: 8px;                 /* space between input and button */
+  }
+  
+  /* A smaller, narrower “Save” button */
+  .small-btn {
+    width: auto !important;   /* override any global width:100% */
+    margin-top: 0 !important; /* remove extra top margin */
+    padding: 6px 12px;        /* smaller padding so it’s less clickable */
+    font-size: 14px;          /* smaller text */
+    cursor: pointer;
+  }
 
 .disabled-section {
     opacity: 0.9;
