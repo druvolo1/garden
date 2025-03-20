@@ -41,28 +41,55 @@
             <p><strong>Next Dose Time:</strong> <span id="next-dose-time">{{ dosage_data.next_dose_time }}</span></p>
         </div>
 
-        <!--
-          .dosage-section is now a flex container.
-          Each .data-container inside it will be narrower side by side
-        -->
         <div class="dosage-section">
+
+            <!-- pH Up Dosing -->
             <div class="data-container">
                 <h2>pH Up Dosing</h2>
-                <p><strong>Calculated Amount:</strong> <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml</p>
+
+                <!-- Calculated Dosing -->
+                <h3>Calculated Dosing</h3>
+                <p>
+                    <strong>Calculated Amount:</strong>
+                    <span id="ph-up-amount">{{ dosage_data.ph_up_amount }}</span> ml
+                </p>
+                <button id="ph-up-calc-dispense">Dispense Calculated</button>
+
+                <!-- Potential feedback messages -->
                 {% if dosage_data.feedback_up %}
                     <p class="error-message">{{ dosage_data.feedback_up|safe }}</p>
                 {% endif %}
+
+                <hr style="margin: 1em 0;" />
+
+                <!-- Manual Dosing -->
+                <h3>Manual Dosing</h3>
                 <label for="ph-up-manual-amount">Manual Dose Amount (ml):</label>
                 <input type="number" id="ph-up-manual-amount" step="0.1" min="0" placeholder="Enter amount">
                 <button id="ph-up-dispense">Dispense pH Up</button>
             </div>
 
+            <!-- pH Down Dosing -->
             <div class="data-container">
                 <h2>pH Down Dosing</h2>
-                <p><strong>Calculated Amount:</strong> <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml</p>
+
+                <!-- Calculated Dosing -->
+                <h3>Calculated Dosing</h3>
+                <p>
+                    <strong>Calculated Amount:</strong>
+                    <span id="ph-down-amount">{{ dosage_data.ph_down_amount }}</span> ml
+                </p>
+                <button id="ph-down-calc-dispense">Dispense Calculated</button>
+
+                <!-- Potential feedback messages -->
                 {% if dosage_data.feedback_down %}
                     <p class="error-message">{{ dosage_data.feedback_down|safe }}</p>
                 {% endif %}
+
+                <hr style="margin: 1em 0;" />
+
+                <!-- Manual Dosing -->
+                <h3>Manual Dosing</h3>
                 <label for="ph-down-manual-amount">Manual Dose Amount (ml):</label>
                 <input type="number" id="ph-down-manual-amount" step="0.1" min="0" placeholder="Enter amount">
                 <button id="ph-down-dispense">Dispense pH Down</button>
@@ -74,6 +101,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             const socket = io.connect(window.location.origin);
 
+            // Refresh dosage info from server
             async function refreshDosageInfo() {
                 try {
                     const response = await fetch('/api/dosage/info');
@@ -98,7 +126,8 @@
 
             await refreshDosageInfo();
 
-            async function dispensePh(type) {
+            // Manual dispensing
+            async function dispenseManual(type) {
                 const manualAmountInput = document.getElementById(`ph-${type}-manual-amount`);
                 const amount = parseFloat(manualAmountInput.value) || 0;
 
@@ -114,16 +143,39 @@
                         body: JSON.stringify({ type: type, amount: amount })
                     });
                     const data = await response.json();
-                    alert(`Manual pH ${type.charAt(0).toUpperCase() + type.slice(1)} dispense triggered: ` + data.message);
+                    alert(`Manual pH ${type} dispense triggered: ` + data.message);
                     refreshDosageInfo();
                 } catch (error) {
-                    console.error(`Error dispensing pH ${type.charAt(0).toUpperCase() + type.slice(1)}:`, error);
-                    alert(`Failed to dispense pH ${type.charAt(0).toUpperCase() + type.slice(1)}.`);
+                    console.error(`Error dispensing pH ${type}:`, error);
+                    alert(`Failed to dispense pH ${type}.`);
                 }
             }
 
-            document.getElementById('ph-up-dispense').addEventListener('click', () => dispensePh('up'));
-            document.getElementById('ph-down-dispense').addEventListener('click', () => dispensePh('down'));
+            // Calculated dispensing
+            async function dispenseCalculated(type) {
+                try {
+                    // Possibly you call a different endpoint? e.g. '/api/dosage/calculated'
+                    // Or pass {calculated: true}. Example:
+                    const response = await fetch('/api/dosage/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: type, calculated: true })
+                    });
+                    const data = await response.json();
+                    alert(`Calculated pH ${type} dispense triggered: ` + data.message);
+                    refreshDosageInfo();
+                } catch (error) {
+                    console.error(`Error dispensing pH ${type} (calculated):`, error);
+                    alert(`Failed to dispense pH ${type} (calculated).`);
+                }
+            }
+
+            // Attach event listeners
+            document.getElementById('ph-up-dispense').addEventListener('click', () => dispenseManual('up'));
+            document.getElementById('ph-down-dispense').addEventListener('click', () => dispenseManual('down'));
+
+            document.getElementById('ph-up-calc-dispense').addEventListener('click', () => dispenseCalculated('up'));
+            document.getElementById('ph-down-calc-dispense').addEventListener('click', () => dispenseCalculated('down'));
         });
     </script>
 
