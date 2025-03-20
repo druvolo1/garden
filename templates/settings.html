@@ -683,23 +683,6 @@
         console.log('Devices:', devices);
         console.log('Settings:', settings);
 
-        const phCalibrationLink = document.getElementById('ph-calibration-link');
-        const valveRelayLink   = document.getElementById('valve-relay-link');
-
-        // Show the calibration link only if pH probe is assigned
-        if (assignedPh) {
-          phCalibrationLink.style.display = 'inline-block';
-        } else {
-          phCalibrationLink.style.display = 'none';
-        }
-
-        // Show the valves link only if the valve relay is assigned
-        if (assignedValve) {
-          valveRelayLink.style.display = 'inline-block';
-        } else {
-          valveRelayLink.style.display = 'none';
-        }
-
         // For each role, we'll re-populate the dropdown
         const phDevSelect     = document.getElementById('ph-device');
         const dosingDevSelect = document.getElementById('dosing-relay-device');
