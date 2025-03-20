@@ -757,8 +757,6 @@
         if (!isPhProbeAssigned) {
           phRangeContainer.classList.add('disabled-section');
           phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
-          const phCalibrationLink = document.getElementById('ph-calibration-link');
-          phCalibrationLink.style.display = isPhProbeAssigned ? 'inline-block' : 'none';
         } else {
           phRangeContainer.classList.remove('disabled-section');
           phRangeContainer.removeAttribute('data-disabled-title');
@@ -802,6 +800,14 @@
         // Show/hide the Dosing Relay warning
         const relayWarning = document.getElementById('relay-warning');
         relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
+
+        // === ADDED LINES: Show/hide the "pH Calibration" link & "Manage Valves" link ===
+        const phCalibrationLink = document.getElementById('ph-calibration-link');
+        phCalibrationLink.style.display = isPhProbeAssigned ? 'inline-block' : 'none';
+
+        const isValveRelayAssigned = Boolean(assignedValve);
+        const valveRelayLink = document.getElementById('valve-relay-link');
+        valveRelayLink.style.display = isValveRelayAssigned ? 'inline-block' : 'none';
 
         // pH Range
         document.getElementById('ph-min').value = settings.ph_range?.min || '';
