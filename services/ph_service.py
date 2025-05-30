@@ -206,14 +206,14 @@ def parse_buffer(ser):
                 cutoff = now - timedelta(seconds=60)
                 ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                if len(ph_jumps) >= 5:
+                #if len(ph_jumps) >= 5:
                     # Instead of spamming set_status, do repeated-condition
                     #report_condition_error(
                     #    "ph_probe",
                     #    "unstable_readings",
                     #    "Unstable readings detected (5 large jumps in last minute)."
                     #)
-                else:
+                #else:
                     # Mark them as normal
                     #set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
 
