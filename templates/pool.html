@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Make page responsive on mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garden Monitoring System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/settings">Settings</a></li>
+    </ul>
+  </nav>
+
+  <main> 
+    <h1>Automated DWC Helper</h1>
+    <p class="subtitle">Monitor &amp; adjust your garden with confidence.</p>
+
+    <!-- pH Section Only -->
+    <section class="data-container">
+      <div class="row-flex" style="justify-content:flex-start;">
+        <div>
+          <label>pH</label>
+          <div id="ph-display">Loading...</div>
+        </div>
+      </div>
+      <div class="last-updated" id="last-updated">Last updated: Never</div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Connect to /status namespace
+      const localSocket = io("/status", {
+        transports: ["websocket"],
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000
+      });
+
+      localSocket.on("connect", () => {
+        console.log("[LOCAL] Socket connected");
+      });
+
+      localSocket.on("disconnect", () => {
+        console.log("[LOCAL] Socket disconnected");
+      });
+
+      localSocket.on("connect_error", (err) => {
+        console.error("[LOCAL] connect_error:", err);
+      });
+
+      // Only handle pH and update time
+      localSocket.on("status_update", (data) => {
+        console.log("[LOCAL] status_update:", data);
+
+        document.getElementById("ph-display").textContent =
+          data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
+
+        document.getElementById("last-updated").textContent =
+          "Last updated: " + new Date().toLocaleString();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -181,11 +181,11 @@ def parse_buffer(ser):
             # 3a) Check for "unrealistic reading"
             if ph_value == 0 or ph_value == 14:
                 # Use repeated-condition approach
-                report_condition_error(
-                    "ph_probe",
-                    "unrealistic_reading",
-                    f"Unrealistic reading ({ph_value}). Probe may be bad."
-                )
+                #report_condition_error(
+                #    "ph_probe",
+                #    "unrealistic_reading",
+                #    f"Unrealistic reading ({ph_value}). Probe may be bad."
+                #)
                 continue
 
             # 3b) If <1.0, skip (treat as noise)
@@ -208,14 +208,14 @@ def parse_buffer(ser):
 
                 if len(ph_jumps) >= 5:
                     # Instead of spamming set_status, do repeated-condition
-                    report_condition_error(
-                        "ph_probe",
-                        "unstable_readings",
-                        "Unstable readings detected (5 large jumps in last minute)."
-                    )
+                    #report_condition_error(
+                    #    "ph_probe",
+                    #    "unstable_readings",
+                    #    "Unstable readings detected (5 large jumps in last minute)."
+                    #)
                 else:
                     # Mark them as normal
-                    set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
+                    #set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
 
                 # Update old_ph_value so we don't keep comparing
                 old_ph_value = ph_value
