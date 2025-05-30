@@ -229,11 +229,13 @@ def parse_buffer(ser):
             if len(ph_recent_values) >= PH_ROLLING_WINDOW:
                 avg_ph = sum(ph_recent_values) / len(ph_recent_values)
                 if avg_ph < ph_min or avg_ph > ph_max:
-                    report_condition_error(
+                    set_status(
                         "ph_probe",
                         "out_of_range",
+                        "error",
                         f"Average pH {avg_ph:.2f} over last {PH_ROLLING_WINDOW} readings is outside recommended range [{ph_min}, {ph_max}]."
                     )
+
                 else:
                     set_status("ph_probe", "within_range", "ok",
                                f"Average pH {avg_ph:.2f} is within recommended range [{ph_min}, {ph_max}].")
