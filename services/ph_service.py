@@ -32,6 +32,9 @@ COMMAND_TIMEOUT = 10
 MAX_BUFFER_LENGTH = 100
 
 old_ph_value = None  # stores the previous pH value so we only process changes
+ph_recent_values = []  # stores last 20 readings
+PH_ROLLING_WINDOW = 20
+
 
 ser = None  # Global variable to track the serial connection
 
@@ -85,10 +88,10 @@ def parse_buffer(ser):
       * If out of recommended range => report_condition_error for "out_of_range"
       * Else mark the reading "ok"
     """
-
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
-    global slope_data, slope_event  # so we can update slope_data, slope_event
+    global slope_data, slope_event
+    global ph_recent_values  # Needed to modify the list
 
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
@@ -128,8 +131,8 @@ def parse_buffer(ser):
         if line.upper().startswith("?SLOPE,"):
             log_with_timestamp(f"[DEBUG] parse_buffer got slope line: {line}")
             try:
-                payload = line[7:]  # e.g., everything after "?SLOPE,"
-                parts = payload.split(",")  # e.g. ["110.2", "92.1", "4.67"]
+                payload = line[7:]
+                parts = payload.split(",")
                 acid = float(parts[0])
                 base = float(parts[1])
                 offset = float(parts[2])
@@ -141,7 +144,6 @@ def parse_buffer(ser):
                 }
                 log_with_timestamp(f"[DEBUG] parse_buffer: slope_data set to {slope_data}")
 
-                # Save slope data in your settings
                 s = load_settings()
                 if "calibration" not in s:
                     s["calibration"] = {}
@@ -168,24 +170,16 @@ def parse_buffer(ser):
         #    but first check the format with a regex:
         # ---------------------------------------------------------
         if not PH_FLOAT_REGEX.match(line):
-            # It's not a valid single float like "8.28", so skip it.
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': does not match PH_FLOAT_REGEX")
             continue
 
         try:
             ph_value = round(float(line), 2)
-            # Mark that we're receiving data
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
             log_with_timestamp(f"[DEBUG] parse_buffer: recognized numeric pH => {ph_value}")
 
             # 3a) Check for "unrealistic reading"
             if ph_value == 0 or ph_value == 14:
-                # Use repeated-condition approach
-                #report_condition_error(
-                #    "ph_probe",
-                #    "unrealistic_reading",
-                #    f"Unrealistic reading ({ph_value}). Probe may be bad."
-                #)
                 continue
 
             # 3b) If <1.0, skip (treat as noise)
@@ -206,28 +200,13 @@ def parse_buffer(ser):
                 cutoff = now - timedelta(seconds=60)
                 ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                #if len(ph_jumps) >= 5:
-                    # Instead of spamming set_status, do repeated-condition
-                    #report_condition_error(
-                    #    "ph_probe",
-                    #    "unstable_readings",
-                    #    "Unstable readings detected (5 large jumps in last minute)."
-                    #)
-                #else:
-                    # Mark them as normal
-                    #set_status("ph_probe", "probe_health", "ok", "Readings appear normal.")
-
-                # Update old_ph_value so we don't keep comparing
                 old_ph_value = ph_value
                 with ph_lock:
                     latest_ph_value = ph_value
 
-                # Optionally skip processing the reading further
                 continue
             else:
-                # This reading is "accepted"
                 if old_ph_value is None:
-                    # First valid reading
                     set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
 
             # Actually store the new reading
@@ -238,33 +217,40 @@ def parse_buffer(ser):
             old_ph_value = ph_value
             last_read_time = datetime.now()
 
-            # 3d) Check if out of recommended range
+            # --- Maintain rolling window of last 20 readings ---
+            ph_recent_values.append(ph_value)
+            if len(ph_recent_values) > PH_ROLLING_WINDOW:
+                ph_recent_values.pop(0)
+
+            # --- Out-of-range check uses average of last 20 ---
             s = load_settings()
             ph_min = s.get("ph_range", {}).get("min", 5.5)
             ph_max = s.get("ph_range", {}).get("max", 6.5)
-            if ph_value < ph_min or ph_value > ph_max:
-                report_condition_error(
-                    "ph_probe",
-                    "out_of_range",
-                    f"pH {ph_value} is outside the recommended range [{ph_min}, {ph_max}]."
-                )
+            if len(ph_recent_values) >= PH_ROLLING_WINDOW:
+                avg_ph = sum(ph_recent_values) / len(ph_recent_values)
+                if avg_ph < ph_min or avg_ph > ph_max:
+                    report_condition_error(
+                        "ph_probe",
+                        "out_of_range",
+                        f"Average pH {avg_ph:.2f} over last {PH_ROLLING_WINDOW} readings is outside recommended range [{ph_min}, {ph_max}]."
+                    )
+                else:
+                    set_status("ph_probe", "within_range", "ok",
+                               f"Average pH {avg_ph:.2f} is within recommended range [{ph_min}, {ph_max}].")
             else:
-                # Mark in-range as normal
-                set_status("ph_probe", "within_range", "ok",
-                           f"pH is within recommended range [{ph_min}, {ph_max}].")
+                # Not enough readings yet; optionally use initial logic, or skip notification
+                pass
 
             # Emit a status update to the UI
             from status_namespace import emit_status_update
             emit_status_update()
 
         except ValueError as e:
-            # e.g. "Ignoring pH <1.0"
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': {e}")
-
-    # end while '\r' in buffer
 
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
+
 
 def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
