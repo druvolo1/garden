@@ -21,6 +21,16 @@ def log_notify_debug(msg: str):
     if is_debug_enabled("notifications"):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
+def is_notification_active(device: str, key: str) -> bool:
+    """
+    Returns True if a notification for (device, key) is currently active (state != "ok").
+    """
+    with _notifications_lock:
+        data = _notifications.get((device, key))
+        if data and data["state"].lower() != "ok":
+            return True
+    return False
+
 def set_status(device: str, key: str, state: str, message: str = ""):
     """
     Called whenever we have a new state for (device, key).
@@ -30,6 +40,17 @@ def set_status(device: str, key: str, state: str, message: str = ""):
     with _notifications_lock:
         old_status = _notifications.get((device, key))
         old_state = old_status["state"] if old_status else "ok"
+
+        # If already active and new state is also not "ok", don't notify again
+        if old_state != "ok" and state != "ok":
+            # Just update timestamp/message in _notifications, but skip transition logic
+            _notifications[(device, key)] = {
+                "state": state,
+                "message": message,
+                "timestamp": datetime.now()
+            }
+            broadcast_notifications_update()
+            return
 
         # Update the current snapshot
         _notifications[(device, key)] = {
@@ -218,6 +239,11 @@ def report_condition_error(device: str, condition_key: str, message: str):
        report_condition_error("ph_probe", "unrealistic_reading",
            "Unrealistic pH reading (0.0). Probe may be disconnected.")
     """
+    # --- ADDED: don't retrigger if active ---
+    if is_notification_active(device, condition_key):
+        log_notify_debug(f"[DEBUG] {device}/{condition_key} notification already active. Skipping duplicate notification.")
+        return
+
     now = datetime.now()
 
     with _condition_lock:
