@@ -237,7 +237,7 @@ def parse_buffer(ser):
                     )
 
                 else:
-                    set_status("ph_probe", "within_range", "ok",
+                    set_status("ph_probe", "out_of_range", "ok",
                                f"Average pH {avg_ph:.2f} is within recommended range [{ph_min}, {ph_max}].")
             else:
                 # Not enough readings yet; optionally use initial logic, or skip notification
