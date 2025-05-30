@@ -328,8 +328,7 @@ def notifications_page():
     return render_template('notifications.html')
 
 @app.route('/pool')
-def settings_page():
-    pi_ip = get_local_ip()
+def pool_page():
     return render_template('pool.html', pi_ip=pi_ip)
 ########################################################################
 # MAIN
