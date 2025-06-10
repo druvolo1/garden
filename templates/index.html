@@ -34,7 +34,7 @@
 
     <!-- LOCAL ZONE -->
     <section class="data-container">
-      <h2>Local Zone</h2>
+      <h2 id="local-zone-header">Local Zone</h2>
       <div class="row-flex">
         <!-- System Name -->
         <div>
@@ -123,6 +123,17 @@
         // 2) When we receive a status_update, refresh local zone UI
         localSocket.on("status_update", (data) => {
           console.log("[LOCAL] status_update:", data);
+          const plant = data.settings?.plant_info || {};
+          let headerText = "Local Zone";
+          if (plant.name && plant.start_date) {
+            headerText = `${plant.name} – ${plant.start_date}`;
+          } else if (plant.name) {
+            headerText = plant.name;
+          } else if (plant.start_date) {
+            headerText = plant.start_date;
+          }
+          document.getElementById("local-zone-header").textContent = headerText;
+
           
         // If the local zone provides a system_name, update the <title>:
         if (data.settings?.system_name) {
@@ -283,12 +294,13 @@
           console.log(`[REMOTE ${host}] Already connected`);
           return;  // Skip if already connected
         }
-  
+
         const zoneId = host.replace(/[^a-zA-Z0-9]/g, "_");
         const container = document.createElement("section");
         container.className = "data-container";
+        // Note: Header will be dynamically set on status_update.
         container.innerHTML = `
-          <h2>Remote Zone: <a href="http://${host}:8000" target="_blank">${host}</a></h2>
+          <h2 id="${zoneId}-zone-header"><a href="http://${host}:8000" target="_blank">${host}</a></h2>
           <div class="row-flex" id="${zoneId}-row">
             <div>
               <label>System Name</label>
@@ -329,36 +341,34 @@
               </div>
             </div>
           </div>
-  
-          <!-- This div shows the last WebSocket update time for this Remote Zone -->
           <div class="last-updated" id="${zoneId}-last-updated">Last updated: Never</div>
         `;
         document.getElementById("remote-zones").appendChild(container);
-  
+
         const remoteUrl = `http://${host}:8000/status`;
         console.log(`[REMOTE] Connecting to ${remoteUrl}`);
-  
+
         const socket = io(remoteUrl, {
           transports: ["websocket"],
           reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 1000
         });
-  
+
         remoteSockets[host] = socket; // Store reference to avoid duplicate connections
-  
+
         let reconnectAttempts = 0;  // Track reconnect attempts
-  
+
         socket.on("connect", () => {
           console.log(`[REMOTE ${host}] connected`);
           reconnectAttempts = 0;  // Reset attempts on successful connection
         });
-  
+
         socket.on("disconnect", () => {
           console.log(`[REMOTE ${host}] disconnected`);
           delete remoteSockets[host];  // Remove from tracking so it can reconnect later
         });
-  
+
         socket.on("connect_error", (err) => {
           reconnectAttempts++;
           if (reconnectAttempts % 10 === 0) {
@@ -366,9 +376,24 @@
           }
           delete remoteSockets[host];
         });
-  
+
         socket.on("status_update", (data) => {
           console.log(`[REMOTE ${host}] status_update:`, data);
+
+          // ---------- NEW: Set plant info header with link ----------
+          const plant = data.settings?.plant_info || {};
+          let headerText = "Unknown Plant";
+          if (plant.name && plant.start_date) {
+            headerText = `${plant.name} – ${plant.start_date}`;
+          } else if (plant.name) {
+            headerText = plant.name;
+          } else if (plant.start_date) {
+            headerText = plant.start_date;
+          }
+          // Always provide link to remote system
+          headerText += ` <a href="http://${host}:8000" target="_blank" style="font-size:0.8em;margin-left:8px;">[Open]</a>`;
+          document.getElementById(`${zoneId}-zone-header`).innerHTML = headerText;
+          // ---------------------------------------------------------
 
           // Update UI data for the remote zone
           if (data.settings?.system_name) {
