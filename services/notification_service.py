@@ -182,10 +182,13 @@ def handle_notification_transition(device: str, key: str, old_state: str, new_st
 def _send_telegram_and_discord(alert_text: str):
     """
     Helper function to actually send the notification to Telegram and/or Discord if enabled.
+    Prepends the system name to the alert.
     """
     cfg = load_settings()
+    system_name = cfg.get("system_name", "Garden")
+    final_alert = f"[{system_name}] {alert_text}"
 
-    log_notify_debug(f"[DEBUG] _send_telegram_and_discord called with text:\n{alert_text}")
+    log_notify_debug(f"[DEBUG] _send_telegram_and_discord called with text:\n{final_alert}")
 
     # --- Telegram ---
     if cfg.get("telegram_enabled"):
@@ -194,7 +197,7 @@ def _send_telegram_and_discord(alert_text: str):
         if bot_token and chat_id:
             try:
                 url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                payload = {"chat_id": chat_id, "text": alert_text}
+                payload = {"chat_id": chat_id, "text": final_alert}
                 resp = requests.post(url, json=payload, timeout=10)
                 log_notify_debug(f"[DEBUG] Telegram POST => {resp.status_code}")
             except Exception as ex:
@@ -207,12 +210,13 @@ def _send_telegram_and_discord(alert_text: str):
         webhook_url = cfg.get("discord_webhook_url", "").strip()
         if webhook_url:
             try:
-                resp = requests.post(webhook_url, json={"content": alert_text}, timeout=10)
+                resp = requests.post(webhook_url, json={"content": final_alert}, timeout=10)
                 log_notify_debug(f"[DEBUG] Discord POST => {resp.status_code}")
             except Exception as ex:
                 log_notify_debug(f"[ERROR] Discord send failed: {ex}")
         else:
             log_notify_debug("[DEBUG] Discord enabled but missing webhook_url, skipping...")
+
 
 # -----------------------------------------------------------------------------
 # NEW CODE to track per-condition errors: 5 times in 24h => mute
