@@ -233,6 +233,26 @@ def notifications_page():
 def logs_page():
     return render_template('logs.html')
 
+# Initialization logic (moved from post_fork for consistency)
+print("[WSGI] Initializing. Starting threads and registering mDNS...")
+try:
+    start_threads()
+    print("[WSGI] Background threads started successfully.")
+
+    s = load_settings()
+    system_name = s.get("system_name", "Pool")
+
+    # 1) Register the system_name-pc mDNS (hostname-based)
+    # register_mdns_pc_hostname(system_name, service_port=8000)
+
+    # 2) Also register the pure system name
+    #from mdsn import register_mdns_pure_system_name
+    #register_mdns_pure_system_name(system_name, service_port=8000)
+
+    #print(f"[WSGI] Completed mDNS registration for '{system_name}'.")
+except Exception as e:
+    print(f"[WSGI] Error in top-level startup code: {e}")
+
 ########################################################################
 # MAIN
 ########################################################################
