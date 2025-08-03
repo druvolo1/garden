@@ -46,6 +46,15 @@
             <p><strong>Next Dose Time:</strong> <span id="next-dose-time">{{ dosage_data.next_dose_time }}</span></p>
         </div>
 
+        <!-- Dosing Status with Countdown Timer -->
+        <div id="dosing-status" class="data-container dosing-status" style="display: none;">
+            <h2>Dosing In Progress</h2>
+            <p><strong>Type:</strong> <span id="dosing-type"></span></p>
+            <p><strong>Amount:</strong> <span id="dosing-amount"></span> ml</p>
+            <p><strong>Remaining Time:</strong> <span id="remaining-time"></span> seconds</p>
+            <button id="stop-dosing" class="stop-btn" disabled>Stop Dosing</button>
+        </div>
+
         <!-- Wrap these in a .dosage-section so they can be flexed/responsive -->
         <div class="dosage-section">
 
@@ -104,7 +113,11 @@
     <!-- RESPONSIVE LOGIC -->
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            const socket = io.connect(window.location.origin);
+            // MOVE THESE TO THE TOP: Ensure variables are initialized before any potential access
+            let timerInterval = null;
+            let remainingSeconds = 0;
+
+            const socket = io.connect(window.location.origin, { transports: ['websocket'] });
 
             // Refresh dosage info from server
             async function refreshDosageInfo() {
@@ -112,45 +125,157 @@
                     const response = await fetch('/api/dosage/info');
                     const d = await response.json();
 
-                    document.getElementById('current-ph').textContent     = d.current_ph;
-                    document.getElementById('ph-up-amount').textContent   = d.ph_up_amount;
+                    console.log("[DEBUG JS] Received dosage info:", d);  // Added debug: Log full response data
+                    console.log("[DEBUG JS] Active dosing:", d.active_dosing, "Remaining:", d.active_remaining);  // Added debug: Specifically log active state
+
+                    document.getElementById('current-ph').textContent = d.current_ph;
+                    document.getElementById('ph-up-amount').textContent = d.ph_up_amount;
                     document.getElementById('ph-down-amount').textContent = d.ph_down_amount;
                     document.getElementById('last-dose-time').textContent = d.last_dose_time;
                     document.getElementById('last-dose-type').textContent = d.last_dose_type;
                     document.getElementById('last-dose-amount').textContent = d.last_dose_amount;
                     document.getElementById('next-dose-time').textContent = d.next_dose_time;
+
+                    // Initialize countdown if dosing is active
+                    if (d.active_dosing && d.active_remaining > 0) {
+                        console.log("[DEBUG JS] Starting countdown from refresh:", d.active_type, d.active_amount, d.active_remaining);  // Added debug: Log when starting from refresh
+                        startCountdown(d.active_type, d.active_amount, d.active_remaining);
+                    } else {
+                        console.log("[DEBUG JS] No active dosing on refresh");  // Added debug: Log if not starting
+                    }
                 } catch (err) {
                     console.error("Error refreshing dosage info:", err);
                 }
             }
+
+            socket.on('connect', () => {
+                console.log("Connected to Socket.IO server");
+            });
 
             socket.on('ph_update', function(data) {
                 console.log("Received pH update via socket:", data.ph);
                 refreshDosageInfo();
             });
 
+            socket.on('dose_start', function(data) {
+                console.log(`Dose started: ${data.type}, ${data.amount} ml, ${data.duration}s`);
+                startCountdown(data.type, data.amount, data.duration);
+            });
+
+            socket.on('dose_complete', function(data) {
+                console.log(`Dose completed: ${data.type}, ${data.amount} ml`);
+                stopCountdown();
+                refreshDosageInfo();
+            });
+
+            socket.on('dose_error', function(data) {
+                console.error(`Dosing error: ${data.type}, ${data.error}`);
+                stopCountdown();
+                alert(`Dosing error for pH ${data.type.toUpperCase()}: ${data.error}`);
+                refreshDosageInfo();
+            });
+
+            socket.on('dose_stopped', function(data) {
+                console.log(`Dose stopped: ${data.type}, ${data.amount} ml`);
+                stopCountdown();
+                refreshDosageInfo();
+            });
+
             await refreshDosageInfo();
 
-            // Reusable function
+            // Function to start the countdown
+            function startCountdown(type, amount, duration) {
+                console.log(`Starting countdown: type=${type}, amount=${amount}, duration=${duration}`);
+                if (timerInterval) {
+                    console.log("Clearing existing timer interval");
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+
+                document.getElementById('dosing-type').textContent = type.toUpperCase();
+                document.getElementById('dosing-amount').textContent = amount.toFixed(2);
+                remainingSeconds = Math.max(0, Math.round(duration)); // Ensure non-negative
+                document.getElementById('remaining-time').textContent = remainingSeconds;
+                document.getElementById('dosing-status').style.display = 'block';
+                document.getElementById('stop-dosing').disabled = false;
+                document.getElementById('stop-dosing').style.opacity = 1;
+
+                timerInterval = setInterval(() => {
+                    console.log(`Countdown tick: ${remainingSeconds} seconds remaining`);
+                    remainingSeconds--;
+                    document.getElementById('remaining-time').textContent = remainingSeconds;
+                    if (remainingSeconds <= 0) {
+                        console.log("Countdown reached zero, stopping");
+                        stopCountdown();
+                    }
+                }, 1000);
+            }
+
+            // Function to stop the countdown
+            function stopCountdown() {
+                console.log("Stopping countdown");
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                remainingSeconds = 0;
+                document.getElementById('dosing-status').style.display = 'none';
+                document.getElementById('stop-dosing').disabled = true;
+                document.getElementById('stop-dosing').style.opacity = 0.5;
+            }
+
+            // Reusable dispense function
             async function dispensePh(type, amount) {
                 if (amount <= 0) {
                     alert(`Invalid or zero amount specified for pH ${type.toUpperCase()}.`);
                     return;
                 }
                 try {
+                    console.log(`Sending dispense request: type=${type}, amount=${amount}`);
                     const response = await fetch('/api/dosage/manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ type: type, amount: amount })
                     });
                     const data = await response.json();
-                    alert(`pH ${type.toUpperCase()} dispense triggered: ` + data.message);
-                    refreshDosageInfo();
+                    if (response.ok) {
+                        console.log(`Dispense request successful: ${data.message}`);
+                        startCountdown(type, amount, data.duration);
+                        refreshDosageInfo();
+                    } else {
+                        console.error(`Dispense failed: ${data.message}`);
+                        alert(`Failed to dispense pH ${type}: ${data.message || 'Unknown error'}`);
+                    }
                 } catch (error) {
                     console.error(`Error dispensing pH ${type}:`, error);
-                    alert(`Failed to dispense pH ${type}.`);
+                    alert(`Failed to dispense pH ${type}: Network error or server unavailable.`);
                 }
             }
+
+            // Stop dosing function
+            async function stopDosing() {
+                try {
+                    console.log("Sending stop dosing request");
+                    const response = await fetch('/api/dosage/stop', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        console.log('Dosing stopped successfully:', data.message);
+                    } else {
+                        console.error(`Stop dosing failed: ${data.message}`);
+                        alert(`Failed to stop dosing: ${data.message || 'Unknown server error'}`);
+                    }
+                } catch (error) {
+                    console.error('Error stopping dosing:', error);
+                    alert('Failed to stop dosing: Network error or server unavailable.');
+                }
+            }
+
+            // Stop button event listener
+            document.getElementById('stop-dosing').addEventListener('click', stopDosing);
 
             // Manual
             document.getElementById('ph-up-dispense').addEventListener('click', () => {
