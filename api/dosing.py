@@ -5,6 +5,7 @@ import eventlet
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from api.settings import load_settings
+from services.log_service import log_dosing_event
 from services.auto_dose_state import auto_dose_state
 from services.pump_relay_service import turn_on_relay, turn_off_relay
 from services.dosage_service import manual_dispense, get_dosage_info

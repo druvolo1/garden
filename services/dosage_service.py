@@ -4,6 +4,8 @@ import eventlet
 from services.ph_service import get_latest_ph_reading
 from services.pump_relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
+from services.log_service import log_dosing_event
+from services.dosing_state import state  # CHANGED: Import the singleton instance instead of individual globals
 
 def get_dosage_info():
     current_ph = get_latest_ph_reading()
@@ -64,7 +66,9 @@ def get_dosage_info():
     }
 
 def manual_dispense(dispense_type, amount):
+    current_ph = get_latest_ph_reading() or 'N/A'
     print(f"[Manual Dispense] Requested to dispense {amount} ml of pH {dispense_type.capitalize()}.")
+    log_dosing_event(current_ph, dispense_type, amount_ml)
     return True
 
 # -----------------------------
