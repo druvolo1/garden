@@ -23,77 +23,103 @@
 
     <main>
         <h1>Logs Viewer</h1>
-        <p class="subtitle">View and manage dosage logs.</p>
+        <p class="subtitle">Select a log file to view, download, or delete.</p>
 
         <div class="data-container">
-            <h2>Dosage Logs</h2>
-            <button id="refresh-btn">Refresh Logs</button>
-            <button id="clear-btn">Clear Logs</button>
-            <table id="logs-table" style="width: 100%; border-collapse: collapse; margin-top: 1em;">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>pH</th>
-                        <th>Type</th>
-                        <th>Amount (ml)</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <h2>Select Log File</h2>
+            <select id="log-file-select">
+                <option value="">-- Select a file --</option>
+            </select>
+            <button id="view-btn" disabled>View Log</button>
+            <button id="download-btn" disabled>Download</button>
+            <button id="delete-btn" disabled>Delete</button>
+        </div>
+
+        <div class="data-container" id="log-content-container" style="display: none;">
+            <h2>Log Content</h2>
+            <pre id="log-content"></pre>
         </div>
     </main>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const tableBody = document.querySelector('#logs-table tbody');
-            const refreshBtn = document.getElementById('refresh-btn');
-            const clearBtn = document.getElementById('clear-btn');
+            const select = document.getElementById('log-file-select');
+            const viewBtn = document.getElementById('view-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const deleteBtn = document.getElementById('delete-btn');
+            const contentContainer = document.getElementById('log-content-container');
+            const contentPre = document.getElementById('log-content');
 
-            // Fetch and display logs
-            async function loadLogs() {
+            // Fetch list of log files
+            async function loadLogFiles() {
                 try {
-                    const response = await fetch('/api/logs/');
-                    const logs = await response.json();
-                    tableBody.innerHTML = '';  // Clear existing rows
-                    logs.forEach(log => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${log.timestamp || 'N/A'}</td>
-                            <td>${log.ph || 'N/A'}</td>
-                            <td>${log.type || 'N/A'}</td>
-                            <td>${log.amount || '0.0'}</td>
-                        `;
-                        tableBody.appendChild(row);
+                    const response = await fetch('/api/logs/list');
+                    const files = await response.json();
+                    select.innerHTML = '<option value="">-- Select a file --</option>';
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file;
+                        option.textContent = file;
+                        select.appendChild(option);
                     });
                 } catch (err) {
-                    console.error('Error loading logs:', err);
-                    alert('Failed to load logs.');
+                    console.error('Error loading log files:', err);
+                    alert('Failed to load log files.');
                 }
             }
 
-            // Clear logs
-            async function clearLogs() {
-                if (!confirm('Are you sure you want to clear all logs?')) return;
+            // Enable/disable buttons based on selection
+            select.addEventListener('change', () => {
+                const selected = select.value;
+                viewBtn.disabled = !selected;
+                downloadBtn.disabled = !selected;
+                deleteBtn.disabled = !selected;
+                contentContainer.style.display = 'none';
+            });
+
+            // View log
+            viewBtn.addEventListener('click', async () => {
+                const selected = select.value;
+                if (!selected) return;
                 try {
-                    const response = await fetch('/api/logs/clear', { method: 'POST' });
+                    const response = await fetch(`/api/logs/view/${selected}`);
+                    const text = await response.text();
+                    contentPre.textContent = text;
+                    contentContainer.style.display = 'block';
+                } catch (err) {
+                    console.error('Error viewing log:', err);
+                    alert('Failed to view log.');
+                }
+            });
+
+            // Download log
+            downloadBtn.addEventListener('click', () => {
+                const selected = select.value;
+                if (!selected) return;
+                window.location.href = `/api/logs/download/${selected}`;
+            });
+
+            // Delete log
+            deleteBtn.addEventListener('click', async () => {
+                const selected = select.value;
+                if (!selected || !confirm(`Are you sure you want to delete ${selected}?`)) return;
+                try {
+                    const response = await fetch(`/api/logs/delete/${selected}`, { method: 'POST' });
                     const data = await response.json();
                     if (data.status === 'success') {
-                        alert('Logs cleared successfully.');
-                        loadLogs();  // Refresh the table
+                        alert('Log deleted successfully.');
+                        loadLogFiles();
+                        contentContainer.style.display = 'none';
                     } else {
-                        alert('Failed to clear logs.');
+                        alert('Failed to delete log.');
                     }
                 } catch (err) {
-                    console.error('Error clearing logs:', err);
-                    alert('Failed to clear logs.');
+                    console.error('Error deleting log:', err);
+                    alert('Failed to delete log.');
                 }
-            }
+            });
 
-            refreshBtn.addEventListener('click', loadLogs);
-            clearBtn.addEventListener('click', clearLogs);
-
-            // Initial load
-            loadLogs();
+            loadLogFiles();
         });
     </script>
 </body>
