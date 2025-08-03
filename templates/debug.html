@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Debug Controls</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <script>
         async function toggleDebug(component) {
             const button = document.getElementById(`toggle-${component}`);

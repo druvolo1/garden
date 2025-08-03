@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Settings</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 
@@ -62,6 +63,7 @@
       <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
       <!--<li><a href="/valves">Valves</a></li>-->
+      <li><a href="/logs">Logs</a></li>
     </ul>
   </nav>
 

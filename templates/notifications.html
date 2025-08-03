@@ -5,6 +5,7 @@
   <title>Notifications</title>
   <!-- Link to your main CSS. Adjust the href as needed. -->
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
 
   <!-- Load Socket.IO for real-time updates -->
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>

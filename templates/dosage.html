@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
 </head>
 <body>
 
@@ -21,6 +22,7 @@
             <!--<li><a href="/configuration">Configuration</a></li>-->
             <li><a href="/settings">Settings</a></li>
             <li><a href="/valves">Valves</a></li>
+            <li><a href="/logs">Logs</a></li>
           </ul>
     </nav>
 
