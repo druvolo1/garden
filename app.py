@@ -110,6 +110,14 @@ def broadcast_status():
             log_with_timestamp(f"[broadcast_status] Error: {e}")
             eventlet.sleep(5)
 
+def auto_dose_loop():
+    while True:
+        settings = load_settings()
+        if settings.get("auto_dosing_enabled", False):
+            dosing_interval_hours = settings.get("dosing_interval", 1.0)
+            perform_auto_dose(settings)
+        eventlet.sleep(dosing_interval_hours * 3600)  # Convert hours to seconds
+
 def start_threads():
     settings = load_settings()
 
@@ -129,6 +137,10 @@ def start_threads():
     # Hardware error checker
     log_with_timestamp("Spawning hardware error checker…")
     eventlet.spawn(check_for_hardware_errors)
+
+    # Auto-dosing loop
+    log_with_timestamp("Spawning auto-dosing loop…")
+    eventlet.spawn(auto_dose_loop)
 
 ########################################################################
 # Register Blueprints
