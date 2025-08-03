@@ -65,9 +65,9 @@ def get_dosage_info():
         "feedback_down": feedback_down
     }
 
-def manual_dispense(dispense_type, amount):
+def manual_dispense(dispense_type, amount_ml):
     current_ph = get_latest_ph_reading() or 'N/A'
-    print(f"[Manual Dispense] Requested to dispense {amount} ml of pH {dispense_type.capitalize()}.")
+    print(f"[Dispense] Dispensed {amount_ml} ml of pH {dispense_type.capitalize()}. Current pH: {current_ph}.")
     log_dosing_event(current_ph, dispense_type, amount_ml)
     return True
 
