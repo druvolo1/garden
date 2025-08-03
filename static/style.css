@@ -1,297 +1,348 @@
 /* =========================
    GLOBAL & BODY STYLES
    ========================= */
-   body {
-    font-family: 'Poppins', sans-serif;
-    background-color: #121212;
-    color: #e0e0e0;
-    margin: 0;
-    padding: 0;
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #121212;
+  color: #e0e0e0;
+  margin: 0;
+  padding: 0;
 }
 
 /* =========================
    NAVIGATION BAR
    ========================= */
 nav {
-    background-color: #1e1e1e;
-    padding: 15px;
-    text-align: center;
+  background-color: #1e1e1e;
+  padding: 15px;
+  text-align: center;
 }
 
 nav ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 nav ul li {
-    display: inline;
-    margin: 0 15px;
+  display: inline;
+  margin: 0 15px;
 }
 
 nav ul li a {
-    color: #f4c531;
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.3s ease-in-out;
+  color: #f4c531;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease-in-out;
 }
 
 nav ul li a:hover,
 nav ul li a.active {
-    color: #ffffff;
+  color: #ffffff;
 }
 
 /* =========================
    MAIN & HEADINGS
    ========================= */
 main {
-    max-width: 90vw;
-    margin: 40px auto;
-    text-align: center;
+  max-width: 90vw;
+  margin: 40px auto;
+  text-align: center;
 }
 
 h1 {
-    font-size: 32px;
-    font-weight: 600;
-    margin-bottom: 10px;
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 15px;
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f4c531;
+  margin-bottom: 10px;
 }
 
 .subtitle {
-    font-size: 18px;
-    color: #b0b0b0;
-    margin-bottom: 30px;
+  font-size: 18px;
+  color: #b0b0b0;
+  margin-bottom: 30px;
 }
 
 /* =========================
    DATA CONTAINERS
    ========================= */
 .data-container {
-    position: relative;  /* needed for .last-updated absolute positioning */
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0px 4px 10px rgba(255, 204, 0, 0.2);
-    text-align: left;
-
-    /* Ensure enough vertical space so .last-updated isn't clipped */
-    min-height: 120px;  
-    overflow: visible;   
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(255, 204, 0, 0.2);
+  text-align: left;
+  min-height: 120px;
+  overflow: visible;
 }
 
-/* Show the .last-updated pinned at the bottom left */
+.dosing-status {
+  background: rgba(244, 197, 49, 0.1);
+  border: 2px solid #f4c531;
+  box-shadow: 0 4px 12px rgba(244, 197, 49, 0.3);
+  transition: all 0.3s ease;
+}
+
+.dosing-status:not([style*="display: none"]) {
+  animation: pulse 1.5s infinite;
+}
+
+.dosing-status h2 {
+  color: #f4c531;
+  font-size: 24px;
+  margin-bottom: 15px;
+}
+
+.dosing-status p {
+  font-size: 16px;
+  color: #e0e0e0;
+  margin: 10px 0;
+}
+
+.dosing-status p strong {
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(244, 197, 49, 0.4); }
+  50% { box-shadow: 0 0 10px 5px rgba(244, 197, 49, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 197, 49, 0.4); }
+}
+
 .last-updated {
-    /*position: absolute;
-    bottom: 8px;
-    left: 10px;*/
-    z-index: 999;        /* ensures it’s on top if overlapping occurs */
-    color: #e0e0e0;
-    font-size: 0.9rem;
-    opacity: 0.8;
+  z-index: 999;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  opacity: 0.8;
 }
 
 /* =========================
    RESPONSIVE FLEX ROW
    ========================= */
 .row-flex {
-    display: flex;
-    flex-wrap: nowrap; /* horizontally by default */
-    gap: 20px;
-    width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 20px;
+  width: 100%;
 }
 .row-flex > div {
-    flex: 1;
-    min-width: 120px;
+  flex: 1;
+  min-width: 120px;
 }
 @media (max-width: 768px) {
-    .row-flex {
-        flex-wrap: wrap;
-    }
+  .row-flex { flex-wrap: wrap; }
+  .dosage-section { flex-direction: column; }
 }
-@media (max-width: 768px) {
-    .dosage-section {
-      flex-direction: column;
-    }
-  }
 
 /* =========================
    FORMS & INPUTS
    ========================= */
 input,
-select {
-    width: 100%;
-    padding: 10px;
-    margin: 8px 0;
-    border: none;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #e0e0e0;
-    font-size: 16px;
+select,
+textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background: #1e1e1e;
+  color: #fafafa;
+  font-size: 16px;
+  caret-color: #ffd700;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #888;
+  opacity: 1;
 }
 
 select {
-    background-color: #2a2a2a;
-    color: #f8f8f8;
-    border: 1px solid #444;
+  background-color: #2a2a2a;
 }
 select option {
-    background-color: #2a2a2a;
-    color: #f8f8f8;
+  background-color: #2a2a2a;
+  color: #f8f8f8;
 }
+
 input:focus,
-select:focus {
-    outline: 2px solid #f4c531;
+select:focus,
+textarea:focus {
+  outline: 2px solid #f4c531;
+  outline-offset: 0;
 }
 
 /* =========================
    BUTTONS
    ========================= */
 button {
-    background: linear-gradient(to right, #f4c531, #e2a600);
-    color: #121212;
-    border: none;
-    padding: 12px 20px;
-    font-size: 16px;
-    font-weight: 600;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: 0.3s;
-    width: 100%;
-    margin-top: 10px;
+  background: linear-gradient(to right, #f4c531, #e2a600);
+  color: #121212;
+  border: none;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.3s;
+  width: 100%;
+  margin-top: 10px;
 }
 
 button:hover {
-    background: linear-gradient(to right, #e2a600, #c98e00);
-    transform: scale(1.05);
+  background: linear-gradient(to right, #e2a600, #c98e00);
+  transform: scale(1.05);
+}
+
+button:disabled {
+  background: #555;
+  color: #999;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.5;
 }
 
 /* Secondary Buttons */
 .secondary-btn {
-    background: linear-gradient(to right, #b0b0b0, #757575);
-    color: white;
+  background: linear-gradient(to right, #b0b0b0, #757575);
+  color: #fff;
 }
 .secondary-btn:hover {
-    background: linear-gradient(to right, #757575, #505050);
+  background: linear-gradient(to right, #757575, #505050);
+}
+
+/* Stop Button */
+.stop-btn {
+  background: linear-gradient(to right, #dc3545, #c82333);
+  color: #fff;
+}
+.stop-btn:hover:not(:disabled) {
+  background: linear-gradient(to right, #c82333, #bd2130);
+  transform: scale(1.05);
 }
 
 /* =========================
    CHECKBOXES
    ========================= */
 .checkbox-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.checkbox-container input {
-    width: auto;
-}
+.checkbox-container input { width: auto; }
 
 /* =========================
    STATIC CONFIG
    ========================= */
 .static-config {
-    display: none;
-    padding: 10px;
-    border-radius: 5px;
-    margin-top: 10px;
+  display: none;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 10px;
 }
-.static-config input {
-    margin-bottom: 5px;
-}
+.static-config input { margin-bottom: 5px; }
 
 /* =========================
    ERROR MESSAGE
    ========================= */
 .error-message {
-    color: #ff4c4c;
-    font-size: 16px;
-    font-weight: bold;
+  color: #ff4c4c;
+  font-size: 16px;
+  font-weight: bold;
 }
 
 /* =========================
    FIELDSETS
    ========================= */
 fieldset {
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 15px;
-    margin-bottom: 15px;
-    border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 5px;
 }
 legend {
-    font-size: 18px;
-    font-weight: 600;
-    color: #f4c531;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f4c531;
 }
+
 .settings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 20px;
-    max-width: 1200px;
-    margin: auto;
-    padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
 }
 
 /* =========================
    ON/OFF BUTTON COLORS
    ========================= */
-.btn-on-active {
-    background: #28a745 !important; /* force green */
-    color: white !important;
-}
-.btn-off-active {
-    background: #dc3545 !important; /* force red */
-    color: white !important;
-}
-.btn-inactive {
-    background: #ccc !important;    /* force grey */
-    color: #000 !important;
-}
+.btn-on-active  { background: #28a745 !important; color: #fff !important; }
+.btn-off-active { background: #dc3545 !important; color: #fff !important; }
+.btn-inactive   { background: #ccc !important;    color: #000 !important; }
 
 /* =========================
    DOSAGE PAGE LAYOUT
    ========================= */
 .dosage-section {
-    display: flex;
-    gap: 20px;
-    align-items: stretch; 
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
 }
 .dosage-section .data-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
+
+/* Valve-table helpers */
 #valve-table {
-    width: 80%;
-    margin: 0 auto;
-    border-collapse: collapse;
+  width: 80%;
+  margin: 0 auto;
+  border-collapse: collapse;
 }
 .valve-rename-cell {
-    display: flex;            /* horizontal layout */
-    align-items: center;      /* vertically center them */
-    gap: 8px;                 /* space between input and button */
-  }
-  
-  /* A smaller, narrower “Save” button */
-  .small-btn {
-    width: auto !important;   /* override any global width:100% */
-    margin-top: 0 !important; /* remove extra top margin */
-    padding: 6px 12px;        /* smaller padding so it’s less clickable */
-    font-size: 14px;          /* smaller text */
-    cursor: pointer;
-  }
-
-.disabled-section {
-    opacity: 0.9;
-    pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.small-btn {
+  width: auto !important;
+  margin-top: 0 !important;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-/* Improve visibility of pH/EC values by darkening background & lightening text */
+/* Disabled overlay */
+.disabled-section {
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* pH / sensor value boxes */
 .data-box {
-    font-size: 1.2rem;
-    margin: 0.25rem 0;
-    padding: 0.5rem;
-    background-color: #2a2a2a;
-    color: #ffffff;
-    border-radius: 4px;
+  font-size: 1.2rem;
+  margin: 0.25rem 0;
+  padding: 0.5rem;
+  background-color: #2a2a2a;
+  color: #ffffff;
+  border-radius: 4px;
 }
