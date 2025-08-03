@@ -6,7 +6,7 @@ import sys
 SERVICE_PATH = "/etc/systemd/system/garden.service"
 
 SERVICE_CONTENT = """[Unit]
-Description=Garden Gunicorn Service
+Description=pH Gunicorn Service
 After=network.target
 
 [Service]
@@ -15,7 +15,7 @@ User=dave
 WorkingDirectory=/home/dave/garden
 
 # Use bash so we can 'source' the venv
-ExecStart=/bin/bash -c 'cd /home/dave/garden && source venv/bin/activate && gunicorn -w 1 -k eventlet wsgi:app --bind 0.0.0.0:8000 --log-level=debug'
+ExecStart=/bin/bash -c 'cd /home/dave/garden && source venv/bin/activate && gunicorn --config gunicorn_config.py -w 1 -k eventlet wsgi:app --bind 0.0.0.0:8000 --log-level=debug'
 
 # Automatically restart if it crashes
 Restart=always

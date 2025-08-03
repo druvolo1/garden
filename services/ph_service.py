@@ -2,7 +2,7 @@
 print(f"LOADED ph_service.py from {__file__}", flush=True)
 
 import eventlet
-eventlet.monkey_patch()  # Ensure all standard libs are patched early
+eventlet.monkey_patch()
 
 import signal
 import serial
@@ -12,10 +12,11 @@ from queue import Queue
 from datetime import datetime, timedelta
 from eventlet import tpool
 from eventlet import semaphore, event
+from collections import deque
 
 from services.error_service import set_error, clear_error
-from services.notification_service import set_status, clear_status,report_condition_error
-from utils.settings_utils import load_settings, save_settings
+from services.notification_service import set_status, clear_status, report_condition_error
+from utils.settings_utils import load_settings, save_settings  # Ensure import is present
 
 # Shared queue for commands sent to the probe
 command_queue = Queue()
@@ -23,7 +24,11 @@ stop_event = event.Event()
 
 ph_lock = semaphore.Semaphore()
 
-PH_FLOAT_REGEX = re.compile(r'^(?:[0-9]|1[0-3]|14)(?:\.\d+)?$')
+# Regex: stricter for 0-14 with 0-3 decimals
+PH_FLOAT_REGEX = re.compile(r'^([0-9]|1[0-4])(?:\.\d{1,3})?$')
+
+# Response codes from datasheet
+RESPONSE_CODES = {"*OK", "*ER", "*OV", "*UV", "*RS", "*RE", "*SL", "*WA"}
 
 buffer = ""             # Centralized buffer for incoming serial data
 latest_ph_value = None  # Store the most recent pH reading
@@ -31,12 +36,14 @@ last_sent_command = None
 COMMAND_TIMEOUT = 10
 MAX_BUFFER_LENGTH = 100
 
-old_ph_value = None  # stores the previous pH value so we only process changes
+old_ph_value = None  # stores the previous pH value
 ph_recent_values = []  # stores last 20 readings
 PH_ROLLING_WINDOW = 20
 
-
 ser = None  # Global variable to track the serial connection
+
+# Optional median filter
+ph_median_window = deque(maxlen=5)
 
 def log_with_timestamp(message):
     from status_namespace import is_debug_enabled
@@ -79,19 +86,25 @@ def parse_buffer(ser):
     Reads data from `buffer`, splitting on '\r',
     and applies these rules for pH readings, slope, etc.
 
-    - If line is "*OK" or "*ER", it's a response to the last sent command.
+    - If line is a response code (e.g., "*OK", "*ER", "*OV"), handle it (log/alert for errors like voltage issues).
     - If line starts with "?SLOPE", it's slope info from the pH probe.
     - Otherwise, if it matches a numeric pH float (PH_FLOAT_REGEX), we parse it:
       * If 0.0 or 14.0 => unrealistic reading => report_condition_error
       * If <1.0 => ignore
-      * If jump >1.0 => track big jumps and possibly report_condition_error for "unstable_readings"
+      * If jump > threshold (configurable, default 1.0) => track big jumps and possibly report_condition_error for "unstable_readings"
+      * Apply median filter over window (default 5) for smoothing
       * If out of recommended range => report_condition_error for "out_of_range"
       * Else mark the reading "ok"
     """
     global buffer, latest_ph_value, last_sent_command
     global old_ph_value, last_read_time, ph_jumps
     global slope_data, slope_event
-    global ph_recent_values  # Needed to modify the list
+    global ph_recent_values
+
+    settings = load_settings()  # Load once per parse cycle for configs
+    jump_threshold = settings.get("ph_jump_threshold", 1.0)
+    median_window_size = settings.get("ph_median_window", 5)
+    stability_threshold = settings.get("ph_stability_threshold", 0.2)
 
     if last_sent_command is None and not command_queue.empty():
         next_cmd = command_queue.get()
@@ -109,11 +122,15 @@ def parse_buffer(ser):
         log_with_timestamp(f"[DEBUG] parse_buffer: got line '{line}'")
 
         # ---------------------------------------------------------
-        # 1) Check for '*OK' / '*ER' responses
+        # 1) Check for response codes
         # ---------------------------------------------------------
-        if line in ("*OK", "*ER"):
+        if line in RESPONSE_CODES:
             if last_sent_command:
                 log_with_timestamp(f"[DEBUG] parse_buffer: response '{line}' for command {last_sent_command}")
+                if line == "*ER":
+                    report_condition_error("ph_probe", "command_error", f"Error response for command '{last_sent_command}'")
+                elif line in {"*OV", "*UV"}:
+                    report_condition_error("ph_probe", "voltage_issue", f"Voltage error: {line}")
                 last_sent_command = None
             else:
                 log_with_timestamp(f"[DEBUG] parse_buffer: unexpected '{line}' (no command in progress)")
@@ -167,62 +184,69 @@ def parse_buffer(ser):
 
         # ---------------------------------------------------------
         # 3) Otherwise, assume it might be a numeric pH reading
-        #    but first check the format with a regex:
         # ---------------------------------------------------------
         if not PH_FLOAT_REGEX.match(line):
             log_with_timestamp(f"[DEBUG] parse_buffer ignoring line '{line}': does not match PH_FLOAT_REGEX")
             continue
 
         try:
-            ph_value = round(float(line), 2)
+            ph_value = round(float(line), 3)
             set_status("ph_probe", "reading", "ok", "Receiving readings.")
             log_with_timestamp(f"[DEBUG] parse_buffer: recognized numeric pH => {ph_value}")
 
-            # 3a) Check for "unrealistic reading"
             if ph_value == 0 or ph_value == 14:
+                report_condition_error("ph_probe", "unrealistic_reading", f"Unrealistic pH: {ph_value}")
                 continue
 
-            # 3b) If <1.0, skip (treat as noise)
             if ph_value < 1.0:
                 raise ValueError(f"Ignoring pH <1.0 (noise?). Got {ph_value}")
 
-            # 3c) Compare to old_ph_value for big jumps
+            ph_median_window.append(ph_value)
+            if len(ph_median_window) < median_window_size:
+                log_with_timestamp(f"[DEBUG] Building median window ({len(ph_median_window)}/{median_window_size}); holding.")
+                continue
+            filtered_ph = sorted(ph_median_window)[median_window_size // 2]
+            log_with_timestamp(f"[DEBUG] Filtered pH (median of {median_window_size}): {filtered_ph}")
+
+            if len(ph_median_window) >= 3:
+                recent_3 = list(ph_median_window)[-3:]
+                variance = max(recent_3) - min(recent_3)
+                if variance > stability_threshold:
+                    log_with_timestamp(f"[DEBUG] Discarded unstable reading (var {variance:.2f} > {stability_threshold}): {recent_3}")
+                    continue
+
             if old_ph_value is None:
                 delta = 0.0
             else:
-                delta = abs(ph_value - old_ph_value)
+                delta = abs(filtered_ph - old_ph_value)
 
             log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
 
-            if old_ph_value is not None and delta > 1.0:
+            if old_ph_value is not None and delta > jump_threshold:
                 now = datetime.now()
                 ph_jumps.append(now)
                 cutoff = now - timedelta(seconds=60)
                 ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                old_ph_value = ph_value
-                with ph_lock:
-                    latest_ph_value = ph_value
+                if len(ph_jumps) > 5:
+                    report_condition_error("ph_probe", "persistent_unstable_readings", f"{len(ph_jumps)} big jumps (> {jump_threshold}) in last 60s.")
 
+                log_with_timestamp(f"[DEBUG] Ignored jump (delta {delta:.2f} > {jump_threshold})")
                 continue
-            else:
-                if old_ph_value is None:
-                    set_status("ph_probe", "probe_health", "ok", "First valid pH reading received.")
 
-            # Actually store the new reading
+            old_ph_value = filtered_ph
+
             with ph_lock:
-                latest_ph_value = ph_value
-                log_with_timestamp(f"Accepted new pH reading: {ph_value}")
+                latest_ph_value = filtered_ph
+                log_with_timestamp(f"Accepted new pH reading: {filtered_ph}")
 
-            old_ph_value = ph_value
+            old_ph_value = filtered_ph
             last_read_time = datetime.now()
 
-            # --- Maintain rolling window of last 20 readings ---
-            ph_recent_values.append(ph_value)
+            ph_recent_values.append(filtered_ph)
             if len(ph_recent_values) > PH_ROLLING_WINDOW:
                 ph_recent_values.pop(0)
 
-            # --- Out-of-range check uses average of last 20 ---
             s = load_settings()
             ph_min = s.get("ph_range", {}).get("min", 5.5)
             ph_max = s.get("ph_range", {}).get("max", 6.5)
@@ -235,15 +259,10 @@ def parse_buffer(ser):
                         "error",
                         f"Average pH {avg_ph:.2f} over last {PH_ROLLING_WINDOW} readings is outside recommended range [{ph_min}, {ph_max}]."
                     )
-
                 else:
                     set_status("ph_probe", "out_of_range", "ok",
                                f"Average pH {avg_ph:.2f} is within recommended range [{ph_min}, {ph_max}].")
-            else:
-                # Not enough readings yet; optionally use initial logic, or skip notification
-                pass
 
-            # Emit a status update to the UI
             from status_namespace import emit_status_update
             emit_status_update()
 
@@ -252,18 +271,19 @@ def parse_buffer(ser):
 
     if buffer:
         log_with_timestamp(f"[DEBUG] leftover buffer: {buffer!r}")
-
+    if len(buffer) > MAX_BUFFER_LENGTH // 2:
+        log_with_timestamp("[DEBUG] Buffer growing large; possible missing terminators due to noise.")
 
 def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
 
     print("DEBUG: Entered serial_reader() at all...")
-    consecutive_fails = 0              # times we failed to open the port overall
-    consecutive_read_errors = 0        # times read() returned zero bytes
-    consecutive_fatal_exceptions = 0   # times OSError / SerialException in a row
+    consecutive_fails = 0
+    consecutive_read_errors = 0
+    consecutive_fatal_exceptions = 0
     MAX_FAILS = 5
-    READ_ERROR_THRESHOLD = 10    # how many consecutive empty reads are allowed
-    FATAL_ERROR_THRESHOLD = 2   # how many consecutive fatal exceptions we allow
+    READ_ERROR_THRESHOLD = 10
+    FATAL_ERROR_THRESHOLD = 2
     last_no_reading_error_time = None
 
     while not stop_event.ready():
@@ -288,7 +308,7 @@ def serial_reader():
             log_with_timestamp(f"[DEBUG] Trying to open serial port: {ph_probe_path}")
             ser = serial.Serial(ph_probe_path, baudrate=9600, timeout=1)
             consecutive_fails = 0
-            consecutive_fatal_exceptions = 0  # we successfully opened, so reset
+            consecutive_fatal_exceptions = 0
 
             set_status("ph_probe", "communication", "ok",
                        f"Opened {ph_probe_path} for pH reading.")
@@ -301,7 +321,6 @@ def serial_reader():
                 last_read_time = None
                 log_with_timestamp("[DEBUG] Buffer cleared on new device connection.")
 
-            # Enable continuous read mode on connect
             log_with_timestamp("[DEBUG] Enabling continuous read mode now that the device is open.")
             send_command_to_probe(ser, "C,1")
 
@@ -318,7 +337,6 @@ def serial_reader():
                 try:
                     raw_data = tpool.execute(ser.read, 100)
                     if not raw_data:
-                        # zero bytes => transient read error
                         consecutive_read_errors += 1
                         log_with_timestamp(f"[DEBUG] read() returned no data => consecutive_read_errors={consecutive_read_errors}")
                         if consecutive_read_errors < READ_ERROR_THRESHOLD:
@@ -326,26 +344,22 @@ def serial_reader():
                             eventlet.sleep(0.05)
                             continue
                         else:
-                            # repeated empty reads => treat as “fatal” and raise SerialException
                             raise serial.SerialException(
                                 f"{consecutive_read_errors} consecutive empty reads => giving up."
                             )
                     else:
-                        # we got data => reset the read-error counter
                         if consecutive_read_errors > 0:
                             log_with_timestamp(
                                 f"[DEBUG] reset consecutive_read_errors from {consecutive_read_errors} to 0"
                             )
                         consecutive_read_errors = 0
 
-                        # also reset the “fatal exception” counter, since we had a success
                         if consecutive_fatal_exceptions > 0:
                             log_with_timestamp(
                                 f"[DEBUG] reset consecutive_fatal_exceptions from {consecutive_fatal_exceptions} to 0"
                             )
                         consecutive_fatal_exceptions = 0
 
-                        # parse data
                         decoded_data = raw_data.decode("utf-8", errors="replace")
                         with ph_lock:
                             buffer += decoded_data
@@ -357,26 +371,22 @@ def serial_reader():
                         parse_buffer(ser)
 
                 except (serial.SerialException, OSError) as read_ex:
-                    # This is a truly “fatal” read error
                     consecutive_fatal_exceptions += 1
                     log_with_timestamp(
                         f"[DEBUG] Fatal read exception => consecutive_fatal_exceptions={consecutive_fatal_exceptions}. {read_ex}"
                     )
 
                     if consecutive_fatal_exceptions < FATAL_ERROR_THRESHOLD:
-                        # Let’s keep going for now, not closing the port
                         log_with_timestamp("[DEBUG] Tolerating a fatal read error. We'll keep the port open for now.")
                         eventlet.sleep(0.2)
                         continue
                     else:
-                        # We exceeded the threshold => raise again to break out of the loop
                         log_with_timestamp("[DEBUG] Exceeded FATAL_ERROR_THRESHOLD => forcing reconnect.")
                         raise read_ex
 
                 eventlet.sleep(0.01)
 
         except (serial.SerialException, OSError) as e:
-            # Reconnect logic
             consecutive_fails += 1
             log_with_timestamp(
                 f"[DEBUG] consecutive_fails incremented => {consecutive_fails}. "
@@ -403,7 +413,6 @@ def send_configuration_commands(ser):
     except Exception as e:
         log_with_timestamp(f"[DEBUG] Error sending configuration commands: {e}")
 
-
 def calibrate_ph(ser, level):
     valid_levels = {
         'low': 'Cal,low,4.00',
@@ -429,7 +438,6 @@ def calibrate_ph(ser, level):
             log_with_timestamp(msg)
             return {"status": "failure", "message": "A command is already in progress"}
 
-
 def enqueue_calibration(level):
     valid_levels = {
         'low': 'Cal,low,4.00',
@@ -447,7 +455,6 @@ def enqueue_calibration(level):
     log_with_timestamp(f"[DEBUG] enqueue_calibration('{level}') -> puts '{command}' in queue")
     command_queue.put({"command": command, "type": "calibration"})
     return {"status": "success", "message": f"Calibration command '{command}' enqueued."}
-
 
 def restart_serial_reader():
     global stop_event, buffer, latest_ph_value
@@ -489,7 +496,6 @@ def stop_serial_reader():
     stop_event.send()
     log_with_timestamp("[DEBUG] serial_reader stopped via event.")
 
-
 def get_latest_ph_reading():
     global latest_ph_value
     settings = load_settings()
@@ -519,11 +525,6 @@ def handle_stop_signal(signum, frame):
     log_with_timestamp(f"[DEBUG] Received signal {signum} (SIGTSTP). will graceful_exit..")
     graceful_exit(signum, frame)
 
-
-# ----------------------------------------------------------------------
-# QUEUE-BASED SLOPE QUERY: Turn off continuous mode, request slope
-# ----------------------------------------------------------------------
-
 def enqueue_disable_continuous():
     """
     Enqueues a command to disable continuous output: C,0
@@ -538,13 +539,11 @@ def enqueue_enable_continuous():
     log_with_timestamp("[DEBUG] enqueue_enable_continuous() -> putting C,1 in queue.")
     enqueue_command("C,1", "general")
 
-
 def enqueue_slope_query():
     """
     1. Enqueue "C,0" to stop continuous streaming
     2. Enqueue "Slope,?" so we can get a well-formed slope response
-    3. We do NOT re-enable continuous mode here, unless you want to.
-       Wait up to 3 seconds for parse_buffer() to see the "?Slope," line.
+    3. Wait up to 10 seconds for parse_buffer() to see the "?Slope," line.
     """
     global slope_event, slope_data
 
@@ -552,16 +551,8 @@ def enqueue_slope_query():
     slope_event = event.Event()
     slope_data = None
 
-    # Step 1: turn off continuous
-    #log_with_timestamp("[DEBUG] enqueue_slope_query() -> disabling continuous mode by queueing 'C,0'")
-    #enqueue_disable_continuous()
-
-    # Step 2: slope
     log_with_timestamp("[DEBUG] enqueue_slope_query() -> queueing 'Slope,?'")
     enqueue_command("Slope,?", "slope_query")
-
-    # We'll only re-enable continuous reading once the slope line arrives,
-    # or if you prefer, do it after the function returns.
 
     log_with_timestamp("[DEBUG] enqueue_slope_query() -> about to WAIT up to 10s for slope_event.")
     try:
@@ -574,7 +565,6 @@ def enqueue_slope_query():
     log_with_timestamp(f"[DEBUG] enqueue_slope_query() -> we got slope_event, slope_data={slope_data}")
     return slope_data
 
-
 def get_slope_info():
     """
     Called from /api/ph/slope endpoint. 
@@ -586,21 +576,4 @@ def get_slope_info():
         log_with_timestamp("[DEBUG] get_slope_info() -> slope_data is None (timed out or not found).")
     else:
         log_with_timestamp(f"[DEBUG] get_slope_info() -> success, slope_data={result}")
-        # If you want to re-enable continuous reading right away:
-        # enqueue_enable_continuous()
-    return result
-
-def get_slope_info():
-    """
-    Called from /api/ph/slope endpoint. 
-    Returns slope data or None on timeout/failure.
-    """
-    log_with_timestamp("[DEBUG] get_slope_info() called. Will run enqueue_slope_query() now...")
-    result = enqueue_slope_query()
-    if result is None:
-        log_with_timestamp("[DEBUG] get_slope_info() -> slope_data is None (timed out or not found).")
-    else:
-        log_with_timestamp(f"[DEBUG] get_slope_info() -> success, slope_data={result}")
-        # If you want to re-enable continuous reading right away:
-        # enqueue_enable_continuous()
     return result

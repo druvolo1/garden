@@ -18,15 +18,13 @@ from flask_socketio import SocketIO
 # Blueprints
 from api.ph import ph_blueprint
 from api.pump_relay import relay_blueprint
-from api.water_level import water_level_blueprint
 from api.settings import settings_blueprint
 from api.logs import log_blueprint
 from api.dosing import dosing_blueprint
-from api.valve_relay import valve_relay_blueprint
 from api.update_code import update_code_blueprint
-from api.ec import ec_blueprint
 from api.debug import debug_blueprint
 from api.notifications import notifications_blueprint
+from api.screenlogic_control import bp as screenlogic_bp
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
@@ -39,9 +37,8 @@ from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import get_latest_ph_reading, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.error_service import check_for_hardware_errors
-from services.water_level_service import monitor_water_level_sensors
-from services.power_control_service import start_power_control_loop
 from utils.settings_utils import load_settings
+from services.pump_trigger_dose_service import pump_trigger_dose_loop
 
 ########################################################################
 # 1) Create the global SocketIO instance
@@ -83,56 +80,6 @@ socketio.on_namespace(StatusNamespace('/status'))
 ########################################################################
 # 3) Background tasks
 ########################################################################
-def auto_dosing_loop():
-    from api.settings import load_settings
-    log_with_timestamp("Inside auto dosing loop")
-
-    while True:
-        try:
-            settings = load_settings()
-            auto_enabled = settings.get("auto_dosing_enabled", False)
-            interval_hours = float(settings.get("dosing_interval", 0))
-
-            if not auto_enabled or interval_hours <= 0:
-                reset_auto_dose_timer()
-                eventlet.sleep(5)
-                continue
-
-            now = datetime.now()
-            if auto_dose_state.get("last_interval") != interval_hours:
-                auto_dose_state["last_interval"] = interval_hours
-                auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                log_with_timestamp(
-                    f"Interval changed; next dose time reset to {auto_dose_state['next_dose_time']}"
-                )
-
-            if not auto_dose_state.get("next_dose_time"):
-                auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                log_with_timestamp(f"Next dose time initialized to {auto_dose_state['next_dose_time']}")
-
-            if now >= auto_dose_state["next_dose_time"]:
-                dose_type, dose_amount = perform_auto_dose(settings)
-                if dose_amount > 0:
-                    auto_dose_state["last_dose_time"] = now
-                    auto_dose_state["last_dose_type"] = dose_type
-                    auto_dose_state["last_dose_amount"] = dose_amount
-                    auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                    log_with_timestamp(
-                        f"Auto-dose performed: {dose_type} {dose_amount} ml; "
-                        f"next dose at {auto_dose_state['next_dose_time']}"
-                    )
-                else:
-                    auto_dose_state["next_dose_time"] = now + timedelta(hours=interval_hours)
-                    log_with_timestamp(
-                        f"No dose performed; next dose rescheduled for {auto_dose_state['next_dose_time']}"
-                    )
-
-            eventlet.sleep(5)
-
-        except Exception as e:
-            log_with_timestamp(f"[AutoDosing] Error: {e}")
-            eventlet.sleep(5)
-
 def broadcast_ph_readings():
     log_with_timestamp("Inside function for broadcasting pH readings")
     last_emitted_value = None
@@ -149,22 +96,7 @@ def broadcast_ph_readings():
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 
-def broadcast_ec_readings():
-    log_with_timestamp("Inside function for broadcasting EC readings")
-    last_emitted_value = None
-    while True:
-        try:
-            from services.ec_service import get_latest_ec_reading
-            ec_value = get_latest_ec_reading()
-            if ec_value is not None:
-                if ec_value != last_emitted_value:
-                    last_emitted_value = ec_value
-                    socketio.emit('ec_update', {'ec': ec_value})
-                    log_with_timestamp(f"[EC Broadcast] Emitting EC update: {ec_value}")
-            eventlet.sleep(1)
-        except Exception as e:
-            log_with_timestamp(f"[EC Broadcast] Error: {e}")
-            eventlet.sleep(5)
+
 
 def broadcast_status():
     """
@@ -182,57 +114,47 @@ def broadcast_status():
 
 def start_threads():
     settings = load_settings()
-    system_name = settings.get("system_name", "Garden")
 
-    log_with_timestamp("Spawning broadcast_ph_readings...")
+    # Broadcast latest pH to websockets
+    log_with_timestamp("Spawning broadcast_ph_readings…")
     eventlet.spawn(broadcast_ph_readings)
 
-    log_with_timestamp("Spawning broadcast_ec_readings...")
-    eventlet.spawn(broadcast_ec_readings)
+    # ▶ NEW pump-trigger auto-dosing loop
+    log_with_timestamp("Spawning pump-trigger auto dosing…")
+    eventlet.spawn(pump_trigger_dose_loop)
 
-    from services.ec_service import start_ec_serial_reader
-    log_with_timestamp("Spawning ec_serial_reader...")
-    eventlet.spawn(start_ec_serial_reader)
-
-    log_with_timestamp("Spawning auto_dosing_loop...")
-    eventlet.spawn(auto_dosing_loop)
-
+    # Serial reader
     from services.ph_service import serial_reader
-    log_with_timestamp("Spawning pH serial reader...")
+    log_with_timestamp("Spawning pH serial reader…")
     eventlet.spawn(serial_reader)
 
-    log_with_timestamp("Spawning status broadcaster...")
+    # Status broadcaster
+    log_with_timestamp("Spawning status broadcaster…")
     eventlet.spawn(broadcast_status)
 
-    log_with_timestamp("Spawning hardware error checker...")
+    # Hardware error checker
+    log_with_timestamp("Spawning hardware error checker…")
     eventlet.spawn(check_for_hardware_errors)
 
-    log_with_timestamp("Spawning water level sensor monitor...")
-    eventlet.spawn(monitor_water_level_sensors)
+    # ScreenLogic poller
+    from services.screenlogic_service import screenlogic_service
+    log_with_timestamp("Starting ScreenLogic poller…")
+    screenlogic_service.start()
 
-    from services.valve_relay_service import init_valve_thread
-    init_valve_thread()
 
-    log_with_timestamp("Spawning water power control monitor...")
-    start_power_control_loop()
-
-# Start threads so Gunicorn sees them
-start_threads()
 
 ########################################################################
 # Register Blueprints
 ########################################################################
 app.register_blueprint(ph_blueprint, url_prefix='/api/ph')
 app.register_blueprint(relay_blueprint, url_prefix='/api/relay')
-app.register_blueprint(water_level_blueprint, url_prefix='/api/water_level')
 app.register_blueprint(settings_blueprint, url_prefix='/api/settings')
 app.register_blueprint(log_blueprint, url_prefix='/api/logs')
 app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
-app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
-app.register_blueprint(ec_blueprint, url_prefix='/api/ec')
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 app.register_blueprint(debug_blueprint, url_prefix='/debug')
 app.register_blueprint(notifications_blueprint, url_prefix='/api/notifications')
+app.register_blueprint(screenlogic_bp) 
 
 
 ########################################################################
@@ -289,11 +211,6 @@ def dosage_page():
     dosage_data["last_dose_type"] = auto_dose_state.get("last_dose_type") or "N/A"
     dosage_data["last_dose_amount"] = auto_dose_state.get("last_dose_amount")
 
-    if auto_dose_state.get("next_dose_time"):
-        dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        dosage_data["next_dose_time"] = "Not Scheduled"
-
     return render_template('dosage.html', dosage_data=dosage_data)
 
 @app.route('/api/dosage/manual', methods=['POST'])
@@ -310,7 +227,6 @@ def api_manual_dosage():
     auto_dose_state["last_dose_time"] = datetime.now()
     auto_dose_state["last_dose_type"] = dispense_type
     auto_dose_state["last_dose_amount"] = amount
-    auto_dose_state["next_dose_time"] = None
 
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
@@ -327,10 +243,10 @@ def device_timezones():
 def notifications_page():
     return render_template('notifications.html')
 
-@app.route('/pool')
-def pool_page():
-    pi_ip = get_local_ip()
-    return render_template('pool.html', pi_ip=pi_ip)
+@app.route('/logs')
+def logs_page():
+    return render_template('logs.html')
+
 ########################################################################
 # MAIN
 ########################################################################
