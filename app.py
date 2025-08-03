@@ -37,7 +37,6 @@ from services.ph_service import get_latest_ph_reading, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.error_service import check_for_hardware_errors
 from utils.settings_utils import load_settings
-from services.pump_trigger_dose_service import pump_trigger_dose_loop
 
 ########################################################################
 # 1) Create the global SocketIO instance
@@ -117,10 +116,6 @@ def start_threads():
     # Broadcast latest pH to websockets
     log_with_timestamp("Spawning broadcast_ph_readings…")
     eventlet.spawn(broadcast_ph_readings)
-
-    # ▶ NEW pump-trigger auto-dosing loop
-    log_with_timestamp("Spawning pump-trigger auto dosing…")
-    eventlet.spawn(pump_trigger_dose_loop)
 
     # Serial reader
     from services.ph_service import serial_reader
