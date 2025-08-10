@@ -24,7 +24,6 @@ from api.dosing import dosing_blueprint
 from api.update_code import update_code_blueprint
 from api.debug import debug_blueprint
 from api.notifications import notifications_blueprint
-from api.valve_relay import valve_relay_blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
@@ -38,7 +37,6 @@ from services.ph_service import get_latest_ph_reading, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.error_service import check_for_hardware_errors
 from utils.settings_utils import load_settings
-from services.power_control_service import start_power_control_loop
 
 ########################################################################
 # 1) Create the global SocketIO instance
@@ -143,11 +141,26 @@ def start_threads():
     # Auto-dosing loop
     log_with_timestamp("Spawning auto-dosing loop…")
     eventlet.spawn(auto_dose_loop)
-    
+
     # Power control loop
     from services.power_control_service import power_control_main_loop
     log_with_timestamp("Spawning power control loop…")
     eventlet.spawn(power_control_main_loop)
+
+    # Water level monitoring
+    from services.water_level_service import monitor_water_level_sensors
+    log_with_timestamp("Spawning water level sensor monitor…")
+    eventlet.spawn(monitor_water_level_sensors)
+
+    # Valve relay polling
+    from services.valve_relay_service import init_valve_thread
+    log_with_timestamp("Initializing valve relay service…")
+    init_valve_thread()
+
+    # EC serial reader
+    from services.ec_service import ec_serial_reader
+    log_with_timestamp("Spawning EC serial reader…")
+    eventlet.spawn(ec_serial_reader)
 
 ########################################################################
 # Register Blueprints
@@ -160,7 +173,6 @@ app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 app.register_blueprint(debug_blueprint, url_prefix='/debug')
 app.register_blueprint(notifications_blueprint, url_prefix='/api/notifications')
-app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 
 
 ########################################################################
