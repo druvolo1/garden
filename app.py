@@ -38,6 +38,7 @@ from services.ph_service import get_latest_ph_reading, serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.error_service import check_for_hardware_errors
 from utils.settings_utils import load_settings
+from services.power_control_service import start_power_control_loop
 
 ########################################################################
 # 1) Create the global SocketIO instance
@@ -142,6 +143,11 @@ def start_threads():
     # Auto-dosing loop
     log_with_timestamp("Spawning auto-dosing loop…")
     eventlet.spawn(auto_dose_loop)
+    
+    # Power control loop
+    from services.power_control_service import power_control_main_loop
+    log_with_timestamp("Spawning power control loop…")
+    eventlet.spawn(power_control_main_loop)
 
 ########################################################################
 # Register Blueprints
