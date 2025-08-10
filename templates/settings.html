@@ -491,13 +491,13 @@
         let [host, port] = ipInput.split(":");
         port = port || "8000";
   
-        const url = `http://${host}:${port}/api/valve_relay/all_status`;
-        console.log("[retrieveValvesFromIP] Fetching URL:", url);
+        const gardenUrl = `http://${host}:${port}/api/valve_relay/all_status`;
+        console.log("[retrieveValvesFromIP] Trying Garden API URL:", gardenUrl);
   
-        fetch(url)
+        fetch(gardenUrl)
           .then(res => {
             if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
+              throw new Error(`Garden API HTTP error! status: ${res.status}`);
             }
             return res.json();
           })
@@ -525,9 +525,99 @@
   
             resolve(Object.keys(valveMap));
           })
-          .catch(err => {
-            console.error("[retrieveValvesFromIP] Caught error:", err);
-            reject(err);
+          .catch(gardenErr => {
+            console.warn("[retrieveValvesFromIP] Garden API failed, trying Shelly Gen2 API:", gardenErr);
+  
+            // Fallback to Shelly Gen2
+            const shellyPort = (port === "8000") ? "80" : port;
+            const shellyUrl = `http://${host}:${shellyPort}/rpc/Shelly.GetStatus`;
+            console.log("[retrieveValvesFromIP] Trying Shelly Gen2 API URL:", shellyUrl);
+  
+            fetch(shellyUrl)
+              .then(res => {
+                if (!res.ok) {
+                  throw new Error(`Shelly Gen2 HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+              })
+              .then(data => {
+                const valveMap = {};
+                Object.keys(data).forEach(key => {
+                  if (key.startsWith("switch:")) {
+                    const valveId = key.split(":")[1];
+                    valveMap[valveId] = { label: `Relay ${valveId}` };
+                  }
+                });
+  
+                if (Object.keys(valveMap).length === 0) {
+                  throw new Error("No switches found in Shelly Gen2 status");
+                }
+  
+                console.log("[retrieveValvesFromIP] Shelly Gen2 valveMap:", valveMap);
+  
+                const sel = document.getElementById(selectElementId);
+                if (!sel) {
+                  return resolve([]);
+                }
+  
+                sel.innerHTML = '<option value="">Select Valve</option>';
+                Object.keys(valveMap).forEach(valveId => {
+                  const info = valveMap[valveId];
+                  const label = info.label || `Relay ${valveId}`;
+                  const option = new Option(label, valveId);
+                  sel.add(option);
+                });
+  
+                resolve(Object.keys(valveMap));
+              })
+              .catch(gen2Err => {
+                console.warn("[retrieveValvesFromIP] Shelly Gen2 failed, trying Shelly Gen1 API:", gen2Err);
+  
+                // Fallback to Shelly Gen1 /status
+                const gen1Url = `http://${host}:${shellyPort}/status`;
+                console.log("[retrieveValvesFromIP] Trying Shelly Gen1 API URL:", gen1Url);
+  
+                fetch(gen1Url)
+                  .then(res => {
+                    if (!res.ok) {
+                      throw new Error(`Shelly Gen1 HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                  })
+                  .then(data => {
+                    const relays = data.relays || [];
+                    if (relays.length === 0) {
+                      throw new Error("No relays found in Shelly Gen1 status");
+                    }
+  
+                    const valveMap = {};
+                    relays.forEach((relay, index) => {
+                      const valveId = index.toString();
+                      valveMap[valveId] = { label: `Relay ${valveId}` };
+                    });
+  
+                    console.log("[retrieveValvesFromIP] Shelly Gen1 valveMap:", valveMap);
+  
+                    const sel = document.getElementById(selectElementId);
+                    if (!sel) {
+                      return resolve([]);
+                    }
+  
+                    sel.innerHTML = '<option value="">Select Valve</option>';
+                    Object.keys(valveMap).forEach(valveId => {
+                      const info = valveMap[valveId];
+                      const label = info.label || `Relay ${valveId}`;
+                      const option = new Option(label, valveId);
+                      sel.add(option);
+                    });
+  
+                    resolve(Object.keys(valveMap));
+                  })
+                  .catch(gen1Err => {
+                    console.error("[retrieveValvesFromIP] All attempts failed:", gen1Err);
+                    reject(gen1Err);
+                  });
+              });
           });
       });
     }
@@ -1517,150 +1607,43 @@
       });
     });
 
-    // ... (keep all existing functions like retrieveLocalValves, handleFillValveModeChange, etc.) ...
+    // NEW: Add event listener for adding a new power outlet
+    document.getElementById('add-outlet-btn').addEventListener('click', () => {
+      const ip = document.getElementById('new-outlet-ip').value.trim();
+      const label = document.getElementById('new-outlet-label').value.trim();
 
-/***************************************************************/
-/**   retrieveValvesFromIP - updated to support Shelly API    **/
-/***************************************************************/
-function retrieveValvesFromIP(ipInput, selectElementId) {
-  console.log("[retrieveValvesFromIP] Called with ipInput =", ipInput, "and selectElementId =", selectElementId);
-
-  return new Promise((resolve, reject) => {
-    if (!ipInput) {
-      console.warn("[retrieveValvesFromIP] No IP provided, rejecting.");
-      return reject(new Error("No IP address provided"));
-    }
-
-    let [host, port] = ipInput.split(":");
-    port = port || "8000";  // Default to 8000 for Garden API
-
-    const gardenUrl = `http://${host}:${port}/api/valve_relay/all_status`;
-    console.log("[retrieveValvesFromIP] Trying Garden API URL:", gardenUrl);
-
-    fetch(gardenUrl)
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`Garden API HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data.status !== "success" || !data.valves) {
-          throw new Error(data.error || "Garden API returned failure or no valves");
-        }
-
-        const valveMap = data.valves || {};
-        console.log("[retrieveValvesFromIP] Garden valveMap:", valveMap);
-
-        const sel = document.getElementById(selectElementId);
-        if (!sel) {
-          console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
-          return resolve([]);
-        }
-
-        sel.innerHTML = '<option value="">Select Valve</option>';
-        Object.keys(valveMap).forEach(valveId => {
-          const info = valveMap[valveId];
-          const label = info.label || `Valve ${valveId}`;
-          const option = new Option(label, valveId);
-          sel.add(option);
-        });
-
-        resolve(Object.keys(valveMap));
-      })
-      .catch(gardenErr => {
-        console.warn("[retrieveValvesFromIP] Garden API failed, trying Shelly API:", gardenErr);
-
-        // Fallback to Shelly: always use port 80 unless specified (override if default 8000 was used)
-        const shellyPort = (port === "8000") ? "80" : port;
-        const shellyUrl = `http://${host}:${shellyPort}/rpc/Shelly.GetStatus`;
-        console.log("[retrieveValvesFromIP] Trying Shelly API URL:", shellyUrl);
-
-        fetch(shellyUrl)
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`Shelly API HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(data => {
-            const valveMap = {};
-            Object.keys(data).forEach(key => {
-              if (key.startsWith("switch:")) {
-                const valveId = key.split(":")[1];
-                valveMap[valveId] = { label: `Relay ${valveId}` };  // Default label; Shelly status doesn't have custom labels
-              }
-            });
-
-            if (Object.keys(valveMap).length === 0) {
-              throw new Error("No relays (switches) found in Shelly status");
-            }
-
-            console.log("[retrieveValvesFromIP] Shelly valveMap:", valveMap);
-
-            const sel = document.getElementById(selectElementId);
-            if (!sel) {
-              console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
-              return resolve([]);
-            }
-
-            sel.innerHTML = '<option value="">Select Valve</option>';
-            Object.keys(valveMap).forEach(valveId => {
-              const info = valveMap[valveId];
-              const label = info.label || `Relay ${valveId}`;
-              const option = new Option(label, valveId);
-              sel.add(option);
-            });
-
-            resolve(Object.keys(valveMap));
-          })
-          .catch(shellyErr => {
-            console.error("[retrieveValvesFromIP] Shelly API also failed:", shellyErr);
-            reject(shellyErr);
-          });
-      });
-  });
-}
-
-// ... (keep existing document.addEventListener('DOMContentLoaded', ... ) ...
-
-// NEW: Add event listener for adding a new power outlet
-document.getElementById('add-outlet-btn').addEventListener('click', () => {
-  const ip = document.getElementById('new-outlet-ip').value.trim();
-  const label = document.getElementById('new-outlet-label').value.trim();
-
-  if (!ip) {
-    alert("Please enter an IP for the Shelly outlet.");
-    return;
-  }
-
-  fetch('/api/settings')
-    .then(r => r.json())
-    .then(settings => {
-      const powerControls = settings.power_controls || [];
-
-      // Prevent duplicates by IP
-      if (powerControls.some(outlet => outlet.outlet_ip === ip)) {
-        alert("An outlet with that IP already exists.");
+      if (!ip) {
+        alert("Please enter an IP for the Shelly outlet.");
         return;
       }
 
-      // Append the new outlet
-      powerControls.push({
-        outlet_ip: ip,
-        label: label || `Outlet at ${ip}`,
-        tracked_valves: []  // Start with no tracked valves
-      });
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(settings => {
+          const powerControls = settings.power_controls || [];
 
-      // Save the full updated list
-      saveSettings("/api/settings/", { power_controls: powerControls });
+          // Prevent duplicates by IP
+          if (powerControls.some(outlet => outlet.outlet_ip === ip)) {
+            alert("An outlet with that IP already exists.");
+            return;
+          }
 
-      // Clear inputs
-      document.getElementById('new-outlet-ip').value = '';
-      document.getElementById('new-outlet-label').value = '';
-    })
-    .catch(err => console.error("Error adding outlet:", err));
-});
+          // Append the new outlet
+          powerControls.push({
+            outlet_ip: ip,
+            label: label || `Outlet at ${ip}`,
+            tracked_valves: []  // Start with no tracked valves
+          });
+
+          // Save the full updated list
+          saveSettings("/api/settings/", { power_controls: powerControls });
+
+          // Clear inputs
+          document.getElementById('new-outlet-ip').value = '';
+          document.getElementById('new-outlet-label').value = '';
+        })
+        .catch(err => console.error("Error adding outlet:", err));
+    });
   </script>
   
 </body>
