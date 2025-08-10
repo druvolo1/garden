@@ -24,6 +24,7 @@ from api.dosing import dosing_blueprint
 from api.update_code import update_code_blueprint
 from api.debug import debug_blueprint
 from api.notifications import notifications_blueprint
+from api.valve_relay import valve_relay_blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
@@ -153,6 +154,7 @@ app.register_blueprint(dosing_blueprint, url_prefix="/api/dosage")
 app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 app.register_blueprint(debug_blueprint, url_prefix='/debug')
 app.register_blueprint(notifications_blueprint, url_prefix='/api/notifications')
+app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
 
 
 ########################################################################
