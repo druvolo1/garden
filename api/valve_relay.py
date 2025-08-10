@@ -102,7 +102,7 @@ def rename_valve():
     new_label = data.get("new_label")
     if not old_label or not new_label:
         return jsonify({"status": "failure", "error": "Missing old_label or new_label"}), 400
-    
+
     # Find numeric ID by old_label
     valve_id = get_valve_id_by_name(old_label)
     if valve_id is None:
