@@ -39,6 +39,9 @@ from services.dosage_service import get_dosage_info, perform_auto_dose
 from services.error_service import check_for_hardware_errors
 from utils.settings_utils import load_settings
 
+# Changelog dependencies
+import markdown
+
 ########################################################################
 # 1) Create the global SocketIO instance
 ########################################################################
@@ -72,6 +75,9 @@ socketio.init_app(app, async_mode="eventlet", cors_allowed_origins="*")
 
 # Let status_namespace.py have our main SocketIO reference
 set_socketio_instance(socketio)
+
+# Now register the /status namespace
+socketio.on_namespace(StatusNamespace('/status'))
 
 # Now register the /status namespace
 socketio.on_namespace(StatusNamespace('/status'))
@@ -201,6 +207,17 @@ def configuration():
 @app.route('/valves')
 def valves_page():
     return render_template('valves.html')
+
+@app.route('/changelog')
+def show_changelog():
+    changelog_path = os.path.join(os.path.dirname(__file__), 'CHANGELOG.md')  # Adjust path if needed
+    if os.path.exists(changelog_path):
+        with open(changelog_path, 'r') as f:
+            md_content = f.read()
+        html_content = markdown.markdown(md_content, extensions=['fenced_code', 'tables'])  # Add extensions for better formatting
+    else:
+        html_content = "<p>No changelog available.</p>"
+    return render_template('changelog.html', changelog_html=html_content)
 
 @socketio.on('connect')
 def handle_connect():
