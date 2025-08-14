@@ -146,6 +146,26 @@
         // (A) Basic system info
         document.getElementById("local-system-name").textContent =
           data.settings?.system_name || "N/A";
+
+        // Update system name color based on pH range
+        const localPh = data.current_ph !== undefined ? parseFloat(data.current_ph) : NaN;
+        const localSystemNameEl = document.getElementById("local-system-name");
+        if (data.settings && data.settings.ph_range) {
+          const minPh = parseFloat(data.settings.ph_range.min) || 5.5;
+          const maxPh = parseFloat(data.settings.ph_range.max) || 6.5;
+          if (!isNaN(localPh)) {
+            if (localPh >= minPh && localPh <= maxPh) {
+              localSystemNameEl.style.color = 'green';
+            } else {
+              localSystemNameEl.style.color = 'red';
+            }
+          } else {
+            localSystemNameEl.style.color = '';
+          }
+        } else {
+          localSystemNameEl.style.color = '';
+        }
+
         document.getElementById("local-ph-display").textContent =
           data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
         document.getElementById("local-ec-display").textContent =
@@ -401,6 +421,26 @@
           if (data.settings?.system_name) {
             document.getElementById(`${zoneId}-system-name`).textContent = data.settings.system_name;
           }
+
+          // Update system name color based on pH range
+          const remotePh = data.current_ph !== undefined ? parseFloat(data.current_ph) : NaN;
+          const remoteSystemNameEl = document.getElementById(`${zoneId}-system-name`);
+          if (data.settings && data.settings.ph_range) {
+            const minPh = parseFloat(data.settings.ph_range.min) || 5.5;
+            const maxPh = parseFloat(data.settings.ph_range.max) || 6.5;
+            if (!isNaN(remotePh)) {
+              if (remotePh >= minPh && remotePh <= maxPh) {
+                remoteSystemNameEl.style.color = 'green';
+              } else {
+                remoteSystemNameEl.style.color = 'red';
+              }
+            } else {
+              remoteSystemNameEl.style.color = '';
+            }
+          } else {
+            remoteSystemNameEl.style.color = '';
+          }
+
           document.getElementById(`${zoneId}-ph-display`).textContent =
             data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
           document.getElementById(`${zoneId}-ec-display`).textContent =
