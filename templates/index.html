@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Make page responsive on mobile -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Garden Monitoring System</title>
-
-  <!-- Link to your existing style.css (with .btn-on-active, .btn-off-active, .btn-inactive) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
-  <!-- jQuery and Socket.IO libraries -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-  <!-- Google font for Poppins -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <!-- Add Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js for trends -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <!-- Navigation Menu -->
@@ -22,17 +20,19 @@
     <ul>
       <li><a href="/">Home</a></li>
       <li><a href="/dosage">Dosage</a></li>
-      <!--<li><a href="/calibration">Calibration</a></li>-->
-      <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
-      <!--<li><a href="/valves">Valves</a></li>-->
       <li><a href="/logs">Logs</a></li>
     </ul>
   </nav>
 
-  <main> 
+  <main>
     <h1>Automated DWC Helper</h1>
     <p class="subtitle">Monitor &amp; adjust your garden with confidence.</p>
+
+    <!-- Alert Banner (hidden by default) -->
+    <div id="alert-banner" class="alert-banner" style="display: none;">
+      <i class="fas fa-exclamation-triangle"></i> Critical Issue: Check pH levels!
+    </div>
 
     <!-- LOCAL ZONE -->
     <section class="data-container">
@@ -40,65 +40,69 @@
       <div class="row-flex">
         <!-- System Name -->
         <div>
-          <label>System Name</label>
-          <div id="local-system-name">Loading...</div>
+          <label><i class="fas fa-seedling"></i> System Name</label>
+          <div id="local-system-name" class="data-box">Loading...</div>
         </div>
-    
-        <!-- pH -->
+
+        <!-- pH with color-coding -->
         <div>
-          <label>pH</label>
-          <div id="local-ph-display">Loading...</div>
+          <label><i class="fas fa-flask"></i> pH</label>
+          <div id="local-ph-display" class="data-box" data-tooltip="pH value (target: 5.5-6.5)">Loading...</div>
         </div>
-    
+
         <!-- EC -->
         <div>
-          <label>EC (mS/cm)</label>
-          <div id="local-ec-display">N/A</div>
+          <label><i class="fas fa-bolt"></i> EC (mS/cm)</label>
+          <div id="local-ec-display" class="data-box">N/A</div>
         </div>
-    
+
         <!-- Sensor #1 -->
         <div>
-          <label>Sensor 1</label>
-          <div id="local-sensor1-display">Loading...</div>
+          <label><i class="fas fa-tint"></i> Sensor 1</label>
+          <div id="local-sensor1-display" class="data-box">Loading...</div>
         </div>
-    
+
         <!-- Sensor #2 -->
         <div>
-          <label>Sensor 2</label>
-          <div id="local-sensor2-display">Loading...</div>
+          <label><i class="fas fa-tint"></i> Sensor 2</label>
+          <div id="local-sensor2-display" class="data-box">Loading...</div>
         </div>
-    
+
         <!-- Sensor #3 -->
         <div>
-          <label>Sensor 3</label>
-          <div id="local-sensor3-display">Loading...</div>
+          <label><i class="fas fa-tint"></i> Sensor 3</label>
+          <div id="local-sensor3-display" class="data-box">Loading...</div>
         </div>
-    
+
         <!-- Fill Valve Controls -->
         <div id="local-fill-container" style="display:none;">
-          <label>Fill Valve: <span id="local-fill-status">Off</span></label>
+          <label><i class="fas fa-faucet"></i> Fill Valve: <span id="local-fill-status">Off</span></label>
           <div style="display:flex; gap:8px; margin-top:4px;">
             <button id="local-fill-on" disabled>On</button>
             <button id="local-fill-off" disabled>Off</button>
           </div>
         </div>
-    
+
         <!-- Drain Valve Controls -->
         <div id="local-drain-container" style="display:none;">
-          <label>Drain Valve: <span id="local-drain-status">Off</span></label>
+          <label><i class="fas fa-tint-slash"></i> Drain Valve: <span id="local-drain-status">Off</span></label>
           <div style="display:flex; gap:8px; margin-top:4px;">
             <button id="local-drain-on" disabled>On</button>
             <button id="local-drain-off" disabled>Off</button>
           </div>
         </div>
       </div>
-    
-      <!-- This div shows the last WebSocket update time for the Local Zone -->
+
+      <!-- pH Trend Chart -->
+      <div class="chart-container">
+        <canvas id="local-ph-chart" width="400" height="200"></canvas>
+      </div>
+
       <div class="last-updated" id="local-last-updated">Last updated: Never</div>
     </section>
-    
-    <!-- Container for Remote Zones (placed wherever you want them on the page) -->
-    <div id="remote-zones"></div>
+
+    <!-- Container for Remote Zones -->
+    <div id="remote-zones" class="remote-grid"></div>
   </main>
 
   <script>

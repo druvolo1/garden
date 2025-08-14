@@ -346,3 +346,98 @@ legend {
   color: #ffffff;
   border-radius: 4px;
 }
+
+/* Existing styles here... */
+
+/* New Additions */
+
+/* Alert Banner */
+.alert-banner {
+  background: #dc3545;
+  color: #fff;
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* Data Box Enhancements */
+.data-box {
+  font-size: 1.4rem; /* Larger for key metrics */
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.3s;
+}
+.out-of-range {
+  background: #ff4c4c !important; /* Red for out-of-range */
+  color: #fff;
+}
+.in-range {
+  background: #28a745; /* Green for in-range */
+}
+
+/* Icons in Labels */
+label i {
+  margin-right: 5px;
+  color: #f4c531;
+}
+
+/* Tooltips */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: #333;
+  color: #fff;
+  padding: 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* Chart Container */
+.chart-container {
+  margin: 20px 0;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+/* Remote Zones Grid */
+.remote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Improved Responsiveness */
+@media (max-width: 768px) {
+  .row-flex {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .row-flex > div {
+    min-width: 45%;
+  }
+  h1 { font-size: 28px; }
+  main { padding: 10px; }
+}
+
+/* Loading Animation (Skeleton) */
+.data-box:empty::before {
+  content: '';
+  display: block;
+  height: 20px;
+  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
