@@ -2,6 +2,9 @@
 import json
 import os
 from datetime import datetime
+import threading
+import time
+from services.ph_service import get_latest_ph_reading
 
 # Define the log directory and file
 LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
@@ -31,9 +34,18 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
         'dose_amount_ml': dose_amount_ml
     }, category='dosing')
 
-# Future: Log other sensors
-# def log_sensor_reading(sensor_name, value, additional_data=None):
-#     data = {'event_type': 'sensor', 'sensor_name': sensor_name, 'value': value}
-#     if additional_data:
-#         data.update(additional_data)
-#     log_event(data)
+def log_sensor_reading(sensor_name, value, additional_data=None):
+    data = {'event_type': 'sensor', 'sensor_name': sensor_name, 'value': value}
+    if additional_data:
+        data.update(additional_data)
+    log_event(data, category=sensor_name)
+
+def log_ph_periodically():
+    while True:
+        ph = get_latest_ph_reading()
+        if ph is not None:
+            log_sensor_reading('ph', ph)
+        time.sleep(6 * 3600)  # 6 hours in seconds
+
+# Start the periodic logging in a background thread
+threading.Thread(target=log_ph_periodically, daemon=True).start()
