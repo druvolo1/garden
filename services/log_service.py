@@ -13,15 +13,11 @@ def ensure_log_dir_exists():
     """
     os.makedirs(LOG_DIR, exist_ok=True)
 
-def log_event(data_dict):
-    """
-    Logs an event as a JSON object on a new line in the JSONL file.
-    Always includes 'timestamp'; add sensor keys/values as needed.
-    Example: log_event({'ph': 7.2, 'dose_type': 'up', 'dose_amount_ml': 5.0})
-    """
+def log_event(data_dict, category='sensor'):
+    log_file = os.path.join(LOG_DIR, f'{category}_log.jsonl')
     ensure_log_dir_exists()
     data_dict['timestamp'] = datetime.now().isoformat()
-    with open(SENSOR_LOG_FILE, 'a') as f:
+    with open(log_file, 'a') as f:
         f.write(json.dumps(data_dict) + '\n')
 
 def log_dosing_event(ph, dose_type, dose_amount_ml):
@@ -33,7 +29,7 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
         'ph': ph,
         'dose_type': dose_type,
         'dose_amount_ml': dose_amount_ml
-    })
+    }, category='dosing')
 
 # Future: Log other sensors
 # def log_sensor_reading(sensor_name, value, additional_data=None):
