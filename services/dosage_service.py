@@ -6,6 +6,7 @@ from services.pump_relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
 from services.log_service import log_dosing_event
 from services.dosing_state import state  # CHANGED: Import the singleton instance instead of individual globals
+from services.water_level_service import get_water_level_status  # Added import for water level check
 
 def get_dosage_info():
     current_ph = get_latest_ph_reading()
@@ -38,6 +39,9 @@ def get_dosage_info():
                 f"Clamping to {max_dosing_amount:.2f} ml."
             )
             ph_up_amount = max_dosing_amount
+            feedback_up = (
+                f""
+            )
         else:
             ph_up_amount = calculated_up
 
@@ -53,6 +57,9 @@ def get_dosage_info():
             ph_down_amount = max_dosing_amount
         else:
             ph_down_amount = calculated_down
+            feedback_down = (
+                f""
+            )
 
     return {
         "current_ph": round(current_ph, 2),
@@ -83,6 +90,13 @@ def perform_auto_dose(settings):
     ph_value = get_latest_ph_reading()
     if ph_value is None:
         print("[AutoDosing] No pH reading available; skipping auto-dose.")
+        return ("none", 0.0)
+
+    # Added: Check water level before proceeding with dosing
+    water_status = get_water_level_status()
+    drain_sensor_key = settings.get("drain_sensor", "sensor3")  # Assuming this is the empty sensor
+    if drain_sensor_key in water_status and water_status[drain_sensor_key]["triggered"]:
+        print("[AutoDosing] No water present (empty sensor triggered); skipping auto-dose.")
         return ("none", 0.0)
 
     # Get the acceptable pH range from settings.
