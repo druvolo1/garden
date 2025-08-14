@@ -1,0 +1,3 @@
+version 1.0.76
+1- added logic so ph won't dose if none of the water sensors detect water
+2- change plant name color based on ph range. green = good, reb = high or low
