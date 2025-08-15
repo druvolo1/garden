@@ -13,13 +13,14 @@ LOGFILE="${SCRIPTDIR}/garden_update.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
 cd /home/dave/garden
+
+echo "[$(date)] Fixing venv permissions..."
+sudo chown -R $(whoami):$(whoami) venv
+
 source venv/bin/activate
 
 echo "[$(date)] Pulling latest code..."
 git pull
-
-echo "[$(date)] Fixing venv permissions..."
-sudo chown -R dave:dave ~/garden/venv
 
 echo "[$(date)] Installing dependencies..."
 pip install -r requirements.txt
