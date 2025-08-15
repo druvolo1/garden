@@ -18,6 +18,9 @@ source venv/bin/activate
 echo "[$(date)] Pulling latest code..."
 git pull
 
+echo "[$(date)] Fixing venv permissions..."
+sudo chown -R $(whoami):$(whoami) venv
+
 echo "[$(date)] Installing dependencies..."
 pip install -r requirements.txt
 
