@@ -15,7 +15,7 @@ exec > >(tee -a "$LOGFILE") 2>&1
 cd /home/dave/garden
 
 echo "[$(date)] Fixing venv permissions..."
-sudo chown -R $(whoami):$(whoami) venv
+sudo chown -R dave:dave ~/garden/venv
 
 source venv/bin/activate
 
