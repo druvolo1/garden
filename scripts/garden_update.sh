@@ -19,7 +19,7 @@ echo "[$(date)] Pulling latest code..."
 git pull
 
 echo "[$(date)] Fixing venv permissions..."
-sudo chown -R $(whoami):$(whoami) venv
+sudo chown -R dave:dave ~/garden/venv
 
 echo "[$(date)] Installing dependencies..."
 pip install -r requirements.txt
