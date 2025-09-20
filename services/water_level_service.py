@@ -269,7 +269,8 @@ def monitor_water_level_sensors():
                 if fill_triggered:
                     log_water_level("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
-                    _send_telegram_and_discord("Auto filling is complete.")
+                    if not api.settings.feeding_in_progress:
+                        _send_telegram_and_discord("Auto filling is complete.")
 
             # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
