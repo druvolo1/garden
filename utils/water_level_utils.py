@@ -20,6 +20,7 @@ from utils.settings_utils import load_settings
 _pins_lock = threading.Lock()
 _pins_inited = False
 _last_sensor_state = {}
+_last_settings = {}
 
 
 def load_water_level_sensors():
