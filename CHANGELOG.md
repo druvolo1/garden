@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.0.78] - 2025-09-20
 - added "feeding in progress" to prevent ph from adjusting during feeding. Also prevents notifications from being sent.
-- modified index page to have drop down with additional buttons
+- modified index page to have expaint HTML container for "feeding in progress" which disables notifications and auto valve triggering"
 - added ability to save pump calibration dates for dosing pumps
 
 ## [1.0.77] - 2025-08-15
