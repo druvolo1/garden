@@ -208,6 +208,8 @@ def get_water_level_status():
     sensors = load_water_level_sensors()
     ensure_pins_inited()
 
+    print("[WaterLevel] Fetching sensor states...")
+
     status = {}
     if GPIO:
         for sensor_key, cfg in sensors.items():
@@ -217,6 +219,7 @@ def get_water_level_status():
             if pin is not None:
                 sensor_state = GPIO.input(pin)
                 triggered = (sensor_state == 1)
+                print(f"[WaterLevel] Sensor {sensor_key} ({label}) pin {pin} state {sensor_state} triggered {triggered}")
             status[sensor_key] = {
                 "label": label,
                 "pin": pin,
@@ -225,6 +228,7 @@ def get_water_level_status():
     else:
         # Mock environment: assume all sensors are "not triggered"
         for sensor_key, cfg in sensors.items():
+            print(f"[WaterLevel] Mock sensor {sensor_key} ({cfg.get('label', sensor_key)}) triggered False")
             status[sensor_key] = {
                 "label": cfg.get("label", sensor_key),
                 "pin": cfg.get("pin"),
@@ -237,6 +241,7 @@ def monitor_water_level_sensors():
     global _last_sensor_state
     while True:
         current_state = get_water_level_status()
+        print("[WaterLevel] Current state:", current_state)
         if current_state != _last_sensor_state:
             _last_sensor_state = current_state
             settings = load_settings()
@@ -245,23 +250,31 @@ def monitor_water_level_sensors():
             drain_sensor_key = settings.get("drain_sensor", "sensor3")
             auto_fill_key = settings.get("auto_fill_sensor", "disabled")
 
+            print("[WaterLevel] State changed. Settings: fill_sensor=", fill_sensor_key, "drain_sensor=", drain_sensor_key, "auto_fill=", auto_fill_key)
+
             # For safety: always turn off fill if fill_sensor triggered
             if fill_sensor_key in current_state:
                 fill_triggered = current_state[fill_sensor_key]["triggered"]
+                print("[WaterLevel] Fill safety check: fill_triggered=", fill_triggered)
                 if fill_triggered:
+                    print("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
 
             # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
                 auto_triggered = current_state[auto_fill_key]["triggered"]
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
+                print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "fill_triggered=", fill_triggered)
                 if not auto_triggered and not fill_triggered:
+                    print("[WaterLevel] Turning on fill for auto")
                     turn_on_fill_valve()
 
             # If drain sensor is triggered => we want to turn off drain valve
             if drain_sensor_key in current_state:
                 drain_triggered = current_state[drain_sensor_key]["triggered"]
+                print("[WaterLevel] Drain check: drain_triggered=", drain_triggered)
                 if drain_triggered:
+                    print("[WaterLevel] Turning off drain due to empty sensor")
                     turn_off_drain_valve()
 
             from status_namespace import emit_status_update
