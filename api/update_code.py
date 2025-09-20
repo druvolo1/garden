@@ -132,7 +132,7 @@ def pull_no_restart():
         # 4) Install any new requirements
         req_path = os.path.join(PROJECT_ROOT, "requirements.txt")
         out, err = run_cmd(
-            [VENV_PIP, "install", "-r", req_path],
+            ["sudo", VENV_PIP, "install", "-r", req_path],
             cwd=PROJECT_ROOT
         )
         steps_output.append(out)
