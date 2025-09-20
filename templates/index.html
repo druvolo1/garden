@@ -327,9 +327,9 @@
           if (triggered === null) {
             displayEl.textContent = `${labelKey}: No Data`;
           } else {
-            const iconColor = triggered ? 'green' : 'yellow';
-            const icon = triggered ? '✅' : '⚠️';
-            const statusText = triggered ? 'Present' : 'Not Present';
+            const iconColor = triggered ? 'yellow' : 'green';
+            const icon = triggered ? '⚠️' : '✅';
+            const statusText = triggered ? 'Not Present' : 'Present';
             displayEl.innerHTML = `${labelKey}: <span style="color: ${iconColor};">${icon}</span> ${statusText}`;
           }
         }
