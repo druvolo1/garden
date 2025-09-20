@@ -15,6 +15,23 @@
   <!-- Google font for Poppins -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <style>
+    /* Add styles for expand button and extra controls */
+    .expand-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2em;
+      color: #ccc;
+      margin-left: auto; /* Push to the right if needed */
+    }
+    .extra-controls {
+      margin-top: 10px;
+      padding: 10px;
+      background: #222;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
   <!-- Navigation Menu -->
@@ -90,6 +107,18 @@
             <button id="local-drain-on" disabled>On</button>
             <button id="local-drain-off" disabled>Off</button>
           </div>
+        </div>
+
+        <!-- Expand Button -->
+        <button id="expand-local" class="expand-btn">▼</button>
+      </div>
+
+      <!-- Extra Controls (Hidden by Default) -->
+      <div id="extra-controls-local" class="extra-controls" style="display:none;">
+        <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
+        <div style="display:flex; gap:8px; margin-top:4px;">
+          <button id="feeding-on-local">On</button>
+          <button id="feeding-off-local">Off</button>
         </div>
       </div>
     
@@ -235,6 +264,11 @@
             updateLocalValveButtons("drain", drainStatus);
           }
         }
+
+        // Update feeding status
+        const feedingStatus = data.feeding_in_progress ? "On" : "Off";
+        document.getElementById("feeding-status-local").textContent = feedingStatus;
+        updateFeedingButtons("local", data.feeding_in_progress ? "on" : "off");
       });
   
       // 3) Optionally fetch /api/settings to discover remote zones
@@ -362,7 +396,20 @@
                 <button id="${zoneId}-drain-off" disabled>Off</button>
               </div>
             </div>
+
+            <!-- Expand Button -->
+            <button id="expand-${zoneId}" class="expand-btn">▼</button>
           </div>
+
+          <!-- Extra Controls (Hidden by Default) -->
+          <div id="extra-controls-${zoneId}" class="extra-controls" style="display:none;">
+            <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <button id="feeding-on-${zoneId}">On</button>
+              <button id="feeding-off-${zoneId}">Off</button>
+            </div>
+          </div>
+
           <div class="last-updated" id="${zoneId}-last-updated">Last updated: Never</div>
         `;
         document.getElementById("remote-zones").appendChild(container);
@@ -435,7 +482,7 @@
                 remoteSystemNameEl.style.color = 'red';
               }
             } else {
-              remoteSystemNameEl.style.color = '';
+                remoteSystemNameEl.style.color = '';
             }
           } else {
             remoteSystemNameEl.style.color = '';
@@ -522,33 +569,39 @@
               }
             }
           }
+
+          // Update feeding status
+          const feedingStatus = data.feeding_in_progress ? "On" : "Off";
+          document.getElementById(`feeding-status-${zoneId}`).textContent = feedingStatus;
+          updateFeedingButtons(zoneId, data.feeding_in_progress ? "on" : "off");
         });
       }
   
-      function remoteSetValve(host, valveId, statusSpanId, action, zoneId, valvePrefix) {
-        const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveId)}/${action}`;
-        fetch(url, { method: 'POST' })
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              document.getElementById(statusSpanId).textContent =
-                action === "on" ? "On" : "Off";
-              updateRemoteValveButtons(zoneId, valvePrefix, action);
-            } else {
-              console.error(`[REMOTE ${host}] valve error:`, data.error);
-            }
-          })
-          .catch(err => console.error(`[REMOTE ${host}] valve fetch error:`, err));
+      // Add expand/collapse logic for local
+      document.getElementById("expand-local").addEventListener("click", () => toggleExtra("local"));
+
+      // Function to toggle extra controls
+      function toggleExtra(zoneId) {
+        const extraDiv = document.getElementById(`extra-controls-${zoneId}`);
+        const expandBtn = document.getElementById(`expand-${zoneId}`);
+        if (extraDiv.style.display === "none") {
+          extraDiv.style.display = "block";
+          expandBtn.textContent = "▲";
+        } else {
+          extraDiv.style.display = "none";
+          expandBtn.textContent = "▼";
+        }
       }
-  
-      function updateRemoteValveButtons(zoneId, valvePrefix, newStatus) {
-        const onBtn  = document.getElementById(`${zoneId}-${valvePrefix}-on`);
-        const offBtn = document.getElementById(`${zoneId}-${valvePrefix}-off`);
+
+      // Function to update feeding buttons
+      function updateFeedingButtons(zoneId, newStatus) {
+        const onBtn = document.getElementById(`feeding-on-${zoneId}`);
+        const offBtn = document.getElementById(`feeding-off-${zoneId}`);
         if (!onBtn || !offBtn) return;
-  
-        onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-        offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-  
+
+        onBtn.classList.remove("btn-on-active", "btn-off-active", "btn-inactive");
+        offBtn.classList.remove("btn-on-active", "btn-off-active", "btn-inactive");
+
         if (newStatus === "on") {
           onBtn.classList.add("btn-on-active");
           offBtn.classList.add("btn-inactive");
@@ -556,6 +609,31 @@
           onBtn.classList.add("btn-inactive");
           offBtn.classList.add("btn-off-active");
         }
+      }
+
+      // Wire up feeding toggle for local
+      document.getElementById("feeding-on-local").addEventListener("click", () => setFeeding("local", window.location.hostname, true));
+      document.getElementById("feeding-off-local").addEventListener("click", () => setFeeding("local", window.location.hostname, false));
+
+      // Function to set feeding status
+      function setFeeding(zoneId, host, inProgress) {
+        const url = `http://${host}:8000/api/settings/feeding_status`;
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ in_progress: inProgress })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "success") {
+            const statusText = inProgress ? "On" : "Off";
+            document.getElementById(`feeding-status-${zoneId}`).textContent = statusText;
+            updateFeedingButtons(zoneId, inProgress ? "on" : "off");
+          } else {
+            console.error(`[Feeding ${zoneId}] error:`, data.error);
+          }
+        })
+        .catch(err => console.error(`[Feeding ${zoneId}] fetch error:`, err));
       }
     });
   </script>
