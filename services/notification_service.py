@@ -3,6 +3,7 @@ import threading
 import requests
 
 from utils.settings_utils import load_settings  # Adjust if needed
+import api.settings
 
 _notifications_lock = threading.Lock()
 _notifications = {}  # Current "snapshot" of device/key states
@@ -118,6 +119,10 @@ def get_all_notifications():
 
 
 def handle_notification_transition(device: str, key: str, old_state: str, new_state: str, message: str):
+    if api.settings.feeding_in_progress:
+        log_notify_debug(f"[DEBUG] Feeding in progress; skipping notification transition for {device}/{key}.")
+        return
+
     now = datetime.now()
     old_state = old_state.lower()
     new_state = new_state.lower()
@@ -243,6 +248,10 @@ def report_condition_error(device: str, condition_key: str, message: str):
        report_condition_error("ph_probe", "unrealistic_reading",
            "Unrealistic pH reading (0.0). Probe may be disconnected.")
     """
+    if api.settings.feeding_in_progress:
+        log_notify_debug(f"[DEBUG] Feeding in progress; skipping condition error report for {device}/{condition_key}.")
+        return
+
     # --- ADDED: don't retrigger if active ---
     if is_notification_active(device, condition_key):
         log_notify_debug(f"[DEBUG] {device}/{condition_key} notification already active. Skipping duplicate notification.")
@@ -302,4 +311,3 @@ def clear_condition(device: str, condition_key: str):
     with _condition_lock:
         _condition_counters.pop((device, condition_key), None)
         log_notify_debug(f"[DEBUG] Cleared condition counters => {device}/{condition_key}")
-
