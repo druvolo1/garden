@@ -268,8 +268,11 @@ def monitor_water_level_sensors():
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
-                    print("[WaterLevel] Turning on fill for auto")
-                    turn_on_fill_valve()
+                    if not feeding_in_progress:
+                        print("[WaterLevel] Turning on fill for auto")
+                        turn_on_fill_valve()
+                    else:
+                        print("[WaterLevel] Not turning on fill for auto because feeding is in progress")
 
             # If drain sensor is triggered => we want to turn off drain valve
             if drain_sensor_key in current_state:
