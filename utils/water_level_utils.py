@@ -256,8 +256,9 @@ def monitor_water_level_sensors():
             # For safety: always turn off fill if fill_sensor triggered
             if fill_sensor_key in current_state:
                 fill_triggered = current_state[fill_sensor_key]["triggered"]
+                last_fill_triggered = previous_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 print("[WaterLevel] Fill safety check: fill_triggered=", fill_triggered)
-                if fill_triggered:
+                if not last_fill_triggered and fill_triggered:
                     print("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
 
@@ -267,7 +268,7 @@ def monitor_water_level_sensors():
                 last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
-                if not last_auto_triggered and auto_triggered and not fill_triggered:
+                if last_auto_triggered and not auto_triggered and not fill_triggered:
                     print("[WaterLevel] Turning on fill for auto")
                     turn_on_fill_valve()
 
