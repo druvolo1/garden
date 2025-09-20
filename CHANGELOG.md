@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.79] - 2025-09-20
+- added additional info container on main page
+
 ## [1.0.78] - 2025-09-20
 - added "feeding in progress" to prevent ph from adjusting during feeding. Also prevents notifications from being sent.
 - modified index page to have expaint HTML container for "feeding in progress" which disables notifications and auto valve triggering"

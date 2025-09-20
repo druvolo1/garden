@@ -150,6 +150,12 @@
             <button id="feeding-off-local">Off</button>
           </div>
         </div>
+        <div class="toggle-group">
+          <label>Plant Info</label>
+          <div>Name: <span id="plant-name-local">N/A</span></div>
+          <div>Start Date: <span id="plant-start-date-local">N/A</span></div>
+          <div>Weeks Elapsed: <span id="plant-weeks-local">N/A</span></div>
+        </div>
       </div>
 
       <!-- Bottom Bar with Expand Button and Last Updated -->
@@ -302,6 +308,25 @@
         const feedingStatus = data.feeding_in_progress ? "On" : "Off";
         document.getElementById("feeding-status-local").textContent = feedingStatus;
         updateFeedingButtons("local", data.feeding_in_progress ? "on" : "off");
+
+        // Update plant info
+        document.getElementById("plant-name-local").textContent = plant.name || "N/A";
+        document.getElementById("plant-start-date-local").textContent = plant.start_date || "N/A";
+        let weeksElapsed = "N/A";
+        if (plant.start_date) {
+          try {
+            const startDate = new Date(plant.start_date);
+            if (!isNaN(startDate.getTime())) {
+              const now = new Date();
+              const diffMs = now - startDate;
+              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+              weeksElapsed = Math.floor(diffDays / 7);
+            }
+          } catch (e) {
+            console.error("[LOCAL] Error parsing start_date:", e);
+          }
+        }
+        document.getElementById("plant-weeks-local").textContent = weeksElapsed;
       });
   
       // 3) Optionally fetch /api/settings to discover remote zones
@@ -442,6 +467,12 @@
                 <button id="feeding-on-${zoneId}">On</button>
                 <button id="feeding-off-${zoneId}">Off</button>
               </div>
+            </div>
+            <div class="toggle-group">
+              <label>Plant Info</label>
+              <div>Name: <span id="plant-name-${zoneId}">N/A</span></div>
+              <div>Start Date: <span id="plant-start-date-${zoneId}">N/A</span></div>
+              <div>Weeks Elapsed: <span id="plant-weeks-${zoneId}">N/A</span></div>
             </div>
           </div>
 
@@ -613,6 +644,25 @@
           const feedingStatus = data.feeding_in_progress ? "On" : "Off";
           document.getElementById(`feeding-status-${zoneId}`).textContent = feedingStatus;
           updateFeedingButtons(zoneId, data.feeding_in_progress ? "on" : "off");
+
+          // Update plant info
+          document.getElementById(`plant-name-${zoneId}`).textContent = plant.name || "N/A";
+          document.getElementById(`plant-start-date-${zoneId}`).textContent = plant.start_date || "N/A";
+          let weeksElapsed = "N/A";
+          if (plant.start_date) {
+            try {
+              const startDate = new Date(plant.start_date);
+              if (!isNaN(startDate.getTime())) {
+                const now = new Date();
+                const diffMs = now - startDate;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                weeksElapsed = Math.floor(diffDays / 7);
+              }
+            } catch (e) {
+              console.error(`[REMOTE ${host}] Error parsing start_date:`, e);
+            }
+          }
+          document.getElementById(`plant-weeks-${zoneId}`).textContent = weeksElapsed;
         });
 
         // Add expand/collapse logic for this remote zone

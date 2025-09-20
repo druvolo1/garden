@@ -19,7 +19,7 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.78"
+PROGRAM_VERSION = "1.0.79"
 
 feeding_in_progress = False
 
