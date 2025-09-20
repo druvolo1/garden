@@ -370,4 +370,21 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
             return
 
-        _socketio.emit("status_update", status_payload,
+        _socketio.emit("status_update", status_payload, namespace="/status")
+        LAST_EMITTED_STATUS = status_payload
+
+    except Exception as e:
+        log_with_timestamp(f"Error in emit_status_update: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+class StatusNamespace(Namespace):
+    def on_connect(self, auth=None):
+        log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
+        global LAST_EMITTED_STATUS
+        LAST_EMITTED_STATUS = None  # Force first update when a client connects
+        emit_status_update(force_emit=True)
+
+    def on_disconnect(self):
+        log_with_timestamp("StatusNamespace: Client disconnected.")
