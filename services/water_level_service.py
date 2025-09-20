@@ -238,6 +238,7 @@ def get_water_level_status():
     return status
 
 import api.settings
+from services.notification_service import _send_telegram_and_discord
 
 def monitor_water_level_sensors():
     global _last_sensor_state
@@ -262,6 +263,7 @@ def monitor_water_level_sensors():
                 if fill_triggered:
                     print("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
+                    _send_telegram_and_discord("Auto filling is complete.")
 
             # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
@@ -274,6 +276,7 @@ def monitor_water_level_sensors():
                     if not api.settings.feeding_in_progress:
                         print("[WaterLevel] Turning on fill for auto")
                         turn_on_fill_valve()
+                        _send_telegram_and_discord("Auto filling was triggered.")
                     else:
                         print("[WaterLevel] Not turning on fill for auto because feeding is in progress")
 
