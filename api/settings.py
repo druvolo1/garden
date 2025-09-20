@@ -19,7 +19,9 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.77"
+PROGRAM_VERSION = "1.0.78"
+
+feeding_in_progress = False
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
@@ -94,6 +96,7 @@ def get_settings():
     settings = load_settings()
     # Inject our code-based version
     settings["program_version"] = PROGRAM_VERSION
+    settings["feeding_in_progress"] = feeding_in_progress
     return jsonify(settings)
 
 
