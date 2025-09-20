@@ -218,7 +218,7 @@ def get_water_level_status():
             triggered = False
             if pin is not None:
                 sensor_state = GPIO.input(pin)
-                triggered = (sensor_state == 1)
+                triggered = (sensor_state == 0)  # Inverted for NC: low (0) = triggered = no water / 'Not Present'
                 print(f"[WaterLevel] Sensor {sensor_key} ({label}) pin {pin} state {sensor_state} triggered {triggered}")
             status[sensor_key] = {
                 "label": label,
