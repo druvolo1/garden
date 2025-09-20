@@ -243,6 +243,7 @@ def monitor_water_level_sensors():
         current_state = get_water_level_status()
         print("[WaterLevel] Current state:", current_state)
         if current_state != _last_sensor_state:
+            previous_state = _last_sensor_state
             _last_sensor_state = current_state
             settings = load_settings()
 
@@ -263,9 +264,9 @@ def monitor_water_level_sensors():
             # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
                 auto_triggered = current_state[auto_fill_key]["triggered"]
-                last_auto_triggered = _last_sensor_state.get(auto_fill_key, {"triggered": False})["triggered"]
+                last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
-                print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "fill_triggered=", fill_triggered)
+                print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
                     print("[WaterLevel] Turning on fill for auto")
                     turn_on_fill_valve()
