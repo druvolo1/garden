@@ -3,21 +3,26 @@
 # This script pulls the latest code & dependencies, then restarts garden.service.
 # Using "restart" means the app only goes offline briefly at the very end.
 
-# Figure out which directory this script resides in (assumes script is in the garden dir):
+# Figure out which directory this script resides in:
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# We'll store logs in the same folder:
-LOGFILE="${SCRIPTDIR}/garden_update.log"
-
-# Redirect all script output (stdout & stderr) to both the console and the log file.
-exec > >(tee -a "$LOGFILE") 2>&1
 
 # Dynamically detect the current user and group (assumes script run as app user)
 APP_USER=$(whoami)
 APP_GROUP=$(id -gn "$APP_USER")
 
-# Set garden dir to where the script is
-GARDEN_DIR="$SCRIPTDIR"
+# cd to script dir first to reliably find git root
+cd "$SCRIPTDIR" || { echo "[$(date)] Failed to cd to $SCRIPTDIR"; exit 1; }
+
+# Find the git project root
+GARDEN_DIR=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "[$(date)] Cannot find git project root"; exit 1; }
+
+# We'll store logs in the project root:
+LOGFILE="${GARDEN_DIR}/garden_update.log"
+
+# Redirect all script output (stdout & stderr) to both the console and the log file.
+exec > >(tee -a "$LOGFILE") 2>&1
+
+# cd to project root
 cd "$GARDEN_DIR" || { echo "[$(date)] Failed to cd to $GARDEN_DIR"; exit 1; }
 
 # Check if venv exists
