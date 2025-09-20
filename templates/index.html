@@ -21,15 +21,33 @@
       background: none;
       border: none;
       cursor: pointer;
-      font-size: 1em;
+      font-size: 0.8em;
       color: #ccc;
+      padding: 0;
+      margin: 0;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .extra-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 10px;
       margin-top: 10px;
-      padding: 10px;
+    }
+    .toggle-group {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 8px 12px;
       background: #222;
-      border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      min-width: 150px;
+      box-sizing: border-box;
     }
     .bottom-bar {
       display: flex;
@@ -42,6 +60,7 @@
       display: flex;
       gap: 8px;
       justify-content: flex-start; /* Align left, not full width */
+      margin-top: 4px;
     }
   </style>
 </head>
@@ -106,7 +125,7 @@
         <!-- Fill Valve Controls -->
         <div id="local-fill-container" style="display:none;">
           <label>Fill Valve: <span id="local-fill-status">Off</span></label>
-          <div style="display:flex; gap:8px; margin-top:4px;">
+          <div class="button-group">
             <button id="local-fill-on" disabled>On</button>
             <button id="local-fill-off" disabled>Off</button>
           </div>
@@ -115,7 +134,7 @@
         <!-- Drain Valve Controls -->
         <div id="local-drain-container" style="display:none;">
           <label>Drain Valve: <span id="local-drain-status">Off</span></label>
-          <div style="display:flex; gap:8px; margin-top:4px;">
+          <div class="button-group">
             <button id="local-drain-on" disabled>On</button>
             <button id="local-drain-off" disabled>Off</button>
           </div>
@@ -124,10 +143,12 @@
 
       <!-- Extra Controls (Hidden by Default) -->
       <div id="extra-controls-local" class="extra-controls" style="display:none;">
-        <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
-        <div class="button-group">
-          <button id="feeding-on-local">On</button>
-          <button id="feeding-off-local">Off</button>
+        <div class="toggle-group">
+          <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
+          <div class="button-group">
+            <button id="feeding-on-local">On</button>
+            <button id="feeding-off-local">Off</button>
+          </div>
         </div>
       </div>
 
@@ -399,14 +420,14 @@
             </div>
             <div style="display:none;" id="${zoneId}-fill-container">
               <label>Fill Valve: <span id="${zoneId}-fill-status">Off</span></label>
-              <div style="display:flex; gap:8px; margin-top:4px;">
+              <div class="button-group">
                 <button id="${zoneId}-fill-on" disabled>On</button>
                 <button id="${zoneId}-fill-off" disabled>Off</button>
               </div>
             </div>
             <div style="display:none;" id="${zoneId}-drain-container">
               <label>Drain Valve: <span id="${zoneId}-drain-status">Off</span></label>
-              <div style="display:flex; gap:8px; margin-top:4px;">
+              <div class="button-group">
                 <button id="${zoneId}-drain-on" disabled>On</button>
                 <button id="${zoneId}-drain-off" disabled>Off</button>
               </div>
@@ -415,10 +436,12 @@
 
           <!-- Extra Controls (Hidden by Default) -->
           <div id="extra-controls-${zoneId}" class="extra-controls" style="display:none;">
-            <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
-            <div class="button-group">
-              <button id="feeding-on-${zoneId}">On</button>
-              <button id="feeding-off-${zoneId}">Off</button>
+            <div class="toggle-group">
+              <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
+              <div class="button-group">
+                <button id="feeding-on-${zoneId}">On</button>
+                <button id="feeding-off-${zoneId}">Off</button>
+              </div>
             </div>
           </div>
 
@@ -612,7 +635,7 @@
         const extraDiv = document.getElementById(`extra-controls-${zoneId}`);
         const expandBtn = document.getElementById(`expand-${zoneId}`);
         if (extraDiv.style.display === "none") {
-          extraDiv.style.display = "block";
+          extraDiv.style.display = "flex";
           expandBtn.textContent = "▲";
         } else {
           extraDiv.style.display = "none";
