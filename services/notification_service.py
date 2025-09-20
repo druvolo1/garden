@@ -3,7 +3,6 @@ import threading
 import requests
 
 from utils.settings_utils import load_settings  # Adjust if needed
-import api.settings
 
 _notifications_lock = threading.Lock()
 _notifications = {}  # Current "snapshot" of device/key states
@@ -119,6 +118,7 @@ def get_all_notifications():
 
 
 def handle_notification_transition(device: str, key: str, old_state: str, new_state: str, message: str):
+    import api.settings
     if api.settings.feeding_in_progress:
         log_notify_debug(f"[DEBUG] Feeding in progress; skipping notification transition for {device}/{key}.")
         return
@@ -248,6 +248,7 @@ def report_condition_error(device: str, condition_key: str, message: str):
        report_condition_error("ph_probe", "unrealistic_reading",
            "Unrealistic pH reading (0.0). Probe may be disconnected.")
     """
+    import api.settings
     if api.settings.feeding_in_progress:
         log_notify_debug(f"[DEBUG] Feeding in progress; skipping condition error report for {device}/{condition_key}.")
         return
