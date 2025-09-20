@@ -501,3 +501,21 @@ def telegram_webhook():
     except Exception as ex:
         return jsonify({"status": "failure", "error": f"Exception sending Telegram message: {ex}"}), 400
 
+@settings_blueprint.route('/feeding_status', methods=['POST'])
+def update_feeding_status():
+    """
+    Update the feeding_in_progress variable.
+    POST JSON like:
+    {
+      "in_progress": true
+    }
+    """
+    global feeding_in_progress
+    data = request.get_json() or {}
+    in_progress = data.get("in_progress")
+    if not isinstance(in_progress, bool):
+        return jsonify({"status": "failure", "error": "Invalid or missing 'in_progress' boolean."}), 400
+
+    feeding_in_progress = in_progress
+    emit_status_update()
+    return jsonify({"status": "success", "feeding_in_progress": feeding_in_progress})
