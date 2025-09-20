@@ -36,8 +36,6 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
-from api.settings import feeding_in_progress
-
 
 def is_debug_enabled(component):
     """Check if debugging is enabled for a specific component."""
@@ -348,6 +346,7 @@ def emit_status_update(force_emit=False):
         # -----------------------------------------------------------
         #  7) Build final payload
         # -----------------------------------------------------------
+        from api.settings import feeding_in_progress
         status_payload = {
             "settings":     settings,
             "current_ph":   get_latest_ph_reading(),
