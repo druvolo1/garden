@@ -87,7 +87,9 @@ if not os.path.exists(SETTINGS_FILE):
 
             "telegram_enabled": False,
             "telegram_bot_token": "",
-            "telegram_chat_id": ""
+            "telegram_chat_id": "",
+
+            "auto_fill_sensor": "disabled"
         }, f, indent=4)
 
 
@@ -169,7 +171,7 @@ def update_settings():
 
     # If water-level pins changed, re-init them
     if water_sensors_updated:
-        from services.water_level_service import force_cleanup_and_init
+        from utils.water_level_utils import force_cleanup_and_init
         force_cleanup_and_init()
 
     # If auto-dosing changed, reset the auto-dose timer
@@ -251,7 +253,9 @@ def reset_settings():
 
         # Also reset Discord to default
         "discord_enabled": False,
-        "discord_webhook_url": ""
+        "discord_webhook_url": "",
+
+        "auto_fill_sensor": "disabled"
     }
     save_settings(default_settings)
 
