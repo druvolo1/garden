@@ -224,7 +224,7 @@ def get_water_level_status():
             triggered = False
             if pin is not None:
                 sensor_state = GPIO.input(pin)
-                triggered = (sensor_state == 1)  # Inverted for NC: low (0) = triggered = no water / 'Not Present'
+                triggered = (sensor_state == 0)  # Inverted for NC: low (0) = triggered = no water / 'Not Present'
                 log_water_level(f"[WaterLevel] Sensor {sensor_key} ({label}) pin {pin} state {sensor_state} triggered {triggered}")
             status[sensor_key] = {
                 "label": label,
@@ -266,11 +266,11 @@ def monitor_water_level_sensors():
             if fill_sensor_key in current_state:
                 fill_triggered = current_state[fill_sensor_key]["triggered"]
                 log_water_level(f"[WaterLevel] Fill safety check: fill_triggered={fill_triggered}")
-                if fill_triggered:
+                if not fill_triggered:
                     log_water_level("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
-                    #if not api.settings.feeding_in_progress:
-                        #_send_telegram_and_discord("Auto filling is complete.")
+                    if not api.settings.feeding_in_progress:
+                        _send_telegram_and_discord("Auto filling is complete.")
 
             # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
@@ -278,7 +278,7 @@ def monitor_water_level_sensors():
                 last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 log_water_level(f"[WaterLevel] Auto fill check: auto_triggered={auto_triggered} last_auto_triggered={last_auto_triggered} fill_triggered={fill_triggered}")
-                if last_auto_triggered and not auto_triggered and not fill_triggered:
+                if not last_auto_triggered and auto_triggered and not fill_triggered:
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
                         log_water_level("[WaterLevel] Turning on fill for auto")
