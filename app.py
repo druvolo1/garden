@@ -291,7 +291,7 @@ try:
     print("[WSGI] Background threads started successfully.")
 
     s = load_settings()
-    system_name = s.get("system_name", "Pool")
+    system_name = s.get("system_name", "Garden")
 
     # 1) Register the system_name-pc mDNS (hostname-based)
     # register_mdns_pc_hostname(system_name, service_port=8000)

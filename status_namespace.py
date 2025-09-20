@@ -16,6 +16,7 @@ from services.ec_service import get_latest_ec_reading
 from utils.settings_utils import load_settings
 from services.auto_dose_state import auto_dose_state
 from services.plant_service import get_weeks_since_start
+from services.plant_service import get_weeks_since_start
 from services.notification_service import get_all_notifications
 
 _socketio = None
@@ -34,6 +35,8 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
+
+from api.settings import feeding_in_progress
 
 
 def is_debug_enabled(component):
@@ -351,6 +354,7 @@ def emit_status_update(force_emit=False):
             "current_ec":   get_latest_ec_reading(),
             "valve_info":   valve_info,
             "water_level":  water_level_info,  # <--- RE-ADDED LINE
+            "feeding_in_progress": feeding_in_progress,
             # ... any additional fields ...
         }
 
@@ -366,21 +370,4 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
             return
 
-        _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload
-
-    except Exception as e:
-        log_with_timestamp(f"Error in emit_status_update: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-class StatusNamespace(Namespace):
-    def on_connect(self, auth=None):
-        log_with_timestamp(f"StatusNamespace: Client connected. auth={auth}")
-        global LAST_EMITTED_STATUS
-        LAST_EMITTED_STATUS = None  # Force first update when a client connects
-        emit_status_update(force_emit=True)
-
-    def on_disconnect(self):
-        log_with_timestamp("StatusNamespace: Client disconnected.")
+        _socketio.emit("status_update", status_payload,
