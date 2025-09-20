@@ -20,7 +20,6 @@ from utils.settings_utils import load_settings
 _pins_lock = threading.Lock()
 _pins_inited = False
 _last_sensor_state = {}
-_last_settings = {}
 
 
 def load_water_level_sensors():
@@ -268,7 +267,7 @@ def monitor_water_level_sensors():
                 last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
-                if last_auto_triggered and not auto_triggered and not fill_triggered:
+                if not last_auto_triggered and auto_triggered and not fill_triggered:
                     print("[WaterLevel] Turning on fill for auto")
                     turn_on_fill_valve()
 
