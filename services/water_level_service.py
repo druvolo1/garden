@@ -111,6 +111,54 @@ def turn_off_fill_valve():
         except Exception as ex:
             print(f"[ERROR] Remote fill valve OFF failed: {ex}")
 
+def turn_on_fill_valve():
+    """
+    Checks settings to see if fill_valve is 'local' or 'remote',
+    then calls the correct approach to turn it ON.
+    """
+    settings = load_settings()
+    fill_mode = settings.get("fill_valve_mode", "local")  # or "remote"
+    fill_valve_id_str = settings.get("fill_valve")        # e.g. "1"
+    fill_valve_label  = settings.get("fill_valve_label")  # e.g. "Fill 4"
+
+    if fill_mode == "local":
+        # Use the local approach
+        if not fill_valve_id_str:
+            print("[ERROR] fill_valve is not set, can't turn on locally.")
+            return
+        try:
+            numeric_id = int(fill_valve_id_str)
+            print(f"[DEBUG] Turning ON fill valve locally, valve_id={numeric_id}")
+            turn_on_valve_local(numeric_id)
+        except Exception as ex:
+            print(f"[ERROR] turn_on_fill_valve local failed: {ex}")
+    else:
+        # Remote approach: see if we have fill_valve_ip
+        fill_ip = settings.get("fill_valve_ip", "")
+        if not fill_ip:
+            print("[ERROR] fill_valve_mode=remote but no fill_valve_ip is configured.")
+            return
+        final_ip = standardize_host_ip(fill_ip)
+        if final_ip:
+            fill_ip = final_ip
+        if not fill_valve_label:
+            # fallback to something
+            fill_valve_label = "FillValve"
+        # Now do exactly what your old code does: call the “IP approach”
+        url = f"http://{fill_ip}:8000/api/valve_relay/{fill_valve_label}/on"
+        try:
+            resp = requests.post(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "success":
+                    print(f"[DEBUG] Fill valve ON success (remote).")
+                else:
+                    print(f"[ERROR] Fill valve ON remote error: {data.get('error')}")
+            else:
+                print(f"[ERROR] Fill valve ON returned HTTP {resp.status_code}")
+        except Exception as ex:
+            print(f"[ERROR] Remote fill valve ON failed: {ex}")
+
 
 def turn_off_drain_valve():
     """
@@ -160,6 +208,8 @@ def get_water_level_status():
     sensors = load_water_level_sensors()
     ensure_pins_inited()
 
+    print("[WaterLevel] Fetching sensor states...")
+
     status = {}
     if GPIO:
         for sensor_key, cfg in sensors.items():
@@ -168,7 +218,8 @@ def get_water_level_status():
             triggered = False
             if pin is not None:
                 sensor_state = GPIO.input(pin)
-                triggered = (sensor_state == 1)
+                triggered = (sensor_state == 0)  # Inverted for NC: low (0) = triggered = no water / 'Not Present'
+                print(f"[WaterLevel] Sensor {sensor_key} ({label}) pin {pin} state {sensor_state} triggered {triggered}")
             status[sensor_key] = {
                 "label": label,
                 "pin": pin,
@@ -177,6 +228,7 @@ def get_water_level_status():
     else:
         # Mock environment: assume all sensors are "not triggered"
         for sensor_key, cfg in sensors.items():
+            print(f"[WaterLevel] Mock sensor {sensor_key} ({cfg.get('label', sensor_key)}) triggered False")
             status[sensor_key] = {
                 "label": cfg.get("label", sensor_key),
                 "pin": cfg.get("pin"),
@@ -189,24 +241,43 @@ def monitor_water_level_sensors():
     global _last_sensor_state
     while True:
         current_state = get_water_level_status()
+        print("[WaterLevel] Current state:", current_state)
         if current_state != _last_sensor_state:
+            previous_state = _last_sensor_state
             _last_sensor_state = current_state
             settings = load_settings()
 
             fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
             drain_sensor_key = settings.get("drain_sensor", "sensor3")
+            auto_fill_key = settings.get("auto_fill_sensor", "disabled")
 
-            # If fill sensor is no longer triggered => we want to turn off fill valve
+            print("[WaterLevel] State changed. Settings: fill_sensor=", fill_sensor_key, "drain_sensor=", drain_sensor_key, "auto_fill=", auto_fill_key)
+
+            # For safety: always turn off fill if fill_sensor triggered
             if fill_sensor_key in current_state:
                 fill_triggered = current_state[fill_sensor_key]["triggered"]
-                if not fill_triggered:
-                    # call our new turn_off_fill_valve
+                last_fill_triggered = previous_state.get(fill_sensor_key, {"triggered": False})["triggered"]
+                print("[WaterLevel] Fill safety check: fill_triggered=", fill_triggered)
+                if not last_fill_triggered and fill_triggered:
+                    print("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
+
+            # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
+            if auto_fill_key != "disabled" and auto_fill_key in current_state:
+                auto_triggered = current_state[auto_fill_key]["triggered"]
+                last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
+                fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
+                print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
+                if last_auto_triggered and not auto_triggered and not fill_triggered:
+                    print("[WaterLevel] Turning on fill for auto")
+                    turn_on_fill_valve()
 
             # If drain sensor is triggered => we want to turn off drain valve
             if drain_sensor_key in current_state:
                 drain_triggered = current_state[drain_sensor_key]["triggered"]
+                print("[WaterLevel] Drain check: drain_triggered=", drain_triggered)
                 if drain_triggered:
+                    print("[WaterLevel] Turning off drain due to empty sensor")
                     turn_off_drain_valve()
 
             from status_namespace import emit_status_update
