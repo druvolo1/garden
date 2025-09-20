@@ -155,7 +155,7 @@ def start_threads():
     eventlet.spawn(power_control_main_loop)
 
     # Water level monitoring
-    from utils.water_level_utils import monitor_water_level_sensors
+    from services.water_level_service import monitor_water_level_sensors
     log_with_timestamp("Spawning water level sensor monitor…")
     eventlet.spawn(monitor_water_level_sensors)
 
