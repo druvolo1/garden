@@ -1,7 +1,7 @@
 import threading
 import time
 import requests
-import datetime
+from datetime import datetime
 
 # Import your new helper
 from utils.network_utils import standardize_host_ip
