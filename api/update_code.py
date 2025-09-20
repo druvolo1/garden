@@ -8,9 +8,15 @@ from flask import Blueprint, jsonify
 
 update_code_blueprint = Blueprint("update_code", __name__)
 
-# Path to your script INSIDE the garden project:
-# e.g. /home/dave/garden/scripts/garden_update.sh
-SCRIPT_PATH = "/home/dave/garden/scripts/garden_update.sh"
+# Dynamically determine the project root (assuming this file is in api/update_code.py)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Path to your script INSIDE the project:
+# e.g. scripts/garden_update.sh relative to PROJECT_ROOT
+SCRIPT_PATH = os.path.join(PROJECT_ROOT, "scripts", "garden_update.sh")
+
+# Path to venv pip
+VENV_PIP = os.path.join(PROJECT_ROOT, "venv", "bin", "pip")
 
 
 def ensure_script_executable(script_path: str):
@@ -70,46 +76,45 @@ def pull_no_restart():
     2) git pull
     3) pip install -r requirements.txt
     (No service restart)
+    Continues to install requirements even if git pull fails.
     """
     steps_output = []
+    errors = []
     try:
         # 1) Hard reset: discards all local changes before pulling
-        out, err = run_cmd(["git", "reset", "--hard"], cwd="/home/dave/garden")
+        out, err = run_cmd(["git", "reset", "--hard"], cwd=PROJECT_ROOT)
         steps_output.append(out)
         if err:
-            return jsonify({
-                "status": "failure",
-                "error": err,
-                "output": "\n".join(steps_output)
-            }), 500
+            errors.append(err)
 
-        # 2) Pull latest changes
-        out, err = run_cmd(["git", "pull"], cwd="/home/dave/garden")
+        # 2) Pull latest changes (continue even if fails)
+        out, err = run_cmd(["git", "pull"], cwd=PROJECT_ROOT)
         steps_output.append(out)
         if err:
-            return jsonify({
-                "status": "failure",
-                "error": err,
-                "output": "\n".join(steps_output)
-            }), 500
+            errors.append(err)
 
         # 3) Install any new requirements
+        req_path = os.path.join(PROJECT_ROOT, "requirements.txt")
         out, err = run_cmd(
-            ["/home/dave/garden/venv/bin/pip", "install", "-r", "requirements.txt"],
-            cwd="/home/dave/garden"
+            [VENV_PIP, "install", "-r", req_path],
+            cwd=PROJECT_ROOT
         )
         steps_output.append(out)
         if err:
+            errors.append(err)
+
+        combined_error = "\n".join(errors) if errors else None
+        if combined_error:
             return jsonify({
                 "status": "failure",
-                "error": err,
+                "error": combined_error,
                 "output": "\n".join(steps_output)
             }), 500
-
-        return jsonify({
-            "status": "success",
-            "output": "\n".join(steps_output)
-        })
+        else:
+            return jsonify({
+                "status": "success",
+                "output": "\n".join(steps_output)
+            })
     except Exception as ex:
         steps_output.append(str(ex))
         return jsonify({
