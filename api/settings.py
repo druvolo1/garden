@@ -44,7 +44,7 @@ if not os.path.exists(SETTINGS_FILE):
                 "valve_relay": None,
                 "ec_meter": None
             },
-            "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
+            "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
 
             # The local usb-based labels for a physically attached relay board
@@ -155,6 +155,13 @@ def update_settings():
         current_settings["power_controls"] = new_settings["power_controls"]
         del new_settings["power_controls"]
 
+    # Merge pump_calibration if present
+    if "pump_calibration" in new_settings:
+        if "pump_calibration" not in current_settings:
+            current_settings["pump_calibration"] = {}
+        current_settings["pump_calibration"].update(new_settings["pump_calibration"])
+        del new_settings["pump_calibration"]
+
     # 4) Merge everything else (system_name, fill_valve, fill_valve_label, etc.)
     #    This includes our new Discord fields if present: "discord_enabled", "discord_webhook_url"
     current_settings.update(new_settings)
@@ -210,7 +217,7 @@ def reset_settings():
             "valve_relay": None,
             "ec_meter": None
         },
-        "pump_calibration": {"pump1": 0.5, "pump2": 0.5},
+        "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
         "relay_ports": {"ph_up": 1, "ph_down": 2},
 
         # water valve assignment
