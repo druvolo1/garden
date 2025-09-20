@@ -4,6 +4,7 @@ import eventlet
 from services.ph_service import get_latest_ph_reading
 from services.pump_relay_service import turn_on_relay, turn_off_relay
 from api.settings import load_settings
+from api.settings import feeding_in_progress
 from services.log_service import log_dosing_event
 from services.dosing_state import state  # CHANGED: Import the singleton instance instead of individual globals
 from services.water_level_service import get_water_level_status  # Added import for water level check
@@ -30,6 +31,7 @@ def get_dosage_info():
     feedback_down = ""
 
     if current_ph < ph_target:
+        # pH is too low – we need to raise it (dispense pH up)
         ph_diff = ph_target - current_ph
         calculated_up = ph_up_strength * ph_diff * system_volume
         if max_dosing_amount > 0 and calculated_up > max_dosing_amount:
@@ -46,6 +48,7 @@ def get_dosage_info():
             ph_up_amount = calculated_up
 
     if current_ph > ph_target:
+        # pH is too high – we need to lower it (dispense pH down)
         ph_diff = current_ph - ph_target
         calculated_down = ph_down_strength * ph_diff * system_volume
         if max_dosing_amount > 0 and calculated_down > max_dosing_amount:
@@ -87,6 +90,9 @@ def perform_auto_dose(settings):
     and dispenses pH Up if the value is below the minimum or pH Down if above the maximum.
     Returns a tuple (direction, dose_ml) if a dose is performed, otherwise ("none", 0.0).
     """
+    if feeding_in_progress:
+        print("[AutoDosing] Feeding in progress; skipping auto-dose.")
+        return ("none", 0.0)
     ph_value = get_latest_ph_reading()
     if ph_value is None:
         print("[AutoDosing] No pH reading available; skipping auto-dose.")

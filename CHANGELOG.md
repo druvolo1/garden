@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.78] - 2025-09-20
 - added "feeding in progress" to prevent ph from adjusting during feeding and logs from recording
 - modified index page to have drop down with additional buttons
+- added ability to save pump calibration dates for dosing pumps
 
 ## [1.0.77] - 2025-08-15
 - fixed install script for permissions
