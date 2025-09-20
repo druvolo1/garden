@@ -237,6 +237,8 @@ def get_water_level_status():
 
     return status
 
+import api.settings
+
 def monitor_water_level_sensors():
     global _last_sensor_state
     while True:
@@ -268,7 +270,8 @@ def monitor_water_level_sensors():
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 print("[WaterLevel] Auto fill check: auto_triggered=", auto_triggered, "last_auto_triggered=", last_auto_triggered, "fill_triggered=", fill_triggered)
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
-                    if not feeding_in_progress:
+                    print("[WaterLevel] Checking feeding_in_progress value:", api.settings.feeding_in_progress)
+                    if not api.settings.feeding_in_progress:
                         print("[WaterLevel] Turning on fill for auto")
                         turn_on_fill_valve()
                     else:
