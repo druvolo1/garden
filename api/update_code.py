@@ -15,8 +15,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # e.g. scripts/garden_update.sh relative to PROJECT_ROOT
 SCRIPT_PATH = os.path.join(PROJECT_ROOT, "scripts", "garden_update.sh")
 
-# Path to venv pip
-VENV_PIP = os.path.join(PROJECT_ROOT, "venv", "bin", "pip")
+# Path to venv and venv pip
+VENV_PATH = os.path.join(PROJECT_ROOT, "venv")
+VENV_PIP = os.path.join(VENV_PATH, "bin", "pip")
 
 
 def ensure_script_executable(script_path: str):
@@ -69,12 +70,42 @@ def run_cmd(cmd_list, cwd=None):
         return ("\n".join(logs), err_str)
 
 
+def ensure_venv_ownership(venv_path: str, user_group: str = "dave:dave"):
+    """
+    Check if the venv is owned by the specified user:group; if not, run sudo chown -R.
+    This avoids unnecessary sudo calls.
+    """
+    # Get current owner/group
+    stat_info = os.stat(venv_path)
+    current_uid = stat_info.st_uid
+    current_gid = stat_info.st_gid
+
+    # Get target user/group IDs (from current user for simplicity, or hardcoded)
+    import pwd
+    import grp
+    target_user = user_group.split(":")[0]
+    target_group = user_group.split(":")[1]
+    target_uid = pwd.getpwnam(target_user).pw_uid
+    target_gid = grp.getgrnam(target_group).gr_gid
+
+    if current_uid != target_uid or current_gid != target_gid:
+        print(f"[INFO] Fixing venv ownership: sudo chown -R {user_group} {venv_path}")
+        out, err = run_cmd(["sudo", "chown", "-R", user_group, venv_path])
+        if err:
+            raise RuntimeError(f"Failed to chown venv: {err}")
+        return out
+    else:
+        print("[INFO] Venv ownership is correct; skipping chown.")
+        return None
+
+
 @update_code_blueprint.route("/pull_no_restart", methods=["POST"])
 def pull_no_restart():
     """
     1) git reset --hard
     2) git pull
-    3) pip install -r requirements.txt
+    3) chown venv (if needed)
+    4) pip install -r requirements.txt
     (No service restart)
     Continues to install requirements even if git pull fails.
     """
@@ -93,7 +124,12 @@ def pull_no_restart():
         if err:
             errors.append(err)
 
-        # 3) Install any new requirements
+        # 3) Ensure venv ownership before pip install
+        chown_out = ensure_venv_ownership(VENV_PATH)
+        if chown_out:
+            steps_output.append(chown_out)
+
+        # 4) Install any new requirements
         req_path = os.path.join(PROJECT_ROOT, "requirements.txt")
         out, err = run_cmd(
             [VENV_PIP, "install", "-r", req_path],

@@ -53,15 +53,22 @@ def main():
 
     # 4) Create & activate a virtual environment
     if not os.path.isdir("/home/dave/garden/venv"):
-        print("\n=== Creating virtual environment ===")
-        run_command(["python3", "-m", "venv", "/home/dave/garden/venv"],
+        print("\n=== Creating virtual environment as user dave ===")
+        run_command(["sudo", "-u", "dave", "python3", "-m", "venv", "/home/dave/garden/venv"],
                     "Create Python venv in /home/dave/garden/venv")
     else:
         print("\n=== venv already exists. Skipping creation. ===")
 
-    # 5) Upgrade pip & install requirements
-    run_command(["/home/dave/garden/venv/bin/pip", "install", "--upgrade", "pip"],
+    # 5) Upgrade pip & install requirements (run as dave)
+    run_command(["sudo", "-u", "dave", "/home/dave/garden/venv/bin/pip", "install", "--upgrade", "pip"],
                 "Upgrade pip in the venv")
+
+requirements_file = "/home/dave/garden/requirements.txt"
+if os.path.isfile(requirements_file):
+    run_command(["sudo", "-u", "dave", "/home/dave/garden/venv/bin/pip", "install", "-r", requirements_file],
+                "Install Python dependencies from requirements.txt")
+else:
+    print(f"\n=== {requirements_file} not found! Skipping pip install -r. ===")
 
     requirements_file = "/home/dave/garden/requirements.txt"
     if os.path.isfile(requirements_file):
