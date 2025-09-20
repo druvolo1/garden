@@ -21,33 +21,26 @@
       background: none;
       border: none;
       cursor: pointer;
-      font-size: 0.8em; /* Smaller size */
+      font-size: 1.2em;
       color: #ccc;
-      margin-right: 8px; /* Space before last updated */
+      margin-left: auto; /* Push to the right if needed */
     }
     .extra-controls {
       margin-top: 10px;
       padding: 10px;
       background: #222;
       border-radius: 8px;
-      display: none; /* Hidden by default */
     }
-    .sub-container {
-      margin-bottom: 10px;
-      padding: 8px;
-      background: #333;
-      border-radius: 4px;
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
     }
     .button-group {
       display: flex;
       gap: 8px;
       justify-content: flex-start; /* Align left, not full width */
-    }
-    .bottom-bar {
-      display: flex;
-      justify-content: flex-start; /* Align left for expand + last updated */
-      align-items: center;
-      margin-top: 10px;
     }
   </style>
 </head>
@@ -129,22 +122,18 @@
       </div>
 
       <!-- Extra Controls (Hidden by Default) -->
-      <div id="extra-controls-local" class="extra-controls">
-        <!-- Sub-container for Feeding -->
-        <div class="sub-container">
-          <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
-          <div class="button-group">
-            <button id="feeding-on-local">On</button>
-            <button id="feeding-off-local">Off</button>
-          </div>
+      <div id="extra-controls-local" class="extra-controls" style="display:none;">
+        <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
+        <div class="button-group">
+          <button id="feeding-on-local">On</button>
+          <button id="feeding-off-local">Off</button>
         </div>
-        <!-- Add more sub-containers here for future buttons -->
       </div>
 
-      <!-- Bottom Bar with Expand Button and Last Updated -->
+      <!-- Bottom Bar with Last Updated and Expand Button -->
       <div class="bottom-bar">
-        <button id="expand-local" class="expand-btn">▼</button>
         <div class="last-updated" id="local-last-updated">Last updated: Never</div>
+        <button id="expand-local" class="expand-btn">▼</button>
       </div>
     </section>
     
@@ -421,22 +410,18 @@
           </div>
 
           <!-- Extra Controls (Hidden by Default) -->
-          <div id="extra-controls-${zoneId}" class="extra-controls">
-            <!-- Sub-container for Feeding -->
-            <div class="sub-container">
-              <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
-              <div class="button-group">
-                <button id="feeding-on-${zoneId}">On</button>
-                <button id="feeding-off-${zoneId}">Off</button>
-              </div>
+          <div id="extra-controls-${zoneId}" class="extra-controls" style="display:none;">
+            <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
+            <div class="button-group">
+              <button id="feeding-on-${zoneId}">On</button>
+              <button id="feeding-off-${zoneId}">Off</button>
             </div>
-            <!-- Add more sub-containers here for future buttons -->
           </div>
 
-          <!-- Bottom Bar with Expand Button and Last Updated -->
+          <!-- Bottom Bar with Last Updated and Expand Button -->
           <div class="bottom-bar">
-            <button id="expand-${zoneId}" class="expand-btn">▼</button>
             <div class="last-updated" id="${zoneId}-last-updated">Last updated: Never</div>
+            <button id="expand-${zoneId}" class="expand-btn">▼</button>
           </div>
         `;
         document.getElementById("remote-zones").appendChild(container);
@@ -611,11 +596,14 @@
         document.getElementById(`feeding-off-${zoneId}`).addEventListener("click", () => setFeeding(zoneId, host, false));
       }
   
+      // Add expand/collapse logic for local
+      document.getElementById("expand-local").addEventListener("click", () => toggleExtra("local"));
+
       // Function to toggle extra controls
       function toggleExtra(zoneId) {
         const extraDiv = document.getElementById(`extra-controls-${zoneId}`);
         const expandBtn = document.getElementById(`expand-${zoneId}`);
-        if (extraDiv.style.display === "none" || extraDiv.style.display === "") {
+        if (extraDiv.style.display === "none") {
           extraDiv.style.display = "block";
           expandBtn.textContent = "▲";
         } else {
