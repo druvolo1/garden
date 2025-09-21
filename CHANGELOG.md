@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.81] - 2025-09-21
+- added 2 hours timeout for "Feeding in Progress"
+
 ## [1.0.80] - 2025-09-21
 - added API command to toggle valve by name
 

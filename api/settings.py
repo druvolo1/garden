@@ -4,6 +4,7 @@ import os
 import subprocess
 import stat
 from datetime import datetime
+import threading
 
 from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
@@ -19,9 +20,10 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.80"
+PROGRAM_VERSION = "1.0.81"
 
 feeding_in_progress = False
+feeding_timer = None
 
 # Ensure the settings file exists with default values
 if not os.path.exists(SETTINGS_FILE):
@@ -492,7 +494,7 @@ def telegram_webhook():
     # Example: let's just assume we store it in the settings:
     chat_id = settings.get("telegram_chat_id", "").strip()
     if not chat_id:
-        return jsonify({"status": "failure", "error": "No Telegram chat_id is configured"}), 400
+        return jupytext({"status": "failure", "error": "No Telegram chat_id is configured"}), 400
 
     # Attempt to send a message via raw POST
     try:
@@ -512,6 +514,12 @@ def telegram_webhook():
     except Exception as ex:
         return jsonify({"status": "failure", "error": f"Exception sending Telegram message: {ex}"}), 400
 
+def reset_feeding_status():
+    global feeding_in_progress, feeding_timer
+    feeding_in_progress = False
+    feeding_timer = None
+    emit_status_update()
+
 @settings_blueprint.route('/feeding_status', methods=['POST'])
 def update_feeding_status():
     """
@@ -521,12 +529,23 @@ def update_feeding_status():
       "in_progress": true
     }
     """
-    global feeding_in_progress
+    global feeding_in_progress, feeding_timer
     data = request.get_json() or {}
     in_progress = data.get("in_progress")
     if not isinstance(in_progress, bool):
         return jsonify({"status": "failure", "error": "Invalid or missing 'in_progress' boolean."}), 400
 
-    feeding_in_progress = in_progress
+    if in_progress:
+        if feeding_timer:
+            feeding_timer.cancel()
+        feeding_timer = threading.Timer(7200, reset_feeding_status)  # 2 hours = 7200 seconds
+        feeding_timer.start()
+        feeding_in_progress = True
+    else:
+        if feeding_timer:
+            feeding_timer.cancel()
+            feeding_timer = None
+        feeding_in_progress = False
+
     emit_status_update()
     return jsonify({"status": "success", "feeding_in_progress": feeding_in_progress})
