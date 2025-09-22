@@ -506,8 +506,9 @@ def get_latest_ph_reading():
 
     with ph_lock:
         if latest_ph_value is not None:
-            log_with_timestamp(f"[DEBUG] get_latest_ph_reading() -> returning {latest_ph_value}")
-            return latest_ph_value
+            rounded_ph = round(latest_ph_value, 2)
+            log_with_timestamp(f"[DEBUG] get_latest_ph_reading() -> returning {rounded_ph}")
+            return rounded_ph
 
     log_with_timestamp("[DEBUG] get_latest_ph_reading() -> no pH reading available.")
     return None
