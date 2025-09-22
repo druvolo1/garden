@@ -791,6 +791,7 @@
         document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
         document.getElementById('system-volume').value = settings.system_volume || '';
         document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+        document.getElementById('allow-remote-feeding').checked = !!settings.allow_remote_feeding;
         // System Info
         const plantInfo = settings.plant_info || {};
         document.getElementById('system-name').value = settings.system_name || '';
