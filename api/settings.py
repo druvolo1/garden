@@ -91,6 +91,7 @@ if not os.path.exists(SETTINGS_FILE):
             "telegram_bot_token": "",
             "telegram_chat_id": "",
 
+            "allow_remote_feeding": False,
             "auto_fill_sensor": "disabled"
         }, f, indent=4)
 
@@ -257,6 +258,7 @@ def reset_settings():
         "discord_enabled": False,
         "discord_webhook_url": "",
 
+        "allow_remote_feeding": False,
         "auto_fill_sensor": "disabled"
     }
     save_settings(default_settings)
@@ -494,7 +496,7 @@ def telegram_webhook():
     # Example: let's just assume we store it in the settings:
     chat_id = settings.get("telegram_chat_id", "").strip()
     if not chat_id:
-        return jupytext({"status": "failure", "error": "No Telegram chat_id is configured"}), 400
+        return jsonify({"status": "failure", "error": "No Telegram chat_id is configured"}), 400
 
     # Attempt to send a message via raw POST
     try:

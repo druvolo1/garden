@@ -71,7 +71,7 @@
       <!-- USB Device Assignment -->
       <div class="data-container">
         <h2>Assign USB Devices</h2>
-    
+   
         <!-- pH Probe Form -->
         <form id="ph-form">
           <label for="ph-device">pH Probe:</label>
@@ -80,7 +80,7 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-      
+     
         <!-- Link that goes to Calibration - hidden by default and not blue -->
         <a id="ph-calibration-link"
            href="/calibration"
@@ -91,7 +91,7 @@
                   cursor: pointer;">
            Click here for Calibration
         </a>
-    
+   
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
@@ -100,7 +100,7 @@
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-    
+   
         <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
           <label for="valve-relay-device">Valve Relay Module:</label>
@@ -109,7 +109,7 @@
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-      
+     
         <!-- Link that goes to Valves page - hidden by default and not blue -->
         <a id="valve-relay-link"
            href="/valves"
@@ -120,7 +120,7 @@
                   cursor: pointer;">
            Click here to Manage Valves
         </a>
-    
+   
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
@@ -160,6 +160,9 @@
           <input type="number" id="system-volume" step=".1">
           <label for="auto-dosing">Auto-Dosing Enabled:</label>
           <input type="checkbox" id="auto-dosing">
+          
+          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
+          <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
         </form>
       </div>
@@ -398,7 +401,7 @@
       <!-- Import / Export Settings Section -->
       <div class="data-container">
         <h2>Import / Export Settings</h2>
-      
+     
         <!-- Export button -->
         <p>Download a copy of the current settings.json:</p>
         <button id="export-btn">Export Settings</button>
@@ -1000,7 +1003,8 @@
         max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
         dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
         system_volume: parseFloat(document.getElementById('system-volume').value),
-        auto_dosing_enabled: document.getElementById('auto-dosing').checked
+        auto_dosing_enabled: document.getElementById('auto-dosing').checked,
+        allow_remote_feeding: document.getElementById('allow-remote-feeding').checked
       };
       saveSettings("/api/settings/", payload);
     });
