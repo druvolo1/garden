@@ -38,7 +38,7 @@ User={user}
 WorkingDirectory={garden_dir}
 
 # Use bash so we can 'source' the venv
-ExecStart=/bin/bash -c 'cd {garden_dir} && source venv/bin/activate && gunicorn --config gunicorn_config.py -w 1 -k eventlet wsgi:app --bind 0.0.0.0:8000 --log-level=debug'
+ExecStart=/bin/bash -c 'cd {garden_dir} && source venv/bin/activate && gunicorn -w 1 -k eventlet wsgi:app --bind 0.0.0.0:8000 --log-level=debug'
 
 # Automatically restart if it crashes
 Restart=always
