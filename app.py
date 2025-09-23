@@ -120,10 +120,10 @@ def broadcast_status():
 def auto_dose_loop():
     while True:
         settings = load_settings()
+        dosing_interval_hours = settings.get("dosing_interval", 1.0)  # Define outside the if, with a default
         if settings.get("auto_dosing_enabled", False):
-            dosing_interval_hours = settings.get("dosing_interval", 1.0)
             perform_auto_dose(settings)
-        eventlet.sleep(dosing_interval_hours * 3600)  # Convert hours to seconds
+        eventlet.sleep(dosing_interval_hours * 3600)  # Now always safe to use
 
 def start_threads():
     settings = load_settings()

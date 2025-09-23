@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.83] - 2025-09-22
+- fixed error loading auto dosing loop time at start
+
 ## [1.0.82] - 2025-09-21
 - added option for "Remote Feeding" in settings
 - fixed websocket for PH to be rouded to 2 decimal places instead of 3 thus reducing socket updates
