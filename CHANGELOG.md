@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.83] - 2025-09-22
 - fixed error loading auto dosing loop time at start
 - fixed first run script that was referencing old gunicorn config file no longer being used
+- added ahavi mdns to first run script to fix dns issues in the virtual environment.
 
 ## [1.0.82] - 2025-09-21
 - added option for "Remote Feeding" in settings

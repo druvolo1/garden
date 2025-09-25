@@ -1,6 +1,3 @@
-###############################################################################
-# app.py
-###############################################################################
 import socket
 import eventlet
 eventlet.monkey_patch()
@@ -112,10 +109,10 @@ def broadcast_status():
     while True:
         try:
             emit_status_update()
-            eventlet.sleep(5)
+            eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
-            eventlet.sleep(5)
+            eventlet.sleep(1)
 
 def auto_dose_loop():
     while True:

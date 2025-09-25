@@ -52,8 +52,8 @@ WantedBy=multi-user.target
     run_command(["apt-get", "upgrade", "-y"], "apt-get upgrade")
 
     # 3) Install needed packages
-    run_command(["apt-get", "install", "-y", "git", "python3", "python3-venv", "python3-pip"],
-                "Install Git, Python 3, venv, pip")
+    run_command(["apt-get", "install", "-y", "git", "python3", "python3-venv", "python3-pip", "avahi-utils"],
+                "Install Git, Python 3, venv, pip, and avahi-utils for mDNS")
 
     # Note: We are NOT cloning the repo here,
     # because you indicated you already did a git pull.
