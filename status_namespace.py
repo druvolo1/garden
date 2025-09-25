@@ -5,7 +5,7 @@ import socket
 import subprocess
 import json
 import os
-
+import requests
 
 # Import DNS helpers from your new file:
 from utils.network_utils import standardize_host_ip, resolve_mdns
@@ -15,7 +15,6 @@ from services.ph_service import get_latest_ph_reading
 from services.ec_service import get_latest_ec_reading
 from utils.settings_utils import load_settings
 from services.auto_dose_state import auto_dose_state
-from services.plant_service import get_weeks_since_start
 from services.plant_service import get_weeks_since_start
 from services.notification_service import get_all_notifications
 
@@ -36,7 +35,6 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
-
 def is_debug_enabled(component):
     """Check if debugging is enabled for a specific component."""
     try:
@@ -51,24 +49,18 @@ def is_debug_enabled(component):
         print(f"[ERROR] Could not parse {DEBUG_SETTINGS_FILE}. Check the JSON formatting.")
         return False
 
-
 def log_with_timestamp(msg):
     """Prints log messages only if debugging is enabled for WebSocket (websocket)."""
     if is_debug_enabled("websocket"):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
-
 
 import socket
 
 def get_local_ip_addresses():
     """
     Return a set of IPv4 addresses on this machine using only stdlib getaddrinfo().
-    This often enumerates all interfaces that the OS has bound (including WiFi, LAN, etc.).
     """
     local_ips = set()
-    
-    # getaddrinfo(None, 0, ...) with AI_PASSIVE typically enumerates all addresses
-    # that this machine can bind to for IPv4. We filter for family=AF_INET.
     try:
         addrinfo_list = socket.getaddrinfo(
             None,
@@ -78,17 +70,12 @@ def get_local_ip_addresses():
             proto=0,
             flags=socket.AI_PASSIVE
         )
-        # Each addrinfo is (family, socktype, proto, canonname, (ip, port))
         for addrinfo in addrinfo_list:
             ip = addrinfo[4][0]
             local_ips.add(ip)
     except socket.gaierror:
         pass
-    
-    # Optionally also add the loopback
     local_ips.add("127.0.0.1")
-    
-    # You can also incorporate the gethostbyname_ex() approach if you want:
     try:
         hostname = socket.gethostname()
         host_info = socket.gethostbyname_ex(hostname)
@@ -96,24 +83,15 @@ def get_local_ip_addresses():
             local_ips.add(ip)
     except socket.gaierror:
         pass
-    
     return local_ips
 
 def is_local_host(host: str, local_names=None):
     """
     Decide if `host` is local or truly remote, using only the standard library.
-
-    1) If empty / 'localhost' / '127.0.0.1', treat as local.
-    2) If matches an optional local_names list or <something>.local, treat as local.
-    3) If IP is in get_local_ip_addresses(), treat as local.
-    4) Otherwise, treat as remote.
     """
-    # If no host, or explicitly localhost/127.0.0.1
     if not host or host.lower() in ("localhost", "127.0.0.1"):
         log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (empty/localhost)")
         return True
-
-    # If local_names are provided, check them
     if local_names:
         host_lower = host.lower()
         for ln in local_names:
@@ -121,17 +99,12 @@ def is_local_host(host: str, local_names=None):
             if host_lower == ln_lower or host_lower == f"{ln_lower}.local":
                 log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (matched {ln_lower}.local)")
                 return True
-
-    # Compare against the IPs known to be on this device
     local_ips = get_local_ip_addresses()
     if host in local_ips:
         log_with_timestamp(f"[DEBUG] is_local_host({host}) -> True (found in local IP list)")
         return True
-
-    # Otherwise, not local
     log_with_timestamp(f"[DEBUG] is_local_host({host}) -> False")
     return False
-
 
 def connect_to_remote_if_needed(remote_ip):
     """
@@ -141,15 +114,10 @@ def connect_to_remote_if_needed(remote_ip):
     if not remote_ip:
         log_with_timestamp("[DEBUG] connect_to_remote_if_needed called with empty remote_ip")
         return
-    
-    # 1) If it's local, skip
     if is_local_host(remote_ip):
         log_with_timestamp(f"[DEBUG] Not connecting to local IP '{remote_ip}' to avoid loop.")
         return
-    
-    original_name = remote_ip  # Preserve .local for stored data
-
-    # Resolve .local names **only** for connection
+    original_name = remote_ip
     resolved_ip = remote_ip
     if remote_ip.endswith(".local"):
         mdns_ip = resolve_mdns(remote_ip)
@@ -159,8 +127,6 @@ def connect_to_remote_if_needed(remote_ip):
         else:
             log_with_timestamp(f"[ERROR] Could not resolve {remote_ip}. Skipping connection.")
             return
-
-    # Check if already connected
     if resolved_ip in REMOTE_CLIENTS:
         log_with_timestamp(f"[DEBUG] Already connected to {resolved_ip}, checking for updates...")
         if not get_cached_remote_states(original_name):
@@ -169,28 +135,22 @@ def connect_to_remote_if_needed(remote_ip):
             del REMOTE_CLIENTS[resolved_ip]
         else:
             return
-
     log_with_timestamp(f"[AGG] Creating new Socket.IO client for remote {resolved_ip}")
     sio = socketio.Client(logger=False, engineio_logger=False)
-
     @sio.event
     def connect():
         log_with_timestamp(f"[AGG] Connected to remote {resolved_ip}")
-
     @sio.event
     def disconnect():
         log_with_timestamp(f"[AGG] Disconnected from remote {resolved_ip}")
-
     @sio.event
     def connect_error(data):
         log_with_timestamp(f"[AGG] Connect error for remote {resolved_ip}: {data}")
-
     @sio.on("status_update", namespace="/status")
     def on_remote_status_update(data):
-        REMOTE_STATES[original_name] = data  # store under the original .local name
+        REMOTE_STATES[original_name] = data
         log_with_timestamp(f"[AGG] on_remote_status_update from {original_name}, keys: {list(data.keys())}")
         emit_status_update(force_emit=True)
-
     url = f"http://{resolved_ip}:8000"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
@@ -198,7 +158,6 @@ def connect_to_remote_if_needed(remote_ip):
         REMOTE_CLIENTS[resolved_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {resolved_ip}: {e}")
-
 
 def get_cached_remote_states(remote_ip):
     """
@@ -208,21 +167,16 @@ def get_cached_remote_states(remote_ip):
     if not remote_ip:
         log_with_timestamp("[DEBUG] get_cached_remote_states called with empty/None remote_ip. Skipping.")
         return {}
-
     if remote_ip.endswith(".local"):
         resolved_ip = resolve_mdns(remote_ip)
     else:
         resolved_ip = remote_ip
-
     data = REMOTE_STATES.get(remote_ip, REMOTE_STATES.get(resolved_ip, {}))
-
     if data:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> found keys: {list(data.keys())}")
     else:
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
-
-
 
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
@@ -289,17 +243,26 @@ def emit_status_update(force_emit=False):
                     local_valve_map[label] = st or "off"
 
         # -----------------------------------------------------------
-        #  4) Gather any remote valve statuses (because fill/drain could be remote)
+        #  4) Gather any remote valve statuses (actively poll if remote)
         # -----------------------------------------------------------
         remote_valve_map = {}
         for ip_addr in [fill_ip, drain_ip]:
-            if ip_addr:
-                remote_data   = get_cached_remote_states(ip_addr)
-                valve_info    = remote_data.get("valve_info", {})
-                r_valves      = valve_info.get("valve_relays", {})
-                # Merge them into remote_valve_map by label
-                for lbl, state_dict in r_valves.items():
-                    remote_valve_map[lbl] = state_dict.get("status", "off")
+            if ip_addr and (fill_mode == "remote" or drain_mode == "remote"):
+                resolved_ip = standardize_host_ip(ip_addr) or ip_addr
+                try:
+                    status_url = f"http://{resolved_ip}:8000/api/settings"
+                    status_resp = requests.get(status_url, timeout=2)
+                    if status_resp.status_code == 200:
+                        remote_data = status_resp.json()
+                        valve_info = remote_data.get("valve_info", {})
+                        r_valves = valve_info.get("valve_relays", {})
+                        for lbl, state_dict in r_valves.items():
+                            remote_valve_map[lbl] = state_dict.get("status", "off")
+                        REMOTE_STATES[ip_addr] = remote_data  # Update cache
+                    else:
+                        log_with_timestamp(f"[ERROR] Failed to poll {resolved_ip}: HTTP {status_resp.status_code}")
+                except Exception as e:
+                    log_with_timestamp(f"[ERROR] Polling {resolved_ip} failed: {e}")
 
         # -----------------------------------------------------------
         #  5) Build final valve_relays: fill + drain if assigned, OR all 8 if no local assignment
@@ -328,55 +291,70 @@ def emit_status_update(force_emit=False):
 
         # Build the final valve_info
         valve_info = {
-            "fill_valve_ip":    fill_ip,
-            "fill_valve":       fill_id,
+            "fill_valve_ip": fill_ip,
+            "fill_valve": fill_id,
             "fill_valve_label": fill_label,
-            "drain_valve_ip":   drain_ip,
-            "drain_valve":      drain_id,
+            "drain_valve_ip": drain_ip,
+            "drain_valve": drain_id,
             "drain_valve_label": drain_label,
-            "valve_relays":     valve_relays
+            "valve_relays": valve_relays
         }
 
         # -----------------------------------------------------------
         #  6) ADD: Water level sensors
         # -----------------------------------------------------------
         from services.water_level_service import get_water_level_status
-        water_level_info = get_water_level_status()  # <--- from water_level_service.py
+        water_level_info = get_water_level_status()
 
         # -----------------------------------------------------------
         #  7) Build final payload
         # -----------------------------------------------------------
         from api.settings import feeding_in_progress
         status_payload = {
-            "settings":     settings,
-            "current_ph":   get_latest_ph_reading(),
-            "current_ec":   get_latest_ec_reading(),
-            "valve_info":   valve_info,
-            "water_level":  water_level_info,  # <--- RE-ADDED LINE
+            "settings": settings,
+            "current_ph": get_latest_ph_reading(),
+            "current_ec": get_latest_ec_reading(),
+            "valve_info": valve_info,
+            "water_level": water_level_info,
             "feeding_in_progress": feeding_in_progress,
-            # ... any additional fields ...
         }
 
-        # (Optional) Compare to LAST_EMITTED_STATUS, skip if no changes, etc.
+        # Enhanced change detection: Check specific fields for updates
+        should_emit = force_emit
         if not force_emit and LAST_EMITTED_STATUS is not None:
-            for key in status_payload:
-                old_val = LAST_EMITTED_STATUS.get(key)
-                new_val = status_payload[key]
-                if new_val != old_val:
-                    log_with_timestamp(f"[DEBUG] '{key}' changed from {old_val} to {new_val}")
+            # Compare valve_relays
+            last_valve_relays = LAST_EMITTED_STATUS.get("valve_info", {}).get("valve_relays", {})
+            current_valve_relays = valve_relays
+            valve_changed = any(
+                last_valve_relays.get(lbl, {}).get("status") != current_valve_relays.get(lbl, {}).get("status")
+                for lbl in set(last_valve_relays.keys()) | set(current_valve_relays.keys())
+            )
 
-        if not force_emit and LAST_EMITTED_STATUS == status_payload:
+            # Compare water_level
+            last_water_level = LAST_EMITTED_STATUS.get("water_level", {})
+            current_water_level = water_level_info
+            water_level_changed = any(
+                last_water_level.get(sensor, {}).get("triggered") != current_water_level.get(sensor, {}).get("triggered")
+                for sensor in set(last_water_level.keys()) | set(current_water_level.keys())
+            )
+
+            # Emit if valves or water levels changed, even if pH or other fields are static
+            should_emit = valve_changed or water_level_changed or status_payload != LAST_EMITTED_STATUS
+
+            if should_emit:
+                log_with_timestamp(f"[DEBUG] Change detected: valve={valve_changed}, water_level={water_level_changed}, full_payload={status_payload != LAST_EMITTED_STATUS}")
+
+        if should_emit:
+            _socketio.emit("status_update", status_payload, namespace="/status")
+            LAST_EMITTED_STATUS = status_payload
+            log_with_timestamp(f"[DEBUG] Emitted status_update: {status_payload}")
+        else:
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
-            return
-
-        _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
-
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
