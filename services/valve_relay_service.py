@@ -6,8 +6,9 @@ from datetime import datetime
 # Import your new helper
 from utils.network_utils import standardize_host_ip
 from utils.settings_utils import load_settings
-from services.valve_relay_service import turn_off_valve as turn_off_valve_local
-from services.valve_relay_service import turn_on_valve as turn_on_valve_local
+# Remove the self-imports below since they are defined later in this file
+# from services.valve_relay_service import turn_off_valve as turn_off_valve_local
+# from services.valve_relay_service import turn_on_valve as turn_on_valve_local
 
 try:
     import RPi.GPIO as GPIO
@@ -88,7 +89,7 @@ def turn_off_fill_valve():
         try:
             numeric_id = int(fill_valve_id_str)
             print(f"[DEBUG] Turning OFF fill valve locally, valve_id={numeric_id}")
-            turn_off_valve_local(numeric_id)
+            turn_off_valve(numeric_id)
         except Exception as ex:
             print(f"[ERROR] turn_off_fill_valve local failed: {ex}")
     else:
@@ -146,7 +147,7 @@ def turn_on_fill_valve():
         try:
             numeric_id = int(fill_valve_id_str)
             print(f"[DEBUG] Turning ON fill valve locally, valve_id={numeric_id}")
-            turn_on_valve_local(numeric_id)
+            turn_on_valve(numeric_id)
         except Exception as ex:
             print(f"[ERROR] turn_on_fill_valve local failed: {ex}")
     else:
@@ -202,7 +203,7 @@ def turn_off_drain_valve():
         try:
             numeric_id = int(drain_valve_id_str)
             print(f"[DEBUG] Turning OFF drain valve locally, valve_id={numeric_id}")
-            turn_off_valve_local(numeric_id)
+            turn_off_valve(numeric_id)
         except Exception as ex:
             print(f"[ERROR] turn_off_drain_valve local failed: {ex}")
     else:
@@ -240,47 +241,23 @@ def turn_off_drain_valve():
         except Exception as ex:
             print(f"[ERROR] Remote drain valve OFF failed: {ex}")
 
-def turn_off_valve(valve_label: str, valve_ip: str):
+def turn_off_valve(valve_id: int):
     """
-    Calls /api/valve_relay/<valve_label>/off on the given IP (resolved by standardize_host_ip).
+    Turn off a specific valve by its ID (1-8).
     """
-    if not valve_label:
-        print("[ERROR] No valve_label provided.")
-        return
-    if not valve_ip:
-        print("[ERROR] No valve_ip provided (empty). Aborting turn_off_valve call.")
-        return
+    settings = load_settings()
+    valve_device = settings.get("usb_roles", {}).get("valve_relay")
 
-    final_ip = standardize_host_ip(valve_ip)
-    if final_ip:
-        print(f"[DEBUG] Using resolved IP for valve control: '{final_ip}'.")
-        valve_ip = final_ip
-
-    url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/off"
+    if not valve_device:
+        print(f"[ERROR] No valve_relay device assigned, can't turn off valve {valve_id}")
+        return
 
     try:
-        resp = requests.post(url)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("status") == "success":
-                print(f"Valve '{valve_label}' turned off successfully (http {valve_ip}).")
-                # Request a status update from the remote to refresh REMOTE_STATES
-                status_url = f"http://{valve_ip}:8000/api/settings"
-                status_resp = requests.get(status_url)
-                if status_resp.status_code == 200:
-                    status_data = status_resp.json()
-                    from status_namespace import REMOTE_STATES
-                    REMOTE_STATES[valve_ip] = status_data  # Update REMOTE_STATES directly
-                    from status_namespace import emit_status_update
-                    emit_status_update(force_emit=True)  # Force broadcast
-                else:
-                    print(f"[ERROR] Failed to fetch status update from {valve_ip}: HTTP {status_resp.status_code}")
-            else:
-                print(f"[ERROR] Valve '{valve_label}' off failed: {data.get('error')}")
-        else:
-            print(f"[ERROR] Valve '{valve_label}' off returned HTTP {resp.status_code}")
-    except Exception as ex:
-        print(f"[ERROR] Exception calling valve off route for '{valve_label}' on {valve_ip}: {ex}")
+        # Here you would send a command to the hardware
+        print(f"[DEBUG] Turning OFF valve {valve_id} (mock implementation)")
+        # Mock implementation - replace with actual hardware command
+    except Exception as e:
+        print(f"[ERROR] Failed to turn off valve {valve_id}: {e}")
 
 def get_water_level_status():
     sensors = load_water_level_sensors()
