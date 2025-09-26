@@ -1,12 +1,10 @@
-# File: services/valve_relay_service.py
-
 import os
 import json
 import eventlet
 import serial
 from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
-from status_namespace import emit_status_update, is_debug_enabled  
+from status_namespace import emit_status_update, is_debug_enabled
 from datetime import datetime
 
 # 8-channel ON commands
@@ -47,9 +45,8 @@ stop_event_instance = None  # an Event to signal the polling thread to stop
 
 def log_with_timestamp(msg):
     """Logs messages only if debugging is enabled for valve_relay_service."""
-    if is_debug_enabled("valve_relay_service"): 
+    if is_debug_enabled("valve_relay_service"):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
-
 
 def get_valve_device_path():
     with open(SETTINGS_FILE, "r") as f:
@@ -89,19 +86,19 @@ def parse_hardware_response(response):
     and updates valve_status accordingly.
     Expected response (example): {0x01}{0x00}{0x00}{0x00}{0x00}{0x00}{0x00}{0x01}{0xFF}
     """
-    log_with_timestamp(f"[Valve] parse_hardware_response got raw: {response.hex(' ')}")
+    if is_debug_enabled("valve_relay_service"):
+        log_with_timestamp(f"[Valve] parse_hardware_response received raw: {response.hex(' ')}")
 
     if not response:
+        log_with_timestamp("[Valve] parse_hardware_response: Empty response, skipping update.")
         return
     data = response[:8]
     for i in range(1, 9):
         idx = i - 1
         valve_status[i] = "on" if idx < len(data) and data[idx] == 1 else "off"
     
-    log_with_timestamp(f"[Valve] Updated valve_status: {valve_status}")
-
-# 1) At the top, import emit_status_update so we can call it:
-from status_namespace import emit_status_update
+    if is_debug_enabled("valve_relay_service"):
+        log_with_timestamp(f"[Valve] Updated valve_status: {valve_status}")
 
 def valve_polling_loop():
     global valve_ser
@@ -117,10 +114,10 @@ def valve_polling_loop():
                 eventlet.sleep(0.05)
                 response = valve_ser.read(10)
                 
-                # Keep a copy of the old statuses:
+                # Keep a copy of the old statuses
                 old_status_snapshot_before = dict(valve_status)
                 
-                # parse the new response
+                # Parse the new response
                 parse_hardware_response(response)
 
                 # Compare old vs. new
@@ -128,11 +125,16 @@ def valve_polling_loop():
                 for i in range(1, 9):
                     if valve_status[i] != old_status_snapshot_before[i]:
                         something_changed = True
+                        if is_debug_enabled("valve_relay_service"):
+                            log_with_timestamp(f"[Valve] Valve {i} changed from {old_status_snapshot_before[i]} to {valve_status[i]}")
                         break
 
                 if something_changed:
                     log_with_timestamp("[Valve] Detected a local valve status change. Emitting status update.")
                     emit_status_update()
+
+                if is_debug_enabled("valve_relay_service"):
+                    log_with_timestamp(f"[Valve] Polling cycle complete, current valve_status: {valve_status}")
 
             except Exception as e:
                 log_with_timestamp(f"[Valve] Polling error: {e}")
@@ -141,7 +143,6 @@ def valve_polling_loop():
         eventlet.sleep(1)
 
     log_with_timestamp("[Valve] Polling loop exiting.")
-
 
 def init_valve_thread():
     """
@@ -185,6 +186,8 @@ def turn_on_valve(valve_id):
 
     with serial_lock:
         # 1) Send the ON command
+        if is_debug_enabled("valve_relay_service"):
+            log_with_timestamp(f"[Valve] Sending ON command for valve {valve_id}: {VALVE_ON_COMMANDS[valve_id].hex(' ')}")
         valve_ser.write(VALVE_ON_COMMANDS[valve_id])
         # 2) Poll the board to see if it really turned on
         valve_ser.write(b'\xFF')
@@ -192,17 +195,12 @@ def turn_on_valve(valve_id):
         response = valve_ser.read(10)
         parse_hardware_response(response)
 
-    # 3) parse_hardware_response(...) sets valve_status[i] = "on" if successful
-    #    But if the board didn't respond or returned some unexpected data,
-    #    parse_hardware_response might leave it as "off" or "unknown".
-    #    So we check the final outcome:
+    # 3) Check the final outcome
     final_state = valve_status.get(valve_id, "unknown")
     log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested ON).")
 
-    # 4) Now let the rest of the system see the new state:
-    from status_namespace import emit_status_update
+    # 4) Let the rest of the system see the new state
     emit_status_update()
-
 
 def turn_off_valve(valve_id):
     global valve_ser
@@ -212,8 +210,11 @@ def turn_off_valve(valve_id):
         raise RuntimeError("Valve serial port is not open.")
 
     with serial_lock:
+        # 1) Send the OFF command
+        if is_debug_enabled("valve_relay_service"):
+            log_with_timestamp(f"[Valve] Sending OFF command for valve {valve_id}: {VALVE_OFF_COMMANDS[valve_id].hex(' ')}")
         valve_ser.write(VALVE_OFF_COMMANDS[valve_id])
-        # Poll for actual hardware state
+        # 2) Poll for actual hardware state
         valve_ser.write(b'\xFF')
         eventlet.sleep(0.05)
         response = valve_ser.read(10)
@@ -222,9 +223,10 @@ def turn_off_valve(valve_id):
     final_state = valve_status.get(valve_id, "unknown")
     log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested OFF).")
 
-    from status_namespace import emit_status_update
     emit_status_update()
 
-
 def get_valve_status(valve_id):
-    return valve_status.get(valve_id, "unknown")
+    status = valve_status.get(valve_id, "unknown")
+    if is_debug_enabled("valve_relay_service"):
+        log_with_timestamp(f"[Valve] get_valve_status for valve {valve_id}: {status}")
+    return status
