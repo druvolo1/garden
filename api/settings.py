@@ -95,7 +95,6 @@ if not os.path.exists(SETTINGS_FILE):
             "auto_fill_sensor": "disabled"
         }, f, indent=4)
 
-
 @settings_blueprint.route('/check_update', methods=['GET'])
 def check_update():
     try:
