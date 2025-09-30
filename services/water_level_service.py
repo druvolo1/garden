@@ -262,23 +262,23 @@ def monitor_water_level_sensors():
 
             log_water_level(f"[WaterLevel] State changed. Settings: fill_sensor={fill_sensor_key} drain_sensor={drain_sensor_key} auto_fill={auto_fill_key}")
 
-            # For safety: always turn off fill if fill_sensor triggered
+            # For safety: always turn off fill if fill_sensor triggered (full = water present)
             if fill_sensor_key in current_state:
                 fill_triggered = current_state[fill_sensor_key]["triggered"]
                 log_water_level(f"[WaterLevel] Fill safety check: fill_triggered={fill_triggered}")
-                if not fill_triggered:
+                if fill_triggered:
                     log_water_level("[WaterLevel] Turning off fill due to full sensor")
                     turn_off_fill_valve()
                     #if not api.settings.feeding_in_progress:
                         #_send_telegram_and_discord("Auto filling is complete.")
 
-            # For auto fill: if auto_fill_sensor not triggered, and not fill_triggered, turn on fill
+            # For auto fill: if auto_fill_sensor goes from triggered (water) to not triggered (low), and not fill_triggered, turn on fill
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
                 auto_triggered = current_state[auto_fill_key]["triggered"]
-                last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": False})["triggered"]
+                last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": True})["triggered"]  # Default to True for safety
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
                 log_water_level(f"[WaterLevel] Auto fill check: auto_triggered={auto_triggered} last_auto_triggered={last_auto_triggered} fill_triggered={fill_triggered}")
-                if not last_auto_triggered and auto_triggered and fill_triggered:
+                if last_auto_triggered and not auto_triggered and not fill_triggered:
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
                         log_water_level("[WaterLevel] Turning on fill for auto")
@@ -287,12 +287,12 @@ def monitor_water_level_sensors():
                     else:
                         log_water_level("[WaterLevel] Not turning on fill for auto because feeding is in progress")
 
-            # If drain sensor is triggered => we want to turn off drain valve
+            # If drain sensor is not triggered (empty = no water) after being triggered => turn off drain valve
             if drain_sensor_key in current_state:
                 drain_triggered = current_state[drain_sensor_key]["triggered"]
-                last_drain_triggered = previous_state.get(drain_sensor_key, {"triggered": False})["triggered"]
+                last_drain_triggered = previous_state.get(drain_sensor_key, {"triggered": True})["triggered"]  # Default to True for safety
                 log_water_level(f"[WaterLevel] Drain check: drain_triggered={drain_triggered}")
-                if not last_drain_triggered and drain_triggered:
+                if last_drain_triggered and not drain_triggered:
                     log_water_level("[WaterLevel] Turning off drain due to empty sensor")
                     turn_off_drain_valve()
 
