@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.84] - 2025-09-29
+- inverted water sensor feedback to be more logical in backend code
+
 ## [1.0.83] - 2025-09-22
 - fixed error loading auto dosing loop time at start
 - fixed first run script that was referencing old gunicorn config file no longer being used
