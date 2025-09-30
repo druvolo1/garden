@@ -348,13 +348,13 @@
           const triggered = waterLevel[sensorKey]?.triggered ?? null;
           const displayEl = document.getElementById(`${prefix}-sensor${i}-display`);
           if (!displayEl) continue;
-  
+
           if (triggered === null) {
             displayEl.textContent = `${labelKey}: No Data`;
           } else {
-            const iconColor = triggered ? 'yellow' : 'green';
-            const icon = triggered ? '⚠️' : '✅';
-            const statusText = triggered ? 'Not Present' : 'Present';
+            const iconColor = triggered ? 'green' : 'yellow';
+            const icon = triggered ? '✅' : '⚠️';
+            const statusText = triggered ? 'Present' : 'Not Present';
             displayEl.innerHTML = `${labelKey}: <span style="color: ${iconColor};">${icon}</span> ${statusText}`;
           }
         }
