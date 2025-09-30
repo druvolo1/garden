@@ -177,182 +177,83 @@ def update_settings():
         from utils.water_level_utils import force_cleanup_and_init
         force_cleanup_and_init()
 
-    # If auto-dosing changed, reset the auto-dose timer
+    # If auto-dosing changed, reset timer
     if auto_dosing_changed:
         reset_auto_dose_timer()
 
-    # If system_name changed, rename the OS
+    # If system name changed, re-register mDNS
     new_system_name = current_settings.get("system_name", "Garden")
-    if new_system_name != old_system_name:
-        print(f"System name changed from {old_system_name} to {new_system_name}.")
-
-        script_path = os.path.join(os.getcwd(), "scripts", "change_hostname.sh")
-        ensure_script_executable(script_path)
-
-        try:
-            subprocess.run(["sudo", script_path, new_system_name], check=True)
-            print(f"Successfully updated system hostname to {new_system_name}.")
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Unable to change system hostname: {e}")
-
-        emit_status_update()
-        return jsonify({"status": "success", "settings": current_settings})
+    if old_system_name != new_system_name:
+        from utils.mdns_utils import register_mdns_pc_hostname, register_mdns_pure_system_name
+        register_mdns_pc_hostname(new_system_name, service_port=8000)
+        register_mdns_pure_system_name(new_system_name, service_port=8000)
 
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
 
+@settings_blueprint.route('/remove_plant', methods=['POST'])
+def remove_plant():
+    data = request.get_json() or {}
+    index = data.get('index')
+    if index is None:
+        return jsonify({"status": "failure", "error": "No index provided"}), 400
 
-@settings_blueprint.route('/reset', methods=['POST'])
-def reset_settings():
-    """Reset all settings to defaults, including fill_valve_label, etc."""
-    default_settings = {
-        "system_name": "Garden",
-        "ph_range": {"min": 5.5, "max": 6.5},
-        "ph_target": 5.8,
-        "max_dosing_amount": 5,
-        "dosing_interval": 1.0,
-        "system_volume": 5.5,
-        "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-        "auto_dosing_enabled": False,
-        "time_zone": "America/New_York",
-        "daylight_savings_enabled": True,
-        "usb_roles": {
-            "ph_probe": None,
-            "relay": None,
-            "valve_relay": None,
-            "ec_meter": None
-        },
-        "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
-        "relay_ports": {"ph_up": 1, "ph_down": 2},
+    current_settings = load_settings()
+    if 'additional_plants' in current_settings and 0 <= index < len(current_settings['additional_plants']):
+        del current_settings['additional_plants'][index]
+        save_settings(current_settings)
+        return jsonify({"status": "success", "settings": current_settings})
+    else:
+        return jsonify({"status": "failure", "error": "Invalid index"}), 400
 
-        # water valve assignment
-        "fill_valve_ip": "",
-        "fill_valve": "",
-        "fill_valve_label": "",
-        "fill_sensor": "",
-        "drain_valve_ip": "",
-        "drain_valve": "",
-        "drain_valve_label": "",
-        "drain_sensor": "",
+@settings_blueprint.route('/add_plant', methods=['POST'])
+def add_plant():
+    data = request.get_json() or {}
+    new_ip = data.get('new_ip')
+    if not new_ip:
+        return jsonify({"status": "failure", "error": "No new_ip provided"}), 400
 
-        "valve_labels": {
-            "1": "Valve #1",
-            "2": "Valve #2",
-            "3": "Valve #3",
-            "4": "Valve #4",
-            "5": "Valve #5",
-            "6": "Valve #6",
-            "7": "Valve #7",
-            "8": "Valve #8"
-        },
-        "water_level_sensors": {
-            "sensor1": {"label": "Full",  "pin": 17},
-            "sensor2": {"label": "3 Gal", "pin": 18},
-            "sensor3": {"label": "Empty", "pin": 19}
-        },
-        "plant_info": {},
-        "additional_plants": [],
-        "power_controls": [],
-
-        # Also reset Discord to default
-        "discord_enabled": False,
-        "discord_webhook_url": "",
-
-        "allow_remote_feeding": False,
-        "auto_fill_sensor": "disabled"
-    }
-    save_settings(default_settings)
-
-    emit_status_update()
-    return jsonify({"status": "success", "settings": default_settings})
-
+    current_settings = load_settings()
+    if 'additional_plants' not in current_settings:
+        current_settings['additional_plants'] = []
+    current_settings['additional_plants'].append(new_ip)
+    save_settings(current_settings)
+    return jsonify({"status": "success", "settings": current_settings})
 
 @settings_blueprint.route('/usb_devices', methods=['GET'])
 def list_usb_devices():
-    """List local USB devices, remove invalid assignments, emit status."""
+    import subprocess
     devices = []
     try:
-        print("Executing command: ls /dev/serial/by-path")
         result = subprocess.check_output("ls /dev/serial/by-path", shell=True).decode().splitlines()
         devices = [{"device": f"/dev/serial/by-path/{dev}"} for dev in result]
-        print("USB devices found:", devices)
-    except subprocess.CalledProcessError as e:
-        print(f"Error listing USB devices: {e}")
-        devices = []
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        devices = []
-
-    settings = load_settings()
-    usb_roles = settings.get("usb_roles", {})
-    connected_paths = [d["device"] for d in devices]
-    modified = False
-    for role, assigned_device in list(usb_roles.items()):
-        if assigned_device and assigned_device not in connected_paths:
-            usb_roles[role] = None
-            modified = True
-
-    if modified:
-        settings["usb_roles"] = usb_roles
-        save_settings(settings)
-
-    emit_status_update()
+        print(f"Error listing USB devices: {e}")
     return jsonify(devices)
-
 
 @settings_blueprint.route('/assign_usb', methods=['POST'])
 def assign_usb_device():
-    """Assign or clear a USB device for pH probe, dosing relay, valve relay, or ec_meter."""
-    from services.valve_relay_service import init_valve_thread, stop_valve_thread
-
-    data = request.get_json()
+    data = request.get_json() or {}
     role = data.get("role")
     device = data.get("device")
 
     if role not in ["ph_probe", "relay", "valve_relay", "ec_meter"]:
         return jsonify({"status": "failure", "error": "Invalid role"}), 400
 
-    settings = load_settings()
-    old_device = settings.get("usb_roles", {}).get(role)
+    current_settings = load_settings()
+    current_settings.setdefault("usb_roles", {})[role] = device  # Safely create dict if missing
+    save_settings(current_settings)
 
-    if role == "valve_relay" and old_device != device:
-        stop_valve_thread()
-
-    # Clear or set
-    if not device:
-        settings["usb_roles"][role] = None
-    else:
-        # Ensure no duplication
-        for other_role, assigned_dev in settings["usb_roles"].items():
-            if assigned_dev == device and other_role != role:
-                return jsonify({
-                    "status": "failure",
-                    "error": f"Device already assigned to {other_role}"
-                }), 400
-        settings["usb_roles"][role] = device
-
-    save_settings(settings)
-
-    # Re-init logic if needed
-    if role == "ph_probe":
-        from services.ph_service import restart_serial_reader
-        restart_serial_reader()
-    elif role == "relay":
-        from services.pump_relay_service import reinitialize_relay_service
-        reinitialize_relay_service()
-    elif role == "valve_relay" and device:
-        init_valve_thread()
-    # ec_meter has no special logic yet
+    # Reinitialize the valve relay service if device changed
+    reinitialize_relay_service()
 
     emit_status_update()
-    return jsonify({"status": "success", "usb_roles": settings["usb_roles"]})
-
+    return jsonify({"status": "success", "usb_roles": current_settings["usb_roles"]})
 
 @settings_blueprint.route('/system_name', methods=['GET'])
 def get_system_name():
     settings = load_settings()
     return jsonify({"system_name": settings.get("system_name", "Garden")})
-
 
 @settings_blueprint.route('/system_name', methods=['POST'])
 def set_system_name():
@@ -367,7 +268,6 @@ def set_system_name():
 
     return jsonify({"system_name": settings.get("system_name", "Garden")})
 
-
 @settings_blueprint.route('/export', methods=['GET'])
 def export_settings():
     """Download the current settings.json file."""
@@ -377,7 +277,6 @@ def export_settings():
         as_attachment=True,
         download_name='settings.json'
     )
-
 
 @settings_blueprint.route('/import', methods=['POST'])
 def import_settings():
@@ -551,3 +450,7 @@ def update_feeding_status():
 
     emit_status_update()
     return jsonify({"status": "success", "feeding_in_progress": feeding_in_progress})
+
+@settings_blueprint.route('/settings')
+def settings_page():
+    return render_template('settings.html')
