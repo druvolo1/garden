@@ -96,6 +96,57 @@ if not os.path.exists(SETTINGS_FILE):
         }, f, indent=4)
 
 
+@settings_blueprint.route('/check_update', methods=['GET'])
+def check_update():
+    try:
+        project_root = os.getcwd()
+        # Git fetch to update remote refs
+        fetch_proc = subprocess.run(['git', 'fetch'], cwd=project_root, capture_output=True, text=True, timeout=30)
+        if fetch_proc.returncode != 0:
+            return jsonify({"status": "failure", "error": "Failed to fetch updates"}), 500
+
+        # Check status
+        status_proc = subprocess.run(['git', 'status', '-uno'], cwd=project_root, capture_output=True, text=True, timeout=30)
+        git_status = status_proc.stdout.strip()
+        if 'Your branch is behind' in git_status:
+            return jsonify({"status": "success", "update_available": True, "message": "Update available"})
+        else:
+            return jsonify({"status": "success", "update_available": False, "message": "No update available"})
+    except subprocess.TimeoutExpired:
+        return jsonify({"status": "failure", "error": "Check timed out"}), 500
+    except Exception as e:
+        return jsonify({"status": "failure", "error": f"Unexpected error: {str(e)}"}), 500
+
+@settings_blueprint.route('/apply_update', methods=['POST'])
+def apply_update():
+    try:
+        project_root = os.getcwd()
+        venv_pip = os.path.join(project_root, 'venv', 'bin', 'pip')
+        requirements_file = os.path.join(project_root, 'requirements.txt')
+
+        # Git pull
+        git_proc = subprocess.run(['git', 'pull'], cwd=project_root, capture_output=True, text=True, timeout=60)
+        if git_proc.returncode != 0:
+            return jsonify({"status": "failure", "error": "Failed to apply updates"}), 500
+
+        # Pip install if requirements exist
+        if os.path.exists(requirements_file):
+            pip_proc = subprocess.run([venv_pip, 'install', '-r', requirements_file], 
+                                      cwd=project_root, capture_output=True, text=True, timeout=120)
+            if pip_proc.returncode != 0:
+                return jsonify({"status": "failure", "error": "Failed to install dependencies"}), 500
+
+        # Restart the service
+        subprocess.Popen(['sudo', 'systemctl', 'restart', 'garden.service'], 
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=project_root)
+        
+        return jsonify({"status": "success", "message": "Update complete"})
+    except subprocess.TimeoutExpired:
+        return jsonify({"status": "failure", "error": "Update timed out"}), 500
+    except Exception as e:
+        return jsonify({"status": "failure", "error": f"Unexpected error: {str(e)}"}), 500
+
+
 @settings_blueprint.route('/', methods=['GET'])
 def get_settings():
     settings = load_settings()
@@ -250,24 +301,6 @@ def assign_usb_device():
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": current_settings["usb_roles"]})
 
-@settings_blueprint.route('/system_name', methods=['GET'])
-def get_system_name():
-    settings = load_settings()
-    return jsonify({"system_name": settings.get("system_name", "Garden")})
-
-@settings_blueprint.route('/system_name', methods=['POST'])
-def set_system_name():
-    data = request.get_json() or {}
-    system_name = data.get("system_name")
-    settings = load_settings()
-
-    if system_name:
-        settings["system_name"] = system_name
-        save_settings(settings)
-        emit_status_update()
-
-    return jsonify({"system_name": settings.get("system_name", "Garden")})
-
 @settings_blueprint.route('/export', methods=['GET'])
 def export_settings():
     """Download the current settings.json file."""
@@ -277,6 +310,7 @@ def export_settings():
         as_attachment=True,
         download_name='settings.json'
     )
+
 
 @settings_blueprint.route('/import', methods=['POST'])
 def import_settings():

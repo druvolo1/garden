@@ -65,13 +65,21 @@
     </ul>
   </nav>
   <main>
+    <!-- Progress Modal for Updates -->
+    <div id="update-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #333; color: #fff; padding: 20px; border: 1px solid #555; box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 1000; max-width: 80%; max-height: 80%; overflow-y: auto;">
+      <h3 id="update-title">Updating Application...</h3>
+      <div id="update-progress" style="margin: 10px 0; font-family: monospace; white-space: pre-wrap;"></div>
+      <button id="close-modal" onclick="closeUpdateModal()" style="display: none;">Close</button>
+    </div>
+    <div id="overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;"></div>
+
     <h1>Settings</h1>
     <p class="subtitle">Configure your device, dosing, and sensors.</p>
     <div class="settings-grid">
       <!-- USB Device Assignment -->
       <div class="data-container">
         <h2>Assign USB Devices</h2>
-   
+  
         <!-- pH Probe Form -->
         <form id="ph-form">
           <label for="ph-device">pH Probe:</label>
@@ -80,7 +88,7 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-     
+    
         <!-- Link that goes to Calibration - hidden by default and not blue -->
         <a id="ph-calibration-link"
            href="/calibration"
@@ -91,7 +99,7 @@
                   cursor: pointer;">
            Click here for Calibration
         </a>
-   
+  
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
@@ -100,7 +108,7 @@
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-   
+  
         <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
           <label for="valve-relay-device">Valve Relay Module:</label>
@@ -109,7 +117,7 @@
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-     
+    
         <!-- Link that goes to Valves page - hidden by default and not blue -->
         <a id="valve-relay-link"
            href="/valves"
@@ -120,7 +128,7 @@
                   cursor: pointer;">
            Click here to Manage Valves
         </a>
-   
+  
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
@@ -160,7 +168,7 @@
           <input type="number" id="system-volume" step=".1">
           <label for="auto-dosing">Auto-Dosing Enabled:</label>
           <input type="checkbox" id="auto-dosing">
-          
+         
           <label for="allow-remote-feeding">Allow Remote Feeding:</label>
           <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
@@ -391,17 +399,13 @@
       <div class="data-container">
         <h2>Code Update</h2>
         <p>Current Version: <span id="program-version"></span></p>
-        <p>Update code (git pull + pip install) without restarting:</p>
-        <button id="update-only-btn">Update Code (No Restart)</button>
-        <div id="update-only-status"></div>
-        <p>Restart service (pick up new code if any):</p>
-        <button id="restart-service-btn">Restart Service</button>
-        <div id="restart-status"></div>
+        <button onclick="checkForUpdate()">Check for Update</button>
+        <p id="update-status"></p>
       </div>
       <!-- Import / Export Settings Section -->
       <div class="data-container">
         <h2>Import / Export Settings</h2>
-     
+    
         <!-- Export button -->
         <p>Download a copy of the current settings.json:</p>
         <button id="export-btn">Export Settings</button>
@@ -1105,7 +1109,7 @@
         labelSpan.textContent = plant;
         rowDiv.appendChild(labelSpan);
         const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete";
+        delBtn.textContent = "Remove";
         delBtn.onclick = () => deletePlant(plant);
         rowDiv.appendChild(delBtn);
         container.appendChild(rowDiv);
@@ -1140,164 +1144,6 @@
           saveSettings("/api/settings/", { additional_plants: arr });
         })
         .catch(err => console.error("Error deleting plant:", err));
-    }
-    // Code Update (No Restart)
-    document.getElementById('update-only-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to run the software update?")) return;
-      fetch("/api/system/pull_no_restart", { method: "POST" })
-        .then(res => res.json())
-        .then(data => {
-          console.log("Update-only response:", data);
-          const updateOnlyStatus = document.getElementById('update-only-status');
-          if (data.status === "success") {
-            updateOnlyStatus.textContent = "Update-only successful.\n\n" + data.output;
-          } else {
-            updateOnlyStatus.textContent =
-              "Update-only failed:\n" + (data.error || "Unknown error") + "\n\n" + (data.output || "");
-          }
-        })
-        .catch(err => {
-          document.getElementById('update-only-status').textContent = "Fetch error: " + err;
-        });
-    });
-    // Restart Service
-    document.getElementById('restart-service-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to restart the garden.service now?")) {
-        return;
-      }
-      fetch("/api/system/restart", { method: "POST" })
-        .then(() => {
-          document.getElementById('restart-status').textContent =
-            "The program is restarting. Please wait...";
-          setTimeout(() => window.location.reload(), 10000);
-        })
-        .catch(() => {
-          document.getElementById('restart-status').textContent =
-            "Could not contact server. The program may be restarting...";
-          setTimeout(() => window.location.reload(), 10000);
-        });
-    });
-    // POWER OUTLETS SECTION
-    function renderPowerOutlets(powerControls) {
-      const container = document.getElementById('power-outlets-list');
-      container.innerHTML = ""; // Clear old contents
-      powerControls.forEach((outlet, index) => {
-        const card = document.createElement('div');
-        card.classList.add('power-outlet-card');
-        // Title
-        const title = document.createElement('h4');
-        title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
-        card.appendChild(title);
-        // Existing tracked valves
-        const tvList = document.createElement('div');
-        tvList.id = `tv-list-${index}`;
-        (outlet.tracked_valves || []).forEach(tv => {
-          const row = document.createElement('div');
-          row.classList.add('tracked-valve-row');
-          // Show the label if it exists, else fallback to the raw valve_id
-          const displayLabel = tv.valve_label || tv.valve_id;
-          row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${displayLabel}</span>`;
-          const removeBtn = document.createElement('button');
-          removeBtn.textContent = "Remove";
-          removeBtn.addEventListener('click', () => {
-            removeTrackedValve(index, tv.host_ip, tv.valve_id);
-          });
-          row.appendChild(removeBtn);
-          tvList.appendChild(row);
-        });
-        card.appendChild(tvList);
-        // Add new tracked valve form
-        const addDiv = document.createElement('div');
-        addDiv.style.marginTop = "8px";
-        addDiv.innerHTML = `
-          <label>Remote IP: </label>
-          <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
-          <button id="tv-retrieve-btn-${index}">Retrieve</button>
-          <label> Valve:</label>
-          <select id="tv-select-${index}" style="margin-right:6px;">
-            <option value="">Select Valve</option>
-          </select>
-          <button id="tv-add-btn-${index}">Add Valve</button>
-        `;
-        card.appendChild(addDiv);
-        // Delete-outlet button
-        const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete This Outlet";
-        delBtn.style.marginTop = "10px";
-        delBtn.addEventListener('click', () => {
-          removeOutlet(index);
-        });
-        card.appendChild(delBtn);
-        container.appendChild(card);
-        // Attach event listeners
-        const retrieveBtn = document.getElementById(`tv-retrieve-btn-${index}`);
-        const addValveBtn = document.getElementById(`tv-add-btn-${index}`);
-        const ipField = document.getElementById(`tv-ip-${index}`);
-        const valveSelect = document.getElementById(`tv-select-${index}`);
-        if (retrieveBtn) {
-          retrieveBtn.addEventListener('click', () => {
-            const ipVal = (ipField?.value || "").trim();
-            if (!ipVal) return;
-            retrieveValvesFromIP(ipVal, `tv-select-${index}`)
-              .then(vals => console.log("Valves retrieved for outlet:", vals))
-              .catch(err => console.error("Error retrieving valves:", err));
-          });
-        }
-        if (addValveBtn) {
-          addValveBtn.addEventListener('click', () => {
-            const ipVal = (ipField?.value || "").trim();
-            const valveVal = valveSelect?.value || "";
-            if (!ipVal || !valveVal) return;
-            addTrackedValve(index, ipVal, valveVal);
-          });
-        }
-      });
-    }
-    function addTrackedValve(outletIndex, host_ip, valve_id) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (!powerControls[outletIndex]) return;
-          if (!powerControls[outletIndex].tracked_valves) {
-            powerControls[outletIndex].tracked_valves = [];
-          }
-          // Get the label from the selected <option>
-          const theSelect = document.getElementById('tv-select-' + outletIndex);
-          const selectedLabel = theSelect.options[theSelect.selectedIndex].text;
-          // Store both ID and label
-          powerControls[outletIndex].tracked_valves.push({
-            host_ip: host_ip,
-            valve_id: valve_id,
-            valve_label: selectedLabel
-          });
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error adding tracked valve:", err));
-    }
-    function removeOutlet(outletIndex) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (outletIndex < 0 || outletIndex >= powerControls.length) return;
-          powerControls.splice(outletIndex, 1);
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error removing outlet:", err));
-    }
-    function removeTrackedValve(outletIndex, host_ip, valve_id) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (!powerControls[outletIndex]) return;
-          let tv = powerControls[outletIndex].tracked_valves || [];
-          tv = tv.filter(item => !(item.host_ip === host_ip && item.valve_id === valve_id));
-          powerControls[outletIndex].tracked_valves = tv;
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error removing tracked valve:", err));
     }
     // Export
     document.getElementById('export-btn').addEventListener('click', () => {
