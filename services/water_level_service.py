@@ -221,7 +221,7 @@ def get_water_level_status():
         for sensor_key, cfg in sensors.items():
             label = cfg.get("label", sensor_key)
             pin = cfg.get("pin")
-            triggered = False
+            triggered = (sensor_state == 0)  # True if low (0) = water present/contact, False if high (1) = no water / 'Not Present'
             if pin is not None:
                 sensor_state = GPIO.input(pin)
                 triggered = (sensor_state == 1)  # Inverted for NC: low (0) = triggered, (1) is no water / 'Not Present'

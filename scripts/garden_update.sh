@@ -41,13 +41,13 @@ fi
 source venv/bin/activate || { echo "[$(date)] Failed to activate venv"; exit 1; }
 
 echo "[$(date)] Upgrading pip for reliability..."
-pip install --upgrade pip || { echo "[$(date)] Failed to upgrade pip"; exit 1; }
+sudo pip install --upgrade pip || { echo "[$(date)] Failed to upgrade pip"; exit 1; }
 
 echo "[$(date)] Pulling latest code..."
 git pull || { echo "[$(date)] Git pull failed"; exit 1; }
 
 echo "[$(date)] Installing dependencies..."
-pip install -r requirements.txt --no-cache-dir || { echo "[$(date)] Pip install failed"; exit 1; }
+sudo pip install -r requirements.txt --no-cache-dir || { echo "[$(date)] Pip install failed"; exit 1; }
 
 echo "[$(date)] Restarting garden.service..."
 sudo systemctl restart garden.service || { echo "[$(date)] Service restart failed"; exit 1; }
