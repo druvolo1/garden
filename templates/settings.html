@@ -389,11 +389,11 @@
       </div>
       <!-- Code Update / Restart Section -->
       <div class="data-container">
-        <h2>Software Update</h2>
+        <h2>Application Update</h2>
         <p>Current Version: <span id="current-version"></span></p>
         <button id="check-update-btn">Check for Update</button>
         <div id="check-status"></div>
-        <button id="apply-update-btn" disabled>Apply Update and Restart</button>
+        <button id="apply-update-btn" style="display: none;" disabled>Apply Update and Restart</button>
         <div id="apply-status"></div>
       </div>
       <!-- Import / Export Settings Section -->
@@ -1147,7 +1147,10 @@
           const checkStatus = document.getElementById('check-status');
           if (data.status === "success") {
             checkStatus.textContent = data.message;
-            document.getElementById('apply-update-btn').disabled = !data.update_available;
+            if (data.update_available) {
+              document.getElementById('apply-update-btn').style.display = 'block';
+              document.getElementById('apply-update-btn').disabled = false;
+            }
           } else {
             checkStatus.textContent = "Error: " + data.error;
           }
