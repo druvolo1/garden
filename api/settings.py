@@ -20,7 +20,7 @@ settings_blueprint = Blueprint('settings', __name__)
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
-PROGRAM_VERSION = "1.0.85"
+CURRENT_VERSION = "1.0.84"
 
 feeding_in_progress = False
 feeding_timer = None
@@ -145,12 +145,17 @@ def apply_update():
     except Exception as e:
         return jsonify({"status": "failure", "error": f"Unexpected error: {str(e)}"}), 500
 
+@settings_blueprint.route('/update', methods=['POST'])
+def update_application():
+    # Deprecated: Redirect to new endpoints
+    return jsonify({"status": "failure", "error": "Use /check_update and /apply_update instead"}), 410
+
 
 @settings_blueprint.route('/', methods=['GET'])
 def get_settings():
     settings = load_settings()
     # Inject our code-based version
-    settings["program_version"] = PROGRAM_VERSION
+    settings['current_version'] = CURRENT_VERSION
     settings["feeding_in_progress"] = feeding_in_progress
     return jsonify(settings)
 

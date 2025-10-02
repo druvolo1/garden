@@ -390,7 +390,7 @@
       <!-- Code Update / Restart Section -->
       <div class="data-container">
         <h2>Software Update</h2>
-        <p>Current Version: <span id="program-version"></span></p>
+        <p>Current Version: <span id="current-version"></span></p>
         <button id="check-update-btn">Check for Update</button>
         <div id="check-status"></div>
         <button id="apply-update-btn" disabled>Apply Update and Restart</button>
@@ -885,7 +885,7 @@
         // Additional plants
         renderAdditionalPlants(settings.additional_plants || []);
         // Program version
-        document.getElementById('program-version').textContent = settings.program_version || 'N/A';
+        document.getElementById('current-version').textContent = settings.current_version || 'N/A';
         // Render power outlets
         renderPowerOutlets(settings.power_controls || []);
         // Discord fields
