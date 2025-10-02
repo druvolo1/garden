@@ -71,7 +71,7 @@
       <!-- USB Device Assignment -->
       <div class="data-container">
         <h2>Assign USB Devices</h2>
-   
+  
         <!-- pH Probe Form -->
         <form id="ph-form">
           <label for="ph-device">pH Probe:</label>
@@ -80,7 +80,7 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-     
+    
         <!-- Link that goes to Calibration - hidden by default and not blue -->
         <a id="ph-calibration-link"
            href="/calibration"
@@ -91,7 +91,7 @@
                   cursor: pointer;">
            Click here for Calibration
         </a>
-   
+  
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
@@ -100,7 +100,7 @@
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-   
+  
         <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
           <label for="valve-relay-device">Valve Relay Module:</label>
@@ -109,7 +109,7 @@
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-     
+    
         <!-- Link that goes to Valves page - hidden by default and not blue -->
         <a id="valve-relay-link"
            href="/valves"
@@ -120,7 +120,7 @@
                   cursor: pointer;">
            Click here to Manage Valves
         </a>
-   
+  
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
@@ -160,7 +160,7 @@
           <input type="number" id="system-volume" step=".1">
           <label for="auto-dosing">Auto-Dosing Enabled:</label>
           <input type="checkbox" id="auto-dosing">
-          
+         
           <label for="allow-remote-feeding">Allow Remote Feeding:</label>
           <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
@@ -389,19 +389,17 @@
       </div>
       <!-- Code Update / Restart Section -->
       <div class="data-container">
-        <h2>Code Update</h2>
+        <h2>Software Update</h2>
         <p>Current Version: <span id="program-version"></span></p>
-        <p>Update code (git pull + pip install) without restarting:</p>
-        <button id="update-only-btn">Update Code (No Restart)</button>
-        <div id="update-only-status"></div>
-        <p>Restart service (pick up new code if any):</p>
-        <button id="restart-service-btn">Restart Service</button>
-        <div id="restart-status"></div>
+        <button id="check-update-btn">Check for Update</button>
+        <div id="check-status"></div>
+        <button id="apply-update-btn" disabled>Apply Update and Restart</button>
+        <div id="apply-status"></div>
       </div>
       <!-- Import / Export Settings Section -->
       <div class="data-container">
         <h2>Import / Export Settings</h2>
-     
+    
         <!-- Export button -->
         <p>Download a copy of the current settings.json:</p>
         <button id="export-btn">Export Settings</button>
@@ -1141,40 +1139,39 @@
         })
         .catch(err => console.error("Error deleting plant:", err));
     }
-    // Code Update (No Restart)
-    document.getElementById('update-only-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to run the software update?")) return;
-      fetch("/api/system/pull_no_restart", { method: "POST" })
+    // Software Update Check
+    document.getElementById('check-update-btn').addEventListener('click', () => {
+      fetch("/api/settings/check_update", { method: "GET" })
         .then(res => res.json())
         .then(data => {
-          console.log("Update-only response:", data);
-          const updateOnlyStatus = document.getElementById('update-only-status');
+          const checkStatus = document.getElementById('check-status');
           if (data.status === "success") {
-            updateOnlyStatus.textContent = "Update-only successful.\n\n" + data.output;
+            checkStatus.textContent = data.message;
+            document.getElementById('apply-update-btn').disabled = !data.update_available;
           } else {
-            updateOnlyStatus.textContent =
-              "Update-only failed:\n" + (data.error || "Unknown error") + "\n\n" + (data.output || "");
+            checkStatus.textContent = "Error: " + data.error;
           }
         })
         .catch(err => {
-          document.getElementById('update-only-status').textContent = "Fetch error: " + err;
+          document.getElementById('check-status').textContent = "Fetch error: " + err;
         });
     });
-    // Restart Service
-    document.getElementById('restart-service-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to restart the garden.service now?")) {
-        return;
-      }
-      fetch("/api/system/restart", { method: "POST" })
-        .then(() => {
-          document.getElementById('restart-status').textContent =
-            "The program is restarting. Please wait...";
-          setTimeout(() => window.location.reload(), 10000);
+    // Software Update Apply
+    document.getElementById('apply-update-btn').addEventListener('click', () => {
+      if (!confirm("Are you sure you want to apply the update and restart the service?")) return;
+      fetch("/api/settings/apply_update", { method: "POST" })
+        .then(res => res.json())
+        .then(data => {
+          const applyStatus = document.getElementById('apply-status');
+          if (data.status === "success") {
+            applyStatus.textContent = "Update applied. Service is restarting...";
+            setTimeout(() => window.location.reload(), 10000);
+          } else {
+            applyStatus.textContent = "Update failed: " + data.error;
+          }
         })
-        .catch(() => {
-          document.getElementById('restart-status').textContent =
-            "Could not contact server. The program may be restarting...";
-          setTimeout(() => window.location.reload(), 10000);
+        .catch(err => {
+          document.getElementById('apply-status').textContent = "Fetch error: " + err;
         });
     });
     // POWER OUTLETS SECTION
