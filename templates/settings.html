@@ -61,25 +61,38 @@
       background-color: rgba(0,0,0,0.4);
     }
     .modal-content {
-      background-color: #fefefe;
+      background-color: #2a2a2a;
       margin: 15% auto;
       padding: 20px;
-      border: 1px solid #888;
+      border: 1px solid #f4c531;
       width: 80%;
       max-width: 400px;
+      color: #f4c531;
+    }
+    .close {
+      color: #f4c531;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
     }
     .progress {
       width: 100%;
-      background-color: #f3f3f3;
+      background-color: #1e1e1e;
       margin: 20px 0;
     }
     .progress-bar {
       width: 0%;
       height: 30px;
-      background-color: #4caf50;
+      background-color: #f4c531;
       text-align: center;
       line-height: 30px;
-      color: white;
+      color: #2a2a2a;
     }
   </style>
 </head>
@@ -452,7 +465,7 @@
     <div class="modal-content">
       <p>Updating Application...</p>
       <div class="progress">
-        <div class="progress-bar"></div>
+        <div class="progress-bar" id="progressBar">0%</div>
       </div>
       <button onclick="closeModal()">Close</button>
     </div>
@@ -1218,16 +1231,18 @@
       document.getElementById('updateModal').style.display = 'block';
       // Simulate progress
       let progress = 0;
-      const progressBar = document.querySelector('.progress-bar');
+      const progressBar = document.getElementById('progressBar');
+      progressBar.textContent = '0%';
       const interval = setInterval(() => {
         progress += 10;
         progressBar.style.width = progress + '%';
+        progressBar.textContent = progress + '%';
         if (progress >= 100) {
           clearInterval(interval);
-          // After update, close modal or redirect
-          closeModal();
+          // After update, reload page
+          setTimeout(() => window.location.reload(), 1000);
         }
-      }, 500);
+      }, 500); // Adjust speed as needed
 
       // Actual update logic
       fetch('/api/settings/apply_update', { method: 'POST' })
