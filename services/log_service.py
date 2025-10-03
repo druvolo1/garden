@@ -10,15 +10,15 @@ from utils.settings_utils import load_settings  # Import to access system_name
 # Cache settings to avoid reloading on every log
 _cached_settings = None
 
-def reset_cache():
-    global _cached_settings
-    _cached_settings = None
-
 def get_cached_settings():
     global _cached_settings
     if _cached_settings is None:
         _cached_settings = load_settings()
     return _cached_settings
+
+def reset_cache():
+    global _cached_settings
+    _cached_settings = None
 
 # Define the log directory and file
 LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
@@ -42,11 +42,13 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
     Logs a dosing event (as a specific type of sensor event).
     """
     settings = get_cached_settings()
-    plant = settings.get("system_name", "Unknown")
+    system_id = settings.get("system_name", "Unknown")
+    plant_name = settings.get("plant_info", {}).get("name", "Unknown")
     
     log_event({
         'event_type': 'dosing',
-        'plant': plant,  # Added
+        'system_id': system_id,  # Added: Fixed system/zone
+        'plant_name': plant_name,  # Added: Rotating variety
         'ph': ph,
         'dose_type': dose_type,
         'dose_amount_ml': dose_amount_ml
@@ -54,11 +56,13 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
 
 def log_sensor_reading(sensor_name, value, additional_data=None):
     settings = get_cached_settings()
-    plant = settings.get("system_name", "Unknown")
+    system_id = settings.get("system_name", "Unknown")
+    plant_name = settings.get("plant_info", {}).get("name", "Unknown")
     
     data = {
         'event_type': 'sensor',
-        'plant': plant,  # Added
+        'system_id': system_id,  # Added: Fixed system/zone
+        'plant_name': plant_name,  # Added: Rotating variety
         'sensor_name': sensor_name,
         'value': value
     }
