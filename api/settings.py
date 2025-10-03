@@ -243,6 +243,13 @@ def update_settings():
         register_mdns_pc_hostname(new_system_name, service_port=8000)
         register_mdns_pure_system_name(new_system_name, service_port=8000)
 
+    try:
+        from services.log_service import reset_cache
+        reset_cache()
+        print("[DEBUG] Log service cache reset after settings update.")
+    except ImportError:
+        print("[WARN] Could not import log_service to reset cache.")
+
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
 
@@ -337,6 +344,14 @@ def import_settings():
                 "error": "Missing 'system_name' in imported settings."
             }), 400
 
+        # Add this: Invalidate log cache after successful save
+        try:
+            from services.log_service import reset_cache
+            reset_cache()
+            print("[DEBUG] Log service cache reset after settings import.")
+        except ImportError:
+            print("[WARN] Could not import log_service to reset cache.")
+
         # Try re-init logic
         try:
             from services.ph_service import restart_serial_reader
@@ -367,7 +382,6 @@ def import_settings():
         return jsonify({"status": "failure", "error": "Invalid JSON in uploaded file."}), 400
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
-
 
 @settings_blueprint.route('/discord_message', methods=['POST'])
 def discord_webhook():

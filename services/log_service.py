@@ -10,6 +10,10 @@ from utils.settings_utils import load_settings  # Import to access system_name
 # Cache settings to avoid reloading on every log
 _cached_settings = None
 
+def reset_cache():
+    global _cached_settings
+    _cached_settings = None
+
 def get_cached_settings():
     global _cached_settings
     if _cached_settings is None:
