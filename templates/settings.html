@@ -48,6 +48,38 @@
     .hidden {
       display: none;
     }
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 400px;
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+      color: black;
+      text-decoration: none;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -393,7 +425,7 @@
         <p>Current Version: <span id="current-version"></span></p>
         <button id="check-update-btn">Check for Update</button>
         <div id="check-status"></div>
-        <button id="apply-update-btn" style="display: none;" disabled>Apply Update and Restart</button>
+        <button id="apply-update-btn" style="display: none;" disabled>Apply Update</button>
         <div id="apply-status"></div>
       </div>
       <!-- Import / Export Settings Section -->
@@ -414,6 +446,15 @@
       </div>
     </div>
   </main>
+  <!-- Modal for update confirmation -->
+  <div id="updateModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <p>Are you sure you want to apply the update and restart the service?</p>
+      <button id="confirmApply">Yes</button>
+      <button id="cancelApply">No</button>
+    </div>
+  </div>
   <script>
     /***************************************************************/
     /** retrieveValvesFromIP - existing remote IP approach **/
@@ -628,6 +669,17 @@
       // On page load, run them once
       handleFillValveModeChange();
       handleDrainValveModeChange();
+      // Modal close logic
+      const modal = document.getElementById('updateModal');
+      const closeBtn = document.getElementsByClassName('close')[0];
+      closeBtn.onclick = () => { modal.style.display = 'none'; };
+      window.onclick = (event) => {
+        if (event.target == modal) {
+          modal.style.display = 'none';
+        }
+      };
+      document.getElementById('cancelApply').onclick = () => { modal.style.display = 'none'; };
+      document.getElementById('confirmApply').onclick = applyUpdate;
     });
     // Handle "Retrieve" clicks for fill/drain
     document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
@@ -1159,9 +1211,13 @@
           document.getElementById('check-status').textContent = "Fetch error: " + err;
         });
     });
-    // Software Update Apply
+    // Software Update Apply - show modal
     document.getElementById('apply-update-btn').addEventListener('click', () => {
-      if (!confirm("Are you sure you want to apply the update and restart the service?")) return;
+      document.getElementById('updateModal').style.display = 'block';
+    });
+    // Confirm apply update
+    function applyUpdate() {
+      document.getElementById('updateModal').style.display = 'none';
       fetch("/api/settings/apply_update", { method: "POST" })
         .then(res => res.json())
         .then(data => {
@@ -1176,7 +1232,7 @@
         .catch(err => {
           document.getElementById('apply-status').textContent = "Fetch error: " + err;
         });
-    });
+    }
     // POWER OUTLETS SECTION
     function renderPowerOutlets(powerControls) {
       const container = document.getElementById('power-outlets-list');
