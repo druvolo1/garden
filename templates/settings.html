@@ -48,6 +48,39 @@
     .hidden {
       display: none;
     }
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 400px;
+    }
+    .progress {
+      width: 100%;
+      background-color: #f3f3f3;
+      margin: 20px 0;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 30px;
+      background-color: #4caf50;
+      text-align: center;
+      line-height: 30px;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -414,13 +447,14 @@
       </div>
     </div>
   </main>
-  <!-- Modal for update confirmation -->
+  <!-- Modal for update progress -->
   <div id="updateModal" class="modal">
     <div class="modal-content">
-      <span class="close">&times;</span>
-      <p>Are you sure you want to apply the update and restart the service?</p>
-      <button id="confirmApply">Yes</button>
-      <button id="cancelApply">No</button>
+      <p>Updating Application...</p>
+      <div class="progress">
+        <div class="progress-bar"></div>
+      </div>
+      <button onclick="closeModal()">Close</button>
     </div>
   </div>
   <script>
@@ -1182,24 +1216,34 @@
     // Software Update Apply - show modal
     document.getElementById('apply-update-btn').addEventListener('click', () => {
       document.getElementById('updateModal').style.display = 'block';
-    });
-    // Confirm apply update
-    function applyUpdate() {
-      document.getElementById('updateModal').style.display = 'none';
-      fetch("/api/settings/apply_update", { method: "POST" })
-        .then(res => res.json())
+      // Simulate progress
+      let progress = 0;
+      const progressBar = document.querySelector('.progress-bar');
+      const interval = setInterval(() => {
+        progress += 10;
+        progressBar.style.width = progress + '%';
+        if (progress >= 100) {
+          clearInterval(interval);
+          // After update, close modal or redirect
+          closeModal();
+        }
+      }, 500);
+
+      // Actual update logic
+      fetch('/api/settings/apply_update', { method: 'POST' })
+        .then(response => response.json())
         .then(data => {
-          const applyStatus = document.getElementById('apply-status');
-          if (data.status === "success") {
-            applyStatus.textContent = "Update applied. Service is restarting...";
-            setTimeout(() => window.location.reload(), 10000);
+          if (data.status === 'success') {
+            console.log('Update applied successfully');
+            // Reload or show success
           } else {
-            applyStatus.textContent = "Update failed: " + data.error;
+            console.error('Update failed');
           }
-        })
-        .catch(err => {
-          document.getElementById('apply-status').textContent = "Fetch error: " + err;
         });
+    });
+    // Close modal function
+    function closeModal() {
+      document.getElementById('updateModal').style.display = 'none';
     }
     // POWER OUTLETS SECTION
     function renderPowerOutlets(powerControls) {
