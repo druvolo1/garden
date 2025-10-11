@@ -101,12 +101,12 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
-      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/dosage">Dosage</a></li>
-      <li><a href="/calibration">Calibration</a></li>
-      <li><a href="/configuration">Configuration</a></li>
+      <!--<li><a href="/calibration">Calibration</a></li>-->
+      <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
-      <li><a href="/valves">Valves</a></li>
+      <!--<li><a href="/valves">Valves</a></li>-->
+      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="/changelog">Changelog</a></li>
     </ul>
@@ -243,11 +243,11 @@
       <div class="data-container" id="pump-calibration-container">
         <h2>Pump Calibration</h2>
         <form id="pump-calibration-form">
-          <label for="pump1-calibration">Pump 1 (pH Up) Calibration (ml/s):</label>
+          <label id="pump1-label" for="pump1-calibration">Pump 1 Calibration (ml/s):</label>
           <input type="number" id="pump1-calibration" step="0.01">
           <label for="pump1-last-calibrated">Pump 1 Last Calibrated:</label>
           <input type="date" id="pump1-last-calibrated">
-          <label for="pump2-calibration">Pump 2 (pH Down) Calibration (ml/s):</label>
+          <label id="pump2-label" for="pump2-calibration">Pump 2 Calibration (ml/s):</label>
           <input type="number" id="pump2-calibration" step="0.01">
           <label for="pump2-last-calibrated">Pump 2 Last Calibrated:</label>
           <input type="date" id="pump2-last-calibrated">
@@ -371,9 +371,15 @@
           document.getElementById('pump1-last-calibrated').value = settings.pump_calibration.pump1_last_calibrated || '';
           document.getElementById('pump2-last-calibrated').value = settings.pump_calibration.pump2_last_calibrated || '';
 
+          // Dynamically set pump labels based on relay ports
+          const phUpPort = settings.relay_ports.ph_up || 1;
+          const phDownPort = settings.relay_ports.ph_down || 2;
+          document.getElementById('pump1-label').textContent = `Pump 1${phUpPort === 1 ? ' (pH Up)' : phDownPort === 1 ? ' (pH Down)' : ''} Calibration (ml/s):`;
+          document.getElementById('pump2-label').textContent = `Pump 2${phUpPort === 2 ? ' (pH Up)' : phDownPort === 2 ? ' (pH Down)' : ''} Calibration (ml/s):`;
+
           // Relay Ports
-          document.getElementById('ph-up-port').value = settings.relay_ports.ph_up || 1;
-          document.getElementById('ph-down-port').value = settings.relay_ports.ph_down || 2;
+          document.getElementById('ph-up-port').value = phUpPort;
+          document.getElementById('ph-down-port').value = phDownPort;
 
           // Power Controls
           renderPowerOutlets(settings.power_controls || []);
@@ -596,6 +602,8 @@
       const phUp = parseInt(document.getElementById('ph-up-port').value);
       const phDown = parseInt(document.getElementById('ph-down-port').value);
       saveSettings("/api/settings/", { relay_ports: { ph_up: phUp, ph_down: phDown } });
+      // Reload settings to update pump labels
+      location.reload();
     });
 
     // Discord Form + Test
