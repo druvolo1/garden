@@ -6,6 +6,7 @@ from eventlet import semaphore, event
 from services.error_service import set_error, clear_error
 from status_namespace import emit_status_update, is_debug_enabled
 from datetime import datetime
+import time
 
 # 8-channel ON commands
 VALVE_ON_COMMANDS = {
@@ -33,6 +34,11 @@ VALVE_OFF_COMMANDS = {
 
 # Local reflection of valve states
 valve_status = {i: "off" for i in range(1, 9)}
+
+# Cooldown tracking
+last_command_time = {i: 0.0 for i in range(1, 9)}
+pending_state = {i: None for i in range(1, 9)}
+is_deferring = {i: False for i in range(1, 9)}
 
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
@@ -177,53 +183,62 @@ def stop_valve_thread():
         polling_thread = None
     close_valve_serial()
 
-def turn_on_valve(valve_id):
+def deferred(valve_id):
+    sleep_time = 5 - (time.time() - last_command_time[valve_id])
+    if sleep_time > 0:
+        eventlet.sleep(sleep_time)
+    with serial_lock:
+        if pending_state[valve_id] is not None:
+            state = pending_state[valve_id]
+            pending_state[valve_id] = None
+            cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
+            if is_debug_enabled("valve_relay_service"):
+                log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+            valve_ser.write(cmd)
+            valve_ser.write(b'\xFF')
+            eventlet.sleep(0.05)
+            response = valve_ser.read(10)
+            parse_hardware_response(response)
+            last_command_time[valve_id] = time.time()
+            final_state = valve_status.get(valve_id, "unknown")
+            log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
+            emit_status_update()
+    is_deferring[valve_id] = False
+
+def set_valve_state(valve_id, state):
     global valve_ser
     if valve_id < 1 or valve_id > 8:
         raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
     if valve_ser is None:
         raise RuntimeError("Valve serial port is not open.")
+    now = time.time()
+    if now - last_command_time[valve_id] >= 5 and not is_deferring[valve_id]:
+        # Send immediately
+        with serial_lock:
+            cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
+            if is_debug_enabled("valve_relay_service"):
+                log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+            valve_ser.write(cmd)
+            valve_ser.write(b'\xFF')
+            eventlet.sleep(0.05)
+            response = valve_ser.read(10)
+            parse_hardware_response(response)
+            last_command_time[valve_id] = now
+            final_state = valve_status.get(valve_id, "unknown")
+            log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
+            emit_status_update()
+    else:
+        # Defer
+        pending_state[valve_id] = state
+        if not is_deferring[valve_id]:
+            is_deferring[valve_id] = True
+            eventlet.spawn(deferred, valve_id)
 
-    with serial_lock:
-        # 1) Send the ON command
-        if is_debug_enabled("valve_relay_service"):
-            log_with_timestamp(f"[Valve] Sending ON command for valve {valve_id}: {VALVE_ON_COMMANDS[valve_id].hex(' ')}")
-        valve_ser.write(VALVE_ON_COMMANDS[valve_id])
-        # 2) Poll the board to see if it really turned on
-        valve_ser.write(b'\xFF')
-        eventlet.sleep(0.05)
-        response = valve_ser.read(10)
-        parse_hardware_response(response)
-
-    # 3) Check the final outcome
-    final_state = valve_status.get(valve_id, "unknown")
-    log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested ON).")
-
-    # 4) Let the rest of the system see the new state
-    emit_status_update()
+def turn_on_valve(valve_id):
+    set_valve_state(valve_id, "on")
 
 def turn_off_valve(valve_id):
-    global valve_ser
-    if valve_id < 1 or valve_id > 8:
-        raise ValueError(f"Invalid valve_id {valve_id}, must be 1..8")
-    if valve_ser is None:
-        raise RuntimeError("Valve serial port is not open.")
-
-    with serial_lock:
-        # 1) Send the OFF command
-        if is_debug_enabled("valve_relay_service"):
-            log_with_timestamp(f"[Valve] Sending OFF command for valve {valve_id}: {VALVE_OFF_COMMANDS[valve_id].hex(' ')}")
-        valve_ser.write(VALVE_OFF_COMMANDS[valve_id])
-        # 2) Poll for actual hardware state
-        valve_ser.write(b'\xFF')
-        eventlet.sleep(0.05)
-        response = valve_ser.read(10)
-        parse_hardware_response(response)
-
-    final_state = valve_status.get(valve_id, "unknown")
-    log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested OFF).")
-
-    emit_status_update()
+    set_valve_state(valve_id, "off")
 
 def get_valve_status(valve_id):
     status = valve_status.get(valve_id, "unknown")
