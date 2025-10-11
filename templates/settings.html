@@ -384,11 +384,11 @@
           document.getElementById('pump2-label').textContent = `Pump 2${phUpPort === 2 ? ' (pH Up)' : phDownPort === 2 ? ' (pH Down)' : ''} Calibration (ml/s):`;
 
           // Pump Tracking
-          const tracking = settings.pump_calibration.pump_tracking || {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}};
-          document.getElementById('pump1-activations').textContent = tracking["1"].activations;
-          document.getElementById('pump1-duration').textContent = tracking["1"].cumulative_duration.toFixed(2);
-          document.getElementById('pump2-activations').textContent = tracking["2"].activations;
-          document.getElementById('pump2-duration').textContent = tracking["2"].cumulative_duration.toFixed(2);
+          const calibration = settings.pump_calibration || {};
+          document.getElementById('pump1-activations').textContent = calibration.pump1_activations || 0;
+          document.getElementById('pump1-duration').textContent = (calibration.pump1_cumulative_duration || 0.0).toFixed(2);
+          document.getElementById('pump2-activations').textContent = calibration.pump2_activations || 0;
+          document.getElementById('pump2-duration').textContent = (calibration.pump2_cumulative_duration || 0.0).toFixed(2);
 
           // Relay Ports
           document.getElementById('ph-up-port').value = phUpPort;

@@ -4,6 +4,7 @@ import time
 import eventlet
 from datetime import datetime
 from flask import Blueprint, request, jsonify
+from flask_socketio import emit
 from api.settings import load_settings
 from services.log_service import log_dosing_event
 from services.auto_dose_state import auto_dose_state
@@ -85,39 +86,31 @@ def manual_dosage():
             turn_off_relay(relay_port)
             print(f"[Manual Dispense] Turning OFF Relay {relay_port} after {duration_sec:.2f} seconds.")
             manual_dispense(dispense_type, amount_ml)
-            socketio.emit('dose_complete', {'type': dispense_type, 'amount': amount_ml})
-        except Exception as e:
-            print(f"[Manual Dispense] Error during dispense: {str(e)}")
-            socketio.emit('dose_error', {'type': dispense_type, 'error': str(e)})
-        finally:
-            # Clear active task only if this is the current task
-            if state.active_dosing_task and state.active_dosing_task == eventlet.getcurrent():
-                print(f"[DEBUG ManualDispense] Clearing state for {dispense_type}")
-                state.active_dosing_task = None
-                state.active_relay_port = None
-                state.active_dosing_type = None
-                state.active_dosing_amount = None
-                state.active_start_time = None
-                state.active_duration = None
-            turn_off_relay(relay_port)  # Ensure relay is off
-
-    # Cancel any existing task
-    if state.active_dosing_task:
-        try:
-            state.active_dosing_task.kill()
-            if state.active_relay_port is not None:
-                turn_off_relay(state.active_relay_port)
-            print(f"[Manual Dispense] Cancelled previous dosing task: {state.active_dosing_type or 'unknown'}")
-        except Exception as e:
-            print(f"[Manual Dispense] Error cancelling previous task: {str(e)}")
-        finally:
-            print("[DEBUG ManualDispense] Cleared previous state after cancel")
+            # Emit stopped event
+            socketio.emit('dose_stopped', {'type': dispense_type, 'amount': amount_ml})
+            # Clear state
             state.active_dosing_task = None
             state.active_relay_port = None
             state.active_dosing_type = None
             state.active_dosing_amount = None
             state.active_start_time = None
             state.active_duration = None
+            print(f"[DEBUG ManualDispense] Clearing state for {dispense_type}")
+        except eventlet.greenlet.GreenletExit:
+            print("[Manual Dispense] Task killed; turning off relay.")
+            turn_off_relay(relay_port)
+            # Emit stopped
+            socketio.emit('dose_stopped', {'type': dispense_type, 'amount': state.active_dosing_amount or 0})
+            # Clear state
+            state.active_dosing_task = None
+            state.active_relay_port = None
+            state.active_dosing_type = None
+            state.active_dosing_amount = None
+            state.active_start_time = None
+            state.active_duration = None
+        except Exception as e:
+            print(f"[Manual Dispense] Error: {e}")
+            turn_off_relay(relay_port)
 
     # Start new task
     state.active_dosing_task = eventlet.spawn(dispense_task)

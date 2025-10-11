@@ -47,8 +47,10 @@ if not os.path.exists(SETTINGS_FILE):
                 "pump2": 0.5,
                 "pump1_last_calibrated": "",
                 "pump2_last_calibrated": "",
-                "pump1_tracking": {"activations": 0, "cumulative_duration": 0.0},
-                "pump2_tracking": {"activations": 0, "cumulative_duration": 0.0}
+                "pump1_activations": 0,
+                "pump1_cumulative_duration": 0.0,
+                "pump2_activations": 0,
+                "pump2_cumulative_duration": 0.0
             },
             "relay_ports": {"ph_up": 1, "ph_down": 2},
 
@@ -524,9 +526,10 @@ def clear_pump_tracking():
         return jsonify({"status": "failure", "error": "Invalid pump ID"}), 400
 
     settings = load_settings()
-    if "pump_tracking" not in settings:
-        settings["pump_tracking"] = {}
-    settings["pump_tracking"][pump] = {"activations": 0, "cumulative_duration": 0.0}
+    if "pump_calibration" not in settings:
+        settings["pump_calibration"] = {}
+    settings["pump_calibration"][f"pump{pump}_activations"] = 0
+    settings["pump_calibration"][f"pump{pump}_cumulative_duration"] = 0.0
     save_settings(settings)
     emit_status_update()
     return jsonify({"status": "success"})

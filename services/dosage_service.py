@@ -184,22 +184,19 @@ def do_relay_dispense(dispense_type, amount_ml, settings):
 def update_pump_tracking(relay_port, duration):
     settings = load_settings()
     relay_ports = settings.get("relay_ports", {"ph_up": 1, "ph_down": 2})
-    pump_tracking = settings.get("pump_tracking", {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}})
+    pump_calibration = settings.get("pump_calibration", {})
 
     # Map relay_port to pump
     if relay_port == relay_ports["ph_up"]:
-        pump = "1"
+        pump = "pump1"
     elif relay_port == relay_ports["ph_down"]:
-        pump = "2"
+        pump = "pump2"
     else:
         return  # Not a dosing pump
 
-    if pump not in pump_tracking:
-        pump_tracking[pump] = {"activations": 0, "cumulative_duration": 0.0}
-    
-    pump_tracking[pump]["activations"] += 1
-    pump_tracking[pump]["cumulative_duration"] += duration
+    pump_calibration[f"{pump}_activations"] = (pump_calibration.get(f"{pump}_activations", 0) + 1)
+    pump_calibration[f"{pump}_cumulative_duration"] = (pump_calibration.get(f"{pump}_cumulative_duration", 0.0) + duration)
 
-    settings["pump_tracking"] = pump_tracking
+    settings["pump_calibration"] = pump_calibration
     save_settings(settings)
     emit_status_update()
