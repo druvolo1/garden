@@ -117,7 +117,7 @@ def valve_polling_loop():
         with serial_lock:
             try:
                 valve_ser.write(b'\xFF')
-                eventlet.sleep(0.05)
+                eventlet.sleep(0.2)
                 response = valve_ser.read(10)
                 
                 # Keep a copy of the old statuses
@@ -184,7 +184,7 @@ def stop_valve_thread():
     close_valve_serial()
 
 def deferred(valve_id):
-    sleep_time = 10 - (time.time() - last_command_time[valve_id])
+    sleep_time = 5 - (time.time() - last_command_time[valve_id])
     if sleep_time > 0:
         eventlet.sleep(sleep_time)
     with serial_lock:
@@ -195,8 +195,9 @@ def deferred(valve_id):
             if is_debug_enabled("valve_relay_service"):
                 log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
             valve_ser.write(cmd)
+            eventlet.sleep(0.5)  # Increased delay to allow hardware to actuate
             valve_ser.write(b'\xFF')
-            eventlet.sleep(0.05)
+            eventlet.sleep(0.5)  # Increased delay before reading response
             response = valve_ser.read(10)
             parse_hardware_response(response)
             last_command_time[valve_id] = time.time()
@@ -219,8 +220,9 @@ def set_valve_state(valve_id, state):
             if is_debug_enabled("valve_relay_service"):
                 log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
             valve_ser.write(cmd)
+            eventlet.sleep(0.5)  # Increased delay to allow hardware to actuate
             valve_ser.write(b'\xFF')
-            eventlet.sleep(0.05)
+            eventlet.sleep(0.5)  # Increased delay before reading response
             response = valve_ser.read(10)
             parse_hardware_response(response)
             last_command_time[valve_id] = now
