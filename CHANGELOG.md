@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.85] - 2025-10-02
 - improved software update user experience
 - valve commands received within 5 seconds will queue so the valve can finish turning
+- added seperate plant-info html page so Murad wouldn't be intimidated by the settings page.
 
 ## [1.0.84] - 2025-09-29
 - inverted water sensor feedback to be more logical in backend code
