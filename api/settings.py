@@ -513,3 +513,18 @@ def update_feeding_status():
 @settings_blueprint.route('/settings')
 def settings_page():
     return render_template('settings.html')
+
+@settings_blueprint.route('/clear_pump_tracking', methods=['POST'])
+def clear_pump_tracking():
+    data = request.get_json() or {}
+    pump = data.get("pump")
+    if pump not in ["1", "2"]:
+        return jsonify({"status": "failure", "error": "Invalid pump ID"}), 400
+
+    settings = load_settings()
+    if "pump_tracking" not in settings:
+        settings["pump_tracking"] = {}
+    settings["pump_tracking"][pump] = {"activations": 0, "cumulative_duration": 0.0}
+    save_settings(settings)
+    emit_status_update()
+    return jsonify({"status": "success"})
