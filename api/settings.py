@@ -42,9 +42,15 @@ if not os.path.exists(SETTINGS_FILE):
                 "valve_relay": None,
                 "ec_meter": None
             },
-            "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
+            "pump_calibration": {
+                "pump1": 0.5,
+                "pump2": 0.5,
+                "pump1_last_calibrated": "",
+                "pump2_last_calibrated": "",
+                "pump1_tracking": {"activations": 0, "cumulative_duration": 0.0},
+                "pump2_tracking": {"activations": 0, "cumulative_duration": 0.0}
+            },
             "relay_ports": {"ph_up": 1, "ph_down": 2},
-            "pump_tracking": {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}},
 
             # The local usb-based labels for a physically attached relay board
             "valve_labels": {
@@ -275,6 +281,7 @@ def get_usb_devices():
     return jsonify({"status": "success", "devices": devices})
 
 def list_usb_devices():
+    """List all USB devices with their paths and names."""
     devices = []
     try:
         output = subprocess.check_output(["ls", "/dev/serial/by-path/"]).decode().splitlines()
