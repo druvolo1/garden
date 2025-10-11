@@ -183,8 +183,27 @@ def stop_valve_thread():
         polling_thread = None
     close_valve_serial()
 
+def poll_until_state_matches(valve_id, expected_state, max_retries=5, retry_delay=0.5):
+    retries = 0
+    while retries < max_retries:
+        valve_ser.write(b'\xFF')
+        eventlet.sleep(0.5)
+        response = valve_ser.read(10)
+        parse_hardware_response(response)
+        current_state = valve_status.get(valve_id, "unknown")
+        if current_state == expected_state:
+            log_with_timestamp(f"[Valve] State matched {expected_state.upper()} for valve {valve_id} after {retries} retries.")
+            return True
+        log_with_timestamp(f"[Valve] State mismatch for valve {valve_id}: expected {expected_state}, got {current_state}. Retrying...")
+        eventlet.sleep(retry_delay)
+        retries += 1
+    log_with_timestamp(f"[Valve] Failed to match state {expected_state.upper()} for valve {valve_id} after {max_retries} retries.")
+    return False
+
 def deferred(valve_id):
-    sleep_time = 5 - (time.time() - last_command_time[valve_id])
+    now = time.time()
+    sleep_time = 5 - (now - last_command_time[valve_id])
+    log_with_timestamp(f"[Valve] Deferring execution for valve {valve_id}, sleeping {sleep_time} seconds.")
     if sleep_time > 0:
         eventlet.sleep(sleep_time)
     with serial_lock:
@@ -193,13 +212,16 @@ def deferred(valve_id):
             pending_state[valve_id] = None
             cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
             if is_debug_enabled("valve_relay_service"):
-                log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+                log_with_timestamp(f"[Valve] Sending deferred {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
             valve_ser.write(cmd)
-            eventlet.sleep(0.5)  # Increased delay to allow hardware to actuate
+            eventlet.sleep(0.5)  # Delay after command
+            # Initial poll
             valve_ser.write(b'\xFF')
-            eventlet.sleep(0.5)  # Increased delay before reading response
+            eventlet.sleep(0.5)
             response = valve_ser.read(10)
             parse_hardware_response(response)
+            # Verify state with retries
+            poll_until_state_matches(valve_id, state)
             last_command_time[valve_id] = time.time()
             final_state = valve_status.get(valve_id, "unknown")
             log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
@@ -213,25 +235,29 @@ def set_valve_state(valve_id, state):
     if valve_ser is None:
         raise RuntimeError("Valve serial port is not open.")
     now = time.time()
-    if now - last_command_time[valve_id] >= 5 and not is_deferring[valve_id]:
-        # Send immediately
+    time_since_last = now - last_command_time[valve_id]
+    if time_since_last >= 5 and not is_deferring[valve_id]:
+        log_with_timestamp(f"[Valve] Executing immediately for valve {valve_id} (time since last: {time_since_last:.2f}s)")
         with serial_lock:
             cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
             if is_debug_enabled("valve_relay_service"):
                 log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
             valve_ser.write(cmd)
-            eventlet.sleep(0.5)  # Increased delay to allow hardware to actuate
+            eventlet.sleep(0.5)  # Delay after command
+            # Initial poll
             valve_ser.write(b'\xFF')
-            eventlet.sleep(0.5)  # Increased delay before reading response
+            eventlet.sleep(0.5)
             response = valve_ser.read(10)
             parse_hardware_response(response)
-            last_command_time[valve_id] = now
+            # Verify state with retries
+            poll_until_state_matches(valve_id, state)
+            last_command_time[valve_id] = time.time()
             final_state = valve_status.get(valve_id, "unknown")
             log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
             emit_status_update()
     else:
-        # Defer
         pending_state[valve_id] = state
+        log_with_timestamp(f"[Valve] Deferring {state.upper()} for valve {valve_id} (time since last: {time_since_last:.2f}s)")
         if not is_deferring[valve_id]:
             is_deferring[valve_id] = True
             eventlet.spawn(deferred, valve_id)
