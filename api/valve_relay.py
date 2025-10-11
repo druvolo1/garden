@@ -5,6 +5,7 @@ from services.valve_relay_service import (
 from utils.settings_utils import load_settings, save_settings
 # NEW: Import emit_status_update
 from status_namespace import emit_status_update
+from datetime import datetime  # Added for timestamp
 
 valve_relay_blueprint = Blueprint('valve_relay', __name__)
 
@@ -17,7 +18,12 @@ def valve_on(valve_id):
         turn_on_valve(valve_id)
         # Emit status_update so clients see changes immediately
         emit_status_update()
-        return jsonify({"status": "success", "valve_id": valve_id, "action": "on"})
+        return jsonify({
+            "status": "success",
+            "valve_id": valve_id,
+            "action": "on",
+            "received_at": datetime.now().isoformat()
+        })
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
 
@@ -26,9 +32,14 @@ def valve_off(valve_id):
     try:
         turn_off_valve(valve_id)
         emit_status_update()
-        return jsonify({"status": "success", "valve_id": valve_id, "action": "off"})
+        return jsonify({
+            "status": "success",
+            "valve_id": valve_id,
+            "action": "off",
+            "received_at": datetime.now().isoformat()
+        })
     except Exception as e:
-        return jupytext({"status": "failure", "error": str(e)}), 500
+        return jsonify({"status": "failure", "error": str(e)}), 500
 
 @valve_relay_blueprint.route('/<int:valve_id>/status', methods=['GET'])
 def valve_status(valve_id):
@@ -72,7 +83,12 @@ def valve_on_by_name(valve_name):
         try:
             turn_on_valve(local_id)
             emit_status_update()
-            return jsonify({"status": "success", "valve_name": valve_name, "action": "on"})
+            return jsonify({
+                "status": "success",
+                "valve_name": valve_name,
+                "action": "on",
+                "received_at": datetime.now().isoformat()
+            })
         except Exception as e:
             return jsonify({"status": "failure", "error": str(e)}), 500
 
@@ -148,7 +164,12 @@ def valve_off_by_name(valve_name):
         try:
             turn_off_valve(local_id)
             emit_status_update()
-            return jsonify({"status": "success", "valve_name": valve_name, "action": "off"})
+            return jsonify({
+                "status": "success",
+                "valve_name": valve_name,
+                "action": "off",
+                "received_at": datetime.now().isoformat()
+            })
         except Exception as e:
             return jsonify({"status": "failure", "error": str(e)}), 500
 
