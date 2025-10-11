@@ -202,12 +202,12 @@ def poll_until_state_matches(valve_id, expected_state, max_retries=5, retry_dela
     return False
 
 def process_queue(valve_id):
+    now = time.time()
+    sleep_time = 5 - (now - last_command_time[valve_id])
+    log_with_timestamp(f"[Valve] Initial cooldown for queue of valve {valve_id}: sleeping {sleep_time} seconds.")
+    if sleep_time > 0:
+        eventlet.sleep(sleep_time)
     while pending_commands[valve_id]:
-        now = time.time()
-        sleep_time = 5 - (now - last_command_time[valve_id])
-        log_with_timestamp(f"[Valve] Processing queue for valve {valve_id}, sleeping {sleep_time} seconds.")
-        if sleep_time > 0:
-            eventlet.sleep(sleep_time)
         with serial_lock:
             if pending_commands[valve_id]:  # Check again in case queue changed
                 state = pending_commands[valve_id].popleft()
