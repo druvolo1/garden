@@ -1,5 +1,3 @@
-# File: utils/settings_utils.py
-
 import json
 import os
 import threading

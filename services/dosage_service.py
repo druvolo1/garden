@@ -8,6 +8,7 @@ import api.settings  # Modified import
 from services.log_service import log_dosing_event
 from services.dosing_state import state  # CHANGED: Import the singleton instance instead of individual globals
 from services.water_level_service import get_water_level_status  # Added import for water level check
+from utils.settings_utils import load_settings, save_settings  # Correct import for load/save
 
 def get_dosage_info():
     current_ph = get_latest_ph_reading()
