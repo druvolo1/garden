@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.0.85] - 2025-10-02
 - improved software update user experience
+- added delay for valve control to make sure valve complete action before changing states again
 
 ## [1.0.84] - 2025-09-29
 - inverted water sensor feedback to be more logical in backend code

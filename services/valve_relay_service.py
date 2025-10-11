@@ -244,6 +244,6 @@ def turn_off_valve(valve_id):
 
 def get_valve_status(valve_id):
     status = valve_status.get(valve_id, "unknown")
-    if is_debug_enabled("valve_relay_service"):
-        log_with_timestamp(f"[Valve] get_valve_status for valve {valve_id}: {status}")
+    #if is_debug_enabled("valve_relay_service"):
+        #log_with_timestamp(f"[Valve] get_valve_status for valve {valve_id}: {status}")
     return status
