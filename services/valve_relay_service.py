@@ -184,7 +184,7 @@ def stop_valve_thread():
     close_valve_serial()
 
 def deferred(valve_id):
-    sleep_time = 5 - (time.time() - last_command_time[valve_id])
+    sleep_time = 10 - (time.time() - last_command_time[valve_id])
     if sleep_time > 0:
         eventlet.sleep(sleep_time)
     with serial_lock:
