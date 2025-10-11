@@ -101,12 +101,12 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
-      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/dosage">Dosage</a></li>
-      <li><a href="/calibration">Calibration</a></li>
-      <li><a href="/configuration">Configuration</a></li>
+      <!--<li><a href="/calibration">Calibration</a></li>-->
+      <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
-      <li><a href="/valves">Valves</a></li>
+      <!--<li><a href="/valves">Valves</a></li>-->
+      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="/changelog">Changelog</a></li>
     </ul>
@@ -199,6 +199,8 @@
         <form id="general-settings-form">
           <label for="ph-target">pH Target:</label>
           <input type="number" id="ph-target" step="0.01">
+          <label for="system-volume">System Volume (gallons):</label>
+          <input type="number" id="system-volume" step=".1">
           <label for="max-dosing">Max Dosing Amount (ml):</label>
           <input type="number" id="max-dosing" step="1">
           <label for="dosing-interval">Dosing Interval (hours):</label>
@@ -243,14 +245,14 @@
         <form id="pump-calibration-form">
           <label for="pump1-calibration">Pump 1 (pH Up) Calibration (ml/s):</label>
           <input type="number" id="pump1-calibration" step="0.01">
+          <label for="pump1-last-calibrated">Pump 1 Last Calibrated:</label>
+          <input type="date" id="pump1-last-calibrated">
           <label for="pump2-calibration">Pump 2 (pH Down) Calibration (ml/s):</label>
           <input type="number" id="pump2-calibration" step="0.01">
+          <label for="pump2-last-calibrated">Pump 2 Last Calibrated:</label>
+          <input type="date" id="pump2-last-calibrated">
           <button type="submit">Save Pump Calibration</button>
         </form>
-        <div id="calibration-dates">
-          <p>Pump 1 Last Calibrated: <span id="pump1-last-calibrated">N/A</span></p>
-          <p>Pump 2 Last Calibrated: <span id="pump2-last-calibrated">N/A</span></p>
-        </div>
       </div>
       <!-- Relay Ports -->
       <div class="data-container" id="relay-ports-container">
@@ -339,6 +341,7 @@
 
           // General Settings (remaining)
           document.getElementById('ph-target').value = settings.ph_target || 5.8;
+          document.getElementById('system-volume').value = settings.system_volume || 5.5;
           document.getElementById('max-dosing').value = settings.max_dosing_amount || 5;
           document.getElementById('dosing-interval').value = settings.dosing_interval || 1.0;
 
@@ -365,8 +368,8 @@
           // Pump Calibration
           document.getElementById('pump1-calibration').value = settings.pump_calibration.pump1 || 0.5;
           document.getElementById('pump2-calibration').value = settings.pump_calibration.pump2 || 0.5;
-          document.getElementById('pump1-last-calibrated').textContent = settings.pump_calibration.pump1_last_calibrated || 'N/A';
-          document.getElementById('pump2-last-calibrated').textContent = settings.pump_calibration.pump2_last_calibrated || 'N/A';
+          document.getElementById('pump1-last-calibrated').value = settings.pump_calibration.pump1_last_calibrated || '';
+          document.getElementById('pump2-last-calibrated').value = settings.pump_calibration.pump2_last_calibrated || '';
 
           // Relay Ports
           document.getElementById('ph-up-port').value = settings.relay_ports.ph_up || 1;
@@ -542,10 +545,12 @@
     document.getElementById('general-settings-form').addEventListener('submit', e => {
       e.preventDefault();
       const phTarget = parseFloat(document.getElementById('ph-target').value);
+      const systemVolume = parseFloat(document.getElementById('system-volume').value);
       const maxDosing = parseFloat(document.getElementById('max-dosing').value);
       const dosingInterval = parseFloat(document.getElementById('dosing-interval').value);
       const payload = {
         ph_target: phTarget,
+        system_volume: systemVolume,
         max_dosing_amount: maxDosing,
         dosing_interval: dosingInterval
       };
@@ -580,7 +585,9 @@
       e.preventDefault();
       const pump1 = parseFloat(document.getElementById('pump1-calibration').value);
       const pump2 = parseFloat(document.getElementById('pump2-calibration').value);
-      saveSettings("/api/settings/", { pump_calibration: { pump1, pump2 } });
+      const pump1Last = document.getElementById('pump1-last-calibrated').value;
+      const pump2Last = document.getElementById('pump2-last-calibrated').value;
+      saveSettings("/api/settings/", { pump_calibration: { pump1, pump2, pump1_last_calibrated: pump1Last, pump2_last_calibrated: pump2Last } });
     });
 
     // Relay Ports Form
