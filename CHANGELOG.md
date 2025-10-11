@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - valve commands received within 5 seconds will queue so the valve can finish turning
 - added seperate plant-info html page so Murad wouldn't be intimidated by the settings page.
 - added date picker for dosing pump calibration
+- added counters for ph up and down pump to track usage.
 
 ## [1.0.84] - 2025-09-29
 - inverted water sensor feedback to be more logical in backend code
