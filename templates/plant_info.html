@@ -16,9 +16,12 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
-      <li><a href="/dosage">Dosage</a></li>
-      <li><a href="/settings">Settings</a></li>
       <li><a href="/plant_info">Plant Info</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/configuration">Configuration</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/valves">Valves</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="/changelog">Changelog</a></li>
     </ul>
@@ -98,10 +101,10 @@
         auto_dosing_enabled: autoDosing,
         allow_remote_feeding: allowRemoteFeeding
       };
-      saveSettings("/api/plant_info/", payload);  /*Assuming API endpoint for plant info */
+      saveSettings("/api/plant_info/", payload);  // Assuming API endpoint for plant info
     });
 
-    /* Save Plant Info */
+    // Save Plant Info
     document.getElementById('plant-info-form').addEventListener('submit', e => {
       e.preventDefault();
       const plantName = document.getElementById('plant-name').value.trim();
@@ -112,11 +115,11 @@
           start_date: plantStartDate
         }
       };
-      saveSettings("/api/plant_info/", payload);  /*Assuming API endpoint for plant info */
+      saveSettings("/api/plant_info/", payload);  // Assuming API endpoint for plant info
       document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantStartDate);
     });
 
-    /*Generic save function */
+    // Generic save function
     function saveSettings(url, payload) {
       fetch(url, {
         method: 'POST',

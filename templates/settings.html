@@ -101,12 +101,12 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
-      <li><a href="/dosage">Dosage</a></li>
-      <!--<li><a href="/calibration">Calibration</a></li>-->
-      <!--<li><a href="/configuration">Configuration</a></li>-->
-      <li><a href="/settings">Settings</a></li>
-      <!--<li><a href="/valves">Valves</a></li>-->
       <li><a href="/plant_info">Plant Info</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/configuration">Configuration</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/valves">Valves</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="/changelog">Changelog</a></li>
     </ul>
@@ -325,7 +325,6 @@
   </main>
   <script>
     // JavaScript for Settings page (modified to remove moved items)
-
     // Fetch current settings on load
     document.addEventListener('DOMContentLoaded', () => {
       fetch('/api/settings')

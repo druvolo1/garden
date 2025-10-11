@@ -1,15 +1,12 @@
-from flask import Blueprint, request, jsonify, render_template, send_file
+from flask import Blueprint, request, jsonify, send_file
 import json
 import os
 import subprocess
-import stat
 from datetime import datetime
-import threading
 
 from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
-from services.plant_service import get_weeks_since_start
 from utils.settings_utils import load_settings, save_settings
 
 import requests  # For sending the Discord test POST
@@ -21,8 +18,6 @@ SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 # >>> Define your in-code program version here <<<
 CURRENT_VERSION = "v1.0.85"
-
-
 
 feeding_in_progress = False
 feeding_timer = None
@@ -37,9 +32,7 @@ if not os.path.exists(SETTINGS_FILE):
             "ph_target": 5.8,
             "max_dosing_amount": 5,
             "dosing_interval": 1.0,
-            "system_volume": 5.5,
             "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
-            "auto_dosing_enabled": False,
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
             "usb_roles": {
@@ -66,11 +59,9 @@ if not os.path.exists(SETTINGS_FILE):
             # Water-level sensors
             "water_level_sensors": {
                 "sensor1": {"label": "Full",  "pin": 17},
-                "sensor2": {"label": "3 Gal", "pin": 18},
+                "sensor2": {"label":  "3 Gal", "pin": 18},
                 "sensor3": {"label": "Empty", "pin": 19}
             },
-            "plant_info": {},
-            "additional_plants": [],
 
             # Let them store fill_valve_ip, fill_valve, fill_valve_label, etc.
             "fill_valve_ip": "",
@@ -93,7 +84,6 @@ if not os.path.exists(SETTINGS_FILE):
             "telegram_bot_token": "",
             "telegram_chat_id": "",
 
-            "allow_remote_feeding": False,
             "auto_fill_sensor": "disabled"
         }, f, indent=4)
 
@@ -200,116 +190,129 @@ def update_settings():
         current_settings["relay_ports"].update(new_settings["relay_ports"])
         del new_settings["relay_ports"]
 
-    # 2) Merge water_level_sensors if present
-    water_sensors_updated = False
-    if "water_level_sensors" in new_settings:
-        if "water_level_sensors" not in current_settings:
-            current_settings["water_level_sensors"] = {}
+    # 2) Merge ph_range if present
+    if "ph_range" in new_settings:
+        if "ph_range" not in current_settings:
+            current_settings["ph_range"] = {}
+        current_settings["ph_range"].update(new_settings["ph_range"])
+        del new_settings["ph_range"]
 
-        for sensor_key, sensor_data in new_settings["water_level_sensors"].items():
-            current_settings["water_level_sensors"][sensor_key] = sensor_data
+    # 3) Merge dosage_strength if present
+    if "dosage_strength" in new_settings:
+        if "dosage_strength" not in current_settings:
+            current_settings["dosage_strength"] = {}
+        current_settings["dosage_strength"].update(new_settings["dosage_strength"])
+        del new_settings["dosage_strength"]
 
-        del new_settings["water_level_sensors"]
-        water_sensors_updated = True
-
-    # 3) Merge power_controls if present
-    if "power_controls" in new_settings:
-        current_settings["power_controls"] = new_settings["power_controls"]
-        del new_settings["power_controls"]
-
-    # Merge pump_calibration if present
+    # 4) Merge pump_calibration if present
     if "pump_calibration" in new_settings:
         if "pump_calibration" not in current_settings:
             current_settings["pump_calibration"] = {}
         current_settings["pump_calibration"].update(new_settings["pump_calibration"])
         del new_settings["pump_calibration"]
 
-    # 4) Merge everything else (system_name, fill_valve, fill_valve_label, etc.)
-    #    This includes our new Discord fields if present: "discord_enabled", "discord_webhook_url"
+    # 5) Merge water_level_sensors if present
+    if "water_level_sensors" in new_settings:
+        if "water_level_sensors" not in current_settings:
+            current_settings["water_level_sensors"] = {}
+        current_settings["water_level_sensors"].update(new_settings["water_level_sensors"])
+        del new_settings["water_level_sensors"]
+
+    # 6) Merge valve_labels if present
+    if "valve_labels" in new_settings:
+        if "valve_labels" not in current_settings:
+            current_settings["valve_labels"] = {}
+        current_settings["valve_labels"].update(new_settings["valve_labels"])
+        del new_settings["valve_labels"]
+
+    # 7) Merge power_controls if present
+    if "power_controls" in new_settings:
+        current_settings["power_controls"] = new_settings["power_controls"]
+        del new_settings["power_controls"]
+
+    # 8) Merge Discord fields if present
+    if "discord_enabled" in new_settings:
+        current_settings["discord_enabled"] = new_settings["discord_enabled"]
+        del new_settings["discord_enabled"]
+    if "discord_webhook_url" in new_settings:
+        current_settings["discord_webhook_url"] = new_settings["discord_webhook_url"]
+        del new_settings["discord_webhook_url"]
+
+    # 9) Merge Telegram fields if present
+    if "telegram_enabled" in new_settings:
+        current_settings["telegram_enabled"] = new_settings["telegram_enabled"]
+        del new_settings["telegram_enabled"]
+    if "telegram_bot_token" in new_settings:
+        current_settings["telegram_bot_token"] = new_settings["telegram_bot_token"]
+        del new_settings["telegram_bot_token"]
+    if "telegram_chat_id" in new_settings:
+        current_settings["telegram_chat_id"] = new_settings["telegram_chat_id"]
+        del new_settings["telegram_chat_id"]
+
+    # 10) Merge other simple fields
     current_settings.update(new_settings)
+
+    # Save the merged settings
     save_settings(current_settings)
 
-    # If water-level pins changed, re-init them
-    if water_sensors_updated:
-        from utils.water_level_utils import force_cleanup_and_init
-        force_cleanup_and_init()
+    # Handle any post-save actions
+    if "system_name" in new_settings and new_settings["system_name"] != old_system_name:
+        from mdns import register_mdns_pure_system_name, register_mdns_pc_hostname
+        register_mdns_pure_system_name(new_settings["system_name"], service_port=8000)
+        register_mdns_pc_hostname(new_settings["system_name"], service_port=8000)
 
-    # If auto-dosing changed, reset timer
     if auto_dosing_changed:
         reset_auto_dose_timer()
-
-    # If system name changed, re-register mDNS
-    new_system_name = current_settings.get("system_name", "Garden")
-    if old_system_name != new_system_name:
-        from utils.mdns_utils import register_mdns_pc_hostname, register_mdns_pure_system_name
-        register_mdns_pc_hostname(new_system_name, service_port=8000)
-        register_mdns_pure_system_name(new_system_name, service_port=8000)
-
-    try:
-        from services.log_service import reset_cache
-        reset_cache()
-        print("[DEBUG] Log service cache reset after settings update.")
-    except ImportError:
-        print("[WARN] Could not import log_service to reset cache.")
 
     emit_status_update()
     return jsonify({"status": "success", "settings": current_settings})
 
-@settings_blueprint.route('/remove_plant', methods=['POST'])
-def remove_plant():
-    data = request.get_json() or {}
-    index = data.get('index')
-    if index is None:
-        return jsonify({"status": "failure", "error": "No index provided"}), 400
-
-    current_settings = load_settings()
-    if 'additional_plants' in current_settings and 0 <= index < len(current_settings['additional_plants']):
-        del current_settings['additional_plants'][index]
-        save_settings(current_settings)
-        return jsonify({"status": "success", "settings": current_settings})
-    else:
-        return jsonify({"status": "failure", "error": "Invalid index"}), 400
-
-@settings_blueprint.route('/add_plant', methods=['POST'])
-def add_plant():
-    data = request.get_json() or {}
-    new_ip = data.get('new_ip')
-    if not new_ip:
-        return jsonify({"status": "failure", "error": "No new_ip provided"}), 400
-
-    current_settings = load_settings()
-    if 'additional_plants' not in current_settings:
-        current_settings['additional_plants'] = []
-    current_settings['additional_plants'].append(new_ip)
-    save_settings(current_settings)
-    return jsonify({"status": "success", "settings": current_settings})
-
 @settings_blueprint.route('/usb_devices', methods=['GET'])
+def get_usb_devices():
+    devices = list_usb_devices()
+    return jsonify({"status": "success", "devices": devices})
+
 def list_usb_devices():
-    import subprocess
+    """List all USB devices with their paths and names."""
     devices = []
     try:
-        result = subprocess.check_output("ls /dev/serial/by-path", shell=True).decode().splitlines()
-        devices = [{"device": f"/dev/serial/by-path/{dev}"} for dev in result]
+        output = subprocess.check_output(["lsusb"]).decode()
+        lines = output.strip().split("\n")
+        for line in lines:
+            parts = line.split()
+            bus = parts[1]
+            device = parts[3][:3]
+            name = " ".join(parts[6:])
+            path = f"/dev/bus/usb/{bus}/{device}"
+            devices.append({"path": path, "name": name})
     except Exception as e:
         print(f"Error listing USB devices: {e}")
-    return jsonify(devices)
+    return devices
 
-@settings_blueprint.route('/assign_usb', methods=['POST'])
-def assign_usb_device():
-    data = request.get_json() or {}
-    role = data.get("role")
-    device = data.get("device")
-
-    if role not in ["ph_probe", "relay", "valve_relay", "ec_meter"]:
-        return jsonify({"status": "failure", "error": "Invalid role"}), 400
-
+@settings_blueprint.route('/usb_roles', methods=['POST'])
+def update_usb_roles():
+    """Update the usb_roles mapping in settings.json."""
+    new_roles = request.get_json() or {}
     current_settings = load_settings()
-    current_settings.setdefault("usb_roles", {})[role] = device  # Safely create dict if missing
+    if "usb_roles" not in current_settings:
+        current_settings["usb_roles"] = {}
+    current_settings["usb_roles"].update(new_roles)
     save_settings(current_settings)
 
-    # Reinitialize the valve relay service if device changed
-    reinitialize_relay_service()
+    # Re-initialize services based on changes
+    if "ph_probe" in new_roles:
+        from services.ph_service import restart_serial_reader
+        restart_serial_reader()
+    if "relay" in new_roles:
+        from services.pump_relay_service import reinitialize_relay_service
+        reinitialize_relay_service()
+    if "valve_relay" in new_roles:
+        from services.valve_relay_service import stop_valve_thread, init_valve_thread
+        stop_valve_thread()
+        init_valve_thread()
+    if "ec_meter" in new_roles:
+        from services.ec_service import restart_ec_serial_reader
+        restart_ec_serial_reader()
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": current_settings["usb_roles"]})
