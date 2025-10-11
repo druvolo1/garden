@@ -1,9 +1,10 @@
 import json
 import os
-import threading
+import eventlet
+from eventlet import semaphore
 
-# Create a single lock object shared by all load/save calls
-_settings_lock = threading.Lock()
+# Use eventlet semaphore for greenlet-safe locking
+_settings_lock = semaphore.Semaphore()
 
 # Path to the settings file
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
