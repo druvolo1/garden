@@ -253,6 +253,12 @@
           <input type="date" id="pump2-last-calibrated">
           <button type="submit">Save Pump Calibration</button>
         </form>
+        <div id="pump-tracking">
+          <p>Pump 1 Activations: <span id="pump1-activations">0</span> <button id="clear-pump1">Clear Pump 1</button></p>
+          <p>Pump 1 Cumulative Duration: <span id="pump1-duration">0</span> seconds</p>
+          <p>Pump 2 Activations: <span id="pump2-activations">0</span> <button id="clear-pump2">Clear Pump 2</button></p>
+          <p>Pump 2 Cumulative Duration: <span id="pump2-duration">0</span> seconds</p>
+        </div>
       </div>
       <!-- Relay Ports -->
       <div class="data-container" id="relay-ports-container">
@@ -376,6 +382,13 @@
           const phDownPort = settings.relay_ports.ph_down || 2;
           document.getElementById('pump1-label').textContent = `Pump 1${phUpPort === 1 ? ' (pH Up)' : phDownPort === 1 ? ' (pH Down)' : ''} Calibration (ml/s):`;
           document.getElementById('pump2-label').textContent = `Pump 2${phUpPort === 2 ? ' (pH Up)' : phDownPort === 2 ? ' (pH Down)' : ''} Calibration (ml/s):`;
+
+          // Pump Tracking
+          const tracking = settings.pump_tracking || {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}};
+          document.getElementById('pump1-activations').textContent = tracking["1"].activations;
+          document.getElementById('pump1-duration').textContent = tracking["1"].cumulative_duration.toFixed(2);
+          document.getElementById('pump2-activations').textContent = tracking["2"].activations;
+          document.getElementById('pump2-duration').textContent = tracking["2"].cumulative_duration.toFixed(2);
 
           // Relay Ports
           document.getElementById('ph-up-port').value = phUpPort;
@@ -751,6 +764,31 @@
       })
       .catch(err => console.error("Error importing settings:", err));
     });
+
+    // Clear Pump Tracking
+    document.getElementById('clear-pump1').addEventListener('click', () => {
+      clearPumpTracking("1");
+    });
+    document.getElementById('clear-pump2').addEventListener('click', () => {
+      clearPumpTracking("2");
+    });
+
+    function clearPumpTracking(pump) {
+      fetch('/api/settings/clear_pump_tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pump: pump })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success") {
+          location.reload();  // Reload to update display
+        } else {
+          console.error("Failed to clear pump tracking:", data.error);
+        }
+      })
+      .catch(err => console.error("Error clearing pump tracking:", err));
+    }
   </script>
 </body>
 </html>

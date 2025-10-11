@@ -32,6 +32,7 @@ if not os.path.exists(SETTINGS_FILE):
             "ph_target": 5.8,
             "max_dosing_amount": 5,
             "dosing_interval": 1.0,
+            "system_volume": 5.5,
             "dosage_strength": {"ph_up": 1.3, "ph_down": 0.9},
             "time_zone": "America/New_York",
             "daylight_savings_enabled": True,
@@ -43,6 +44,7 @@ if not os.path.exists(SETTINGS_FILE):
             },
             "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
+            "pump_tracking": {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}},
 
             # The local usb-based labels for a physically attached relay board
             "valve_labels": {
@@ -276,8 +278,15 @@ def list_usb_devices():
     """List all USB devices with their paths and names."""
     devices = []
     try:
-        output = subprocess.check_output(["ls", "/dev/serial/by-path/"]).decode().splitlines()
-        devices = [{"path": f"/dev/serial/by-path/{dev}", "name": dev} for dev in output if dev]
+        output = subprocess.check_output(["lsusb"]).decode()
+        lines = output.strip().split("\n")
+        for line in lines:
+            parts = line.split()
+            bus = parts[1]
+            device = parts[3][:3]
+            name = " ".join(parts[6:])
+            path = f"/dev/bus/usb/{bus}/{device}"
+            devices.append({"path": path, "name": name})
     except Exception as e:
         print(f"Error listing USB devices: {e}")
     return devices

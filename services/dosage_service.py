@@ -8,6 +8,7 @@ import api.settings  # Modified import
 from services.log_service import log_dosing_event
 from services.dosing_state import state  # CHANGED: Import the singleton instance instead of individual globals
 from services.water_level_service import get_water_level_status  # Added import for water level check
+from utils.settings_utils import load_settings, save_settings
 
 def get_dosage_info():
     current_ph = get_latest_ph_reading()
@@ -174,5 +175,31 @@ def do_relay_dispense(dispense_type, amount_ml, settings):
     eventlet.sleep(duration_sec)   # Non-blocking Eventlet sleep
     turn_off_relay(relay_port)
 
+    # Update tracking with duration
+    update_pump_tracking(relay_port, duration_sec)
+
     # Reuse manual_dispense() for logging
     manual_dispense(dispense_type, amount_ml)
+
+def update_pump_tracking(relay_port, duration):
+    settings = load_settings()
+    relay_ports = settings.get("relay_ports", {"ph_up": 1, "ph_down": 2})
+    pump_tracking = settings.get("pump_tracking", {"1": {"activations": 0, "cumulative_duration": 0.0}, "2": {"activations": 0, "cumulative_duration": 0.0}})
+
+    # Map relay_port to pump
+    if relay_port == relay_ports["ph_up"]:
+        pump = "1"
+    elif relay_port == relay_ports["ph_down"]:
+        pump = "2"
+    else:
+        return  # Not a dosing pump
+
+    if pump not in pump_tracking:
+        pump_tracking[pump] = {"activations": 0, "cumulative_duration": 0.0}
+    
+    pump_tracking[pump]["activations"] += 1
+    pump_tracking[pump]["cumulative_duration"] += duration
+
+    settings["pump_tracking"] = pump_tracking
+    save_settings(settings)
+    emit_status_update()
