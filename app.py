@@ -22,6 +22,7 @@ from api.update_code import update_code_blueprint
 from api.debug import debug_blueprint
 from api.notifications import notifications_blueprint
 from api.valve_relay import valve_relay_blueprint
+from api.plant_info import plant_info_blueprint  # New blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
@@ -97,7 +98,6 @@ def broadcast_ph_readings():
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
-
 
 
 def broadcast_status():
@@ -178,7 +178,7 @@ app.register_blueprint(update_code_blueprint, url_prefix='/api/system')
 app.register_blueprint(debug_blueprint, url_prefix='/debug')
 app.register_blueprint(notifications_blueprint, url_prefix='/api/notifications')
 app.register_blueprint(valve_relay_blueprint, url_prefix='/api/valve_relay')
-
+app.register_blueprint(plant_info_blueprint, url_prefix='/api/plant_info')  # New blueprint
 
 ########################################################################
 # Routes
@@ -280,6 +280,10 @@ def notifications_page():
 @app.route('/logs')
 def logs_page():
     return render_template('logs.html')
+
+@app.route('/plant_info')
+def plant_info_page():
+    return render_template('plant_info.html')
 
 # Initialization logic (moved from post_fork for consistency)
 print("[WSGI] Initializing. Starting threads and registering mDNS...")

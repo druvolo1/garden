@@ -38,7 +38,7 @@ valve_status = {i: "off" for i in range(1, 9)}
 
 # Cooldown tracking
 last_command_time = {i: 0.0 for i in range(1, 9)}
-pending_commands = {i: deque() for i in range(1, 9)}
+pending_commands = {i: deque(maxlen=20) for i in range(1, 9)}
 is_processing = {i: False for i in range(1, 9)}
 
 SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
@@ -214,6 +214,7 @@ def process_queue(valve_id):
                 cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
                 if is_debug_enabled("valve_relay_service"):
                     log_with_timestamp(f"[Valve] Sending queued {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+                last_command_time[valve_id] = time.time()  # Update before execution to account for execution time in next cooldown
                 valve_ser.write(cmd)
                 eventlet.sleep(0.5)  # Delay after command
                 # Initial poll
@@ -223,10 +224,10 @@ def process_queue(valve_id):
                 parse_hardware_response(response)
                 # Verify state with retries
                 poll_until_state_matches(valve_id, state)
-                last_command_time[valve_id] = time.time()
                 final_state = valve_status.get(valve_id, "unknown")
                 log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
                 emit_status_update()
+    log_with_timestamp(f"[Valve] Queue processing complete for valve {valve_id}.")
     is_processing[valve_id] = False
 
 def set_valve_state(valve_id, state):
@@ -243,6 +244,7 @@ def set_valve_state(valve_id, state):
             cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
             if is_debug_enabled("valve_relay_service"):
                 log_with_timestamp(f"[Valve] Sending {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+            last_command_time[valve_id] = time.time()  # Update before execution to account for execution time in next cooldown
             valve_ser.write(cmd)
             eventlet.sleep(0.5)  # Delay after command
             # Initial poll
@@ -252,7 +254,6 @@ def set_valve_state(valve_id, state):
             parse_hardware_response(response)
             # Verify state with retries
             poll_until_state_matches(valve_id, state)
-            last_command_time[valve_id] = time.time()
             final_state = valve_status.get(valve_id, "unknown")
             log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
             emit_status_update()

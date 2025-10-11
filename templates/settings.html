@@ -106,6 +106,7 @@
       <!--<li><a href="/configuration">Configuration</a></li>-->
       <li><a href="/settings">Settings</a></li>
       <!--<li><a href="/valves">Valves</a></li>-->
+      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/logs">Logs</a></li>
       <li><a href="/changelog">Changelog</a></li>
     </ul>
@@ -202,13 +203,6 @@
           <input type="number" id="max-dosing" step="1">
           <label for="dosing-interval">Dosing Interval (hours):</label>
           <input type="number" id="dosing-interval" step=".0001">
-          <label for="system-volume">System Volume (gallons):</label>
-          <input type="number" id="system-volume" step=".1">
-          <label for="auto-dosing">Auto-Dosing Enabled:</label>
-          <input type="checkbox" id="auto-dosing">
-         
-          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
-          <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
         </form>
       </div>
@@ -216,242 +210,111 @@
       <div class="data-container" id="dosage-strength-container">
         <h2>Dosage Strength</h2>
         <form id="dosage-strength-form">
-          <label for="ph-up-strength">pH Up Dosage Strength (ml per pH point):</label>
+          <label for="ph-up-strength">pH Up Dosage Strength:</label>
           <input type="number" id="ph-up-strength" step="0.01">
-          <label for="ph-down-strength">pH Down Dosage Strength (ml per pH point):</label>
+          <label for="ph-down-strength">pH Down Dosage Strength:</label>
           <input type="number" id="ph-down-strength" step="0.01">
-          <button type="submit" id="dosage-save-btn">Save Dosage Strength</button>
+          <button type="submit">Save Dosage Strength</button>
+        </form>
+      </div>
+      <!-- System Name -->
+      <div class="data-container">
+        <h2>System Name</h2>
+        <form id="system-name-form">
+          <label for="system-name">System Name:</label>
+          <input type="text" id="system-name">
+          <button type="submit">Save System Name</button>
+        </form>
+      </div>
+      <!-- Time Zone -->
+      <div class="data-container">
+        <h2>Time Zone</h2>
+        <form id="time-zone-form">
+          <label for="time-zone">Time Zone:</label>
+          <select id="time-zone"></select>
+          <label for="daylight-savings">Daylight Savings Enabled:</label>
+          <input type="checkbox" id="daylight-savings">
+          <button type="submit">Save Time Zone</button>
         </form>
       </div>
       <!-- Pump Calibration -->
       <div class="data-container" id="pump-calibration-container">
         <h2>Pump Calibration</h2>
-          <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
-          <input type="number" id="pump1-calibration" step="0.01"><br><br>
-          <label>Last Calibrated pH Up:</label>
-          <span id="pump1-last-calibrated">Loading...</span><br><br>
-          <button id="save-pump1">Save pH Up Calibration</button><br><br>
-          <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
-          <input type="number" id="pump2-calibration" step="0.01"><br><br>
-          <label>Last Calibrated pH Down:</label>
-          <span id="pump2-last-calibrated">Loading...</span><br><br>
-          <button id="save-pump2">Save pH Down Calibration</button>
+        <form id="pump-calibration-form">
+          <label for="pump1-calibration">Pump 1 (pH Up) Calibration (ml/s):</label>
+          <input type="number" id="pump1-calibration" step="0.01">
+          <label for="pump2-calibration">Pump 2 (pH Down) Calibration (ml/s):</label>
+          <input type="number" id="pump2-calibration" step="0.01">
+          <button type="submit">Save Pump Calibration</button>
+        </form>
+        <div id="calibration-dates">
+          <p>Pump 1 Last Calibrated: <span id="pump1-last-calibrated">N/A</span></p>
+          <p>Pump 2 Last Calibrated: <span id="pump2-last-calibrated">N/A</span></p>
+        </div>
       </div>
-      <!-- Relay Port Assignments (for Dosing) -->
-      <div class="data-container" id="relay-port-container">
-        <h2>Dosing Relay Port Assignments</h2>
-        <form id="relay-port-form">
-          <label for="ph-up-relay-port">pH Up Relay Port:</label>
-          <select id="ph-up-relay-port">
-            <option value="1">Relay 1</option>
-            <option value="2">Relay 2</option>
-          </select>
-          <br><br>
-          <label for="ph-down-relay-port">pH Down Relay Port:</label>
-          <select id="ph-down-relay-port">
-            <option value="1">Relay 1</option>
-            <option value="2">Relay 2</option>
-          </select>
-          <br><br>
-          <button type="submit" id="relay-port-save-btn">Save Relay Port Assignments</button>
+      <!-- Relay Ports -->
+      <div class="data-container" id="relay-ports-container">
+        <h2>Relay Ports</h2>
+        <form id="relay-ports-form">
+          <label for="ph-up-port">pH Up Port:</label>
+          <input type="number" id="ph-up-port" min="1" max="8">
+          <label for="ph-down-port">pH Down Port:</label>
+          <input type="number" id="ph-down-port" min="1" max="8">
+          <button type="submit">Save Relay Ports</button>
         </form>
       </div>
-      <!-- Water Valve Assignment -->
-      <div class="data-container">
-        <h2>Water Valve Assignment</h2>
-        <form id="water-valve-form">
-          <!-- Fill Valve -->
-          <h3>Fill Valve Assignment</h3>
-          <!-- Mode dropdown -->
-          <label for="fill-valve-mode">Fill Valve Mode:</label>
-          <select id="fill-valve-mode">
-            <option value="local">Local (USB)</option>
-            <option value="remote">Remote (IP)</option>
-          </select>
-          <br><br>
-          <!-- IP input section hidden if "local" -->
-          <div id="fill-valve-ip-section">
-            <label for="fill-valve-ip">Fill Valve IP:</label>
-            <input type="text" id="fill-valve-ip">
-            <button type="button" id="retrieve-fill-valves">Retrieve Fill Valves</button>
-          </div>
-          <br><br>
-          <label for="fill-valve">Fill Valve:</label>
-          <select id="fill-valve">
-            <option value="">Select Fill Valve</option>
-          </select>
-          <br><br>
-          <label for="fill-sensor">Fill Valve Sensor:</label>
-          <select id="fill-sensor">
-            <option value="">Select Fill Sensor</option>
-          </select>
-          <br><br>
-          <label for="auto-fill-sensor">Auto Fill from Sensor:</label>
-          <select id="auto-fill-sensor">
-            <option value="disabled">Disabled</option>
-          </select>
-          <!-- ... then the rest of the fill logic ... -->
-          <!-- Drain Valve -->
-          <h3>Drain Valve Assignment</h3>
-          <label for="drain-valve-mode">Drain Valve Mode:</label>
-          <select id="drain-valve-mode">
-            <option value="local">Local (USB)</option>
-            <option value="remote">Remote (IP)</option>
-          </select>
-          <br><br>
-          <div id="drain-valve-ip-section">
-            <label for="drain-valve-ip">Drain Valve IP:</label>
-            <input type="text" id="drain-valve-ip">
-            <button type="button" id="retrieve-drain-valves">Retrieve Drain Valves</button>
-          </div>
-          <br><br>
-          <label for="drain-valve">Drain Valve:</label>
-          <select id="drain-valve">
-            <option value="">Select Drain Valve</option>
-          </select>
-          <br><br>
-          <label for="drain-sensor">Drain Valve Sensor:</label>
-          <select id="drain-sensor">
-            <option value="">Select Drain Sensor</option>
-          </select>
-          <hr>
-          <button type="submit">Save Valve Assignments</button>
-        </form>
-      </div>
-      <!-- System Info Section -->
-      <div class="data-container" id="system-info-container">
-        <h2>System Info</h2>
-        <form id="system-info-form">
-          <label for="system-name">System Name:</label>
-          <input type="text" id="system-name"><br><br>
-          <label for="plant-name">Plant Name:</label>
-          <input type="text" id="plant-name"><br><br>
-          <label for="plant-start-date">Plant Start Date:</label>
-          <input type="date" id="plant-start-date"><br><br>
-          <label>Weeks Since Start:</label>
-          <span id="weeks-since-start">0</span><br><br>
-          <button type="submit">Save System Info</button>
-        </form>
-      </div>
-      <!-- Water Level Sensors -->
-      <div class="data-container">
-        <h2>Water Level Sensors</h2>
-        <form id="water-level-sensors-form">
-          <fieldset>
-            <legend>Sensor 1</legend>
-            <label>Label:</label>
-            <input type="text" id="sensor1-label">
-            <label>Pin:</label>
-            <input type="number" id="sensor1-pin">
-          </fieldset>
-          <fieldset>
-            <legend>Sensor 2</legend>
-            <label>Label:</label>
-            <input type="text" id="sensor2-label">
-            <label>Pin:</label>
-            <input type="number" id="sensor2-pin">
-          </fieldset>
-          <fieldset>
-            <legend>Sensor 3</legend>
-            <label>Label:</label>
-            <input type="text" id="sensor3-label">
-            <label>Pin:</label>
-            <input type="number" id="sensor3-pin">
-          </fieldset>
-          <button type="submit">Save Water Sensors</button>
-        </form>
-      </div>
-      <!-- Additional Plants Section -->
-      <div class="data-container">
-        <h2>Additional Plants</h2>
-        <div id="plants-list" style="margin-bottom: 10px;"></div>
-        <label for="new-plant-input">New IP / DNS:</label>
-        <input type="text" id="new-plant-input" placeholder="e.g. 192.168.1.45 or myplant.local">
-        <button type="button" id="add-plant-btn">+ Add</button>
-      </div>
-      <!-- POWER OUTLETS UI -->
-      <div class="data-container">
-        <h2>Power Outlets</h2>
+      <!-- Power Controls -->
+      <div class="data-container" id="power-controls-container">
+        <h2>Power Controls</h2>
         <div id="power-outlets-list"></div>
-        <h3>Add New Outlet</h3>
-        <label for="new-outlet-ip">Outlet IP (Shelly IP):</label>
-        <input type="text" id="new-outlet-ip">
-        <label for="new-outlet-label">Label:</label>
-        <input type="text" id="new-outlet-label">
-        <button type="button" id="add-outlet-btn">+ Add Outlet</button>
+        <form id="add-outlet-form">
+          <label for="new-outlet-ip">Shelly Outlet IP:</label>
+          <input type="text" id="new-outlet-ip" placeholder="e.g., 192.168.1.100">
+          <label for="new-outlet-label">Label (optional):</label>
+          <input type="text" id="new-outlet-label" placeholder="e.g., Light Switch">
+          <button type="button" id="add-outlet-btn">Add Outlet</button>
+        </form>
       </div>
-      <!-- END POWER OUTLETS UI -->
-      <!-- Notifications Section -->
-      <div class="data-container" id="notifications-container">
-        <h2>Notifications</h2>
-        <!-- ===================== Discord Settings ====================== -->
-        <h3>Discord Settings</h3>
+      <!-- Discord Notifications -->
+      <div class="data-container">
+        <h2>Discord Notifications</h2>
         <form id="discord-form">
-          <div>
-            <label for="discord-enabled">Enable Discord Notifications:</label>
-            <input type="checkbox" id="discord-enabled">
-          </div>
-          <br>
-          <div>
-            <label for="discord-webhook-url">Discord Webhook URL:</label>
-            <input type="text" id="discord-webhook-url" style="width: 300px;">
-          </div>
-          <br>
+          <label for="discord-enabled">Enable Discord Notifications:</label>
+          <input type="checkbox" id="discord-enabled">
+          <label for="discord-webhook-url">Discord Webhook URL:</label>
+          <input type="text" id="discord-webhook-url" placeholder="https://discord.com/api/webhooks/...">
           <button type="submit">Save Discord Settings</button>
         </form>
-        <hr>
-        <h4>Test Discord Notification</h4>
-        <label for="discord-test-message">Test Message:</label>
-        <input type="text" id="discord-test-message" style="width: 280px;">
-        <button id="discord-test-send-btn">Send Test</button>
-        <div id="discord-test-result" style="margin-top:8px; color: #e0e0e0;"></div>
-        <hr>
-        <!-- ===================== Telegram Settings ====================== -->
-        <h3>Telegram Settings</h3>
+        <div class="test-section">
+          <h3>Test Discord</h3>
+          <input type="text" id="discord-test-message" placeholder="Enter test message...">
+          <button id="discord-test-send-btn">Send Test Message</button>
+          <div id="discord-test-result"></div>
+        </div>
+      </div>
+      <!-- Telegram Notifications -->
+      <div class="data-container">
+        <h2>Telegram Notifications</h2>
         <form id="telegram-form">
-          <div>
-            <label for="telegram-enabled">Enable Telegram Notifications:</label>
-            <input type="checkbox" id="telegram-enabled">
-          </div>
-          <br>
-          <div>
-            <label for="telegram-bot-token">Telegram Bot Token:</label>
-            <input type="text" id="telegram-bot-token" style="width: 300px;">
-          </div>
-          <br>
-          <div>
-            <label for="telegram-chat-id">Telegram Chat ID:</label>
-            <input type="text" id="telegram-chat-id" style="width: 300px;">
-          </div>
-          <br>
+          <label for="telegram-enabled">Enable Telegram Notifications:</label>
+          <input type="checkbox" id="telegram-enabled">
+          <label for="telegram-bot-token">Telegram Bot Token:</label>
+          <input type="text" id="telegram-bot-token" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+          <label for="telegram-chat-id">Telegram Chat ID:</label>
+          <input type="text" id="telegram-chat-id" placeholder="e.g., -123456789 or @channelname">
           <button type="submit">Save Telegram Settings</button>
         </form>
-        <hr>
-        <h4>Test Telegram Notification</h4>
-        <label for="telegram-test-message">Test Message:</label>
-        <input type="text" id="telegram-test-message" style="width: 280px;">
-        <button id="telegram-test-send-btn">Send Test</button>
-        <div id="telegram-test-result" style="margin-top:8px; color: #e0e0e0;"></div>
+        <div class="test-section">
+          <h3>Test Telegram</h3>
+          <input type="text" id="telegram-test-message" placeholder="Enter test message...">
+          <button id="telegram-test-send-btn">Send Test Message</button>
+          <div id="telegram-test-result"></div>
+        </div>
       </div>
-      <!-- Code Update / Restart Section -->
+      <!-- Export/Import -->
       <div class="data-container">
-        <h2>Application Update</h2>
-        <p>Current Version: <span id="current-version"></span></p>
-        <button id="check-update-btn">Check for Update</button>
-        <div id="check-status"></div>
-        <button id="apply-update-btn" style="display: none;" disabled>Apply Update</button>
-        <div id="apply-status"></div>
-      </div>
-      <!-- Import / Export Settings Section -->
-      <div class="data-container">
-        <h2>Import / Export Settings</h2>
-    
-        <!-- Export button -->
-        <p>Download a copy of the current settings.json:</p>
+        <h2>Export/Import Settings</h2>
         <button id="export-btn">Export Settings</button>
-        <hr>
-        <!-- Import form -->
-        <p>Upload a new settings.json to replace the existing settings:</p>
         <form id="import-form">
           <input type="file" id="import-file" accept=".json">
           <button type="submit">Import Settings</button>
@@ -460,975 +323,276 @@
       </div>
     </div>
   </main>
-  <!-- Modal for update progress -->
-  <div id="updateModal" class="modal">
-    <div class="modal-content">
-      <p>Updating Application...</p>
-      <div class="progress">
-        <div class="progress-bar" id="progressBar">0%</div>
-      </div>
-      <button onclick="closeModal()">Close</button>
-    </div>
-  </div>
   <script>
-    /***************************************************************/
-    /** retrieveValvesFromIP - existing remote IP approach **/
-    /***************************************************************/
-    function retrieveValvesFromIP(ipInput, selectElementId) {
-      console.log("[retrieveValvesFromIP] Called with ipInput =", ipInput, "and selectElementId =", selectElementId);
-      return new Promise((resolve, reject) => {
-        if (!ipInput) {
-          console.warn("[retrieveValvesFromIP] No IP provided, rejecting.");
-          return reject(new Error("No IP address provided"));
-        }
-        let [host, port] = ipInput.split(":");
-        port = port || "8000";
-        const gardenUrl = `http://${host}:${port}/api/valve_relay/all_status`;
-        console.log("[retrieveValvesFromIP] Trying Garden API URL:", gardenUrl);
-        fetch(gardenUrl)
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`Garden API HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(data => {
-            if (data.status !== "success") {
-              throw new Error(data.error || "API returned failure");
-            }
-            const valveMap = data.valves || {};
-            console.log("[retrieveValvesFromIP] valveMap:", valveMap);
-            const sel = document.getElementById(selectElementId);
-            if (!sel) {
-              console.warn("[retrieveValvesFromIP] Could not find <select> with id =", selectElementId);
-              return resolve([]);
-            }
-            sel.innerHTML = '<option value="">Select Valve</option>';
-            Object.keys(valveMap).forEach(valveId => {
-              const info = valveMap[valveId];
-              const label = info.label || `Valve ${valveId}`;
-              const option = new Option(label, valveId);
-              sel.add(option);
-            });
-            resolve(Object.keys(valveMap));
-          })
-          .catch(gardenErr => {
-            console.warn("[retrieveValvesFromIP] Garden API failed, trying Shelly Gen2 API:", gardenErr);
-            // Fallback to Shelly Gen2
-            const shellyPort = (port === "8000") ? "80" : port;
-            const shellyUrl = `http://${host}:${shellyPort}/rpc/Shelly.GetStatus`;
-            console.log("[retrieveValvesFromIP] Trying Shelly Gen2 API URL:", shellyUrl);
-            fetch(shellyUrl)
-              .then(res => {
-                if (!res.ok) {
-                  throw new Error(`Shelly Gen2 HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-              })
-              .then(data => {
-                const valveMap = {};
-                Object.keys(data).forEach(key => {
-                  if (key.startsWith("switch:")) {
-                    const valveId = key.split(":")[1];
-                    valveMap[valveId] = { label: `Relay ${valveId}` };
-                  }
-                });
-                if (Object.keys(valveMap).length === 0) {
-                  throw new Error("No switches found in Shelly Gen2 status");
-                }
-                console.log("[retrieveValvesFromIP] Shelly Gen2 valveMap:", valveMap);
-                const sel = document.getElementById(selectElementId);
-                if (!sel) {
-                  return resolve([]);
-                }
-                sel.innerHTML = '<option value="">Select Valve</option>';
-                Object.keys(valveMap).forEach(valveId => {
-                  const info = valveMap[valveId];
-                  const label = info.label || `Relay ${valveId}`;
-                  const option = new Option(label, valveId);
-                  sel.add(option);
-                });
-                resolve(Object.keys(valveMap));
-              })
-              .catch(gen2Err => {
-                console.warn("[retrieveValvesFromIP] Shelly Gen2 failed, trying Shelly Gen1 API:", gen2Err);
-                // Fallback to Shelly Gen1 /status
-                const gen1Url = `http://${host}:${shellyPort}/status`;
-                console.log("[retrieveValvesFromIP] Trying Shelly Gen1 API URL:", gen1Url);
-                fetch(gen1Url)
-                  .then(res => {
-                    if (!res.ok) {
-                      throw new Error(`Shelly Gen1 HTTP error! status: ${res.status}`);
-                    }
-                    return res.json();
-                  })
-                  .then(data => {
-                    const relays = data.relays || [];
-                    if (relays.length === 0) {
-                      throw new Error("No relays found in Shelly Gen1 status");
-                    }
-                    const valveMap = {};
-                    relays.forEach((relay, index) => {
-                      const valveId = index.toString();
-                      valveMap[valveId] = { label: `Relay ${valveId}` };
-                    });
-                    console.log("[retrieveValvesFromIP] Shelly Gen1 valveMap:", valveMap);
-                    const sel = document.getElementById(selectElementId);
-                    if (!sel) {
-                      return resolve([]);
-                    }
-                    sel.innerHTML = '<option value="">Select Valve</option>';
-                    Object.keys(valveMap).forEach(valveId => {
-                      const info = valveMap[valveId];
-                      const label = info.label || `Relay ${valveId}`;
-                      const option = new Option(label, valveId);
-                      sel.add(option);
-                    });
-                    resolve(Object.keys(valveMap));
-                  })
-                  .catch(gen1Err => {
-                    console.error("[retrieveValvesFromIP] All attempts failed:", gen1Err);
-                    reject(gen1Err);
-                  });
-              });
-          });
-      });
-    }
-    /***************************************************************/
-    /** retrieveLocalValves - new local USB approach **/
-    /***************************************************************/
-    function retrieveLocalValves(selectElementId) {
-      return new Promise((resolve, reject) => {
-        const url = "/api/valve_relay/all_status";
-        console.log("[retrieveLocalValves] Fetching local valves:", url);
-        fetch(url)
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(data => {
-            if (data.status !== "success") {
-              throw new Error(data.error || "API returned failure");
-            }
-            const valveMap = data.valves || {};
-            console.log("[retrieveLocalValves] valveMap:", valveMap);
-            const sel = document.getElementById(selectElementId);
-            if (!sel) {
-              console.warn("[retrieveLocalValves] Could not find <select>", selectElementId);
-              return resolve([]);
-            }
-            sel.innerHTML = '<option value="">Select Valve</option>';
-            Object.keys(valveMap).forEach(valveId => {
-              const info = valveMap[valveId];
-              const label = info.label || `Valve ${valveId}`;
-              const option = new Option(label, valveId);
-              sel.add(option);
-            });
-            resolve(Object.keys(valveMap));
-          })
-          .catch(err => {
-            console.error("[retrieveLocalValves] Error:", err);
-            reject(err);
-          });
-      });
-    }
-    /***************************************************************/
-    /** handleFillValveModeChange **/
-    /***************************************************************/
-    function handleFillValveModeChange() {
-      const mode = document.getElementById('fill-valve-mode').value;
-      const ipSection = document.getElementById('fill-valve-ip-section');
-      const fillValveSelect = document.getElementById('fill-valve');
-      if (mode === 'local') {
-        // Hide IP input
-        ipSection.classList.add('hidden');
-        // Populate from local
-        retrieveLocalValves('fill-valve')
-          .then(valves => console.log("Local fill valves retrieved:", valves))
-          .catch(err => console.error("Error retrieving local fill valves:", err));
-      } else {
-        // Show IP input
-        ipSection.classList.remove('hidden');
-        // Clear out the dropdown
-        fillValveSelect.innerHTML = '<option value="">Select Fill Valve</option>';
-      }
-    }
-    /***************************************************************/
-    /** handleDrainValveModeChange **/
-    /***************************************************************/
-    function handleDrainValveModeChange() {
-      const mode = document.getElementById('drain-valve-mode').value;
-      const ipSection = document.getElementById('drain-valve-ip-section');
-      const drainValveSelect = document.getElementById('drain-valve');
-      if (mode === 'local') {
-        ipSection.classList.add('hidden');
-        retrieveLocalValves('drain-valve')
-          .then(vals => console.log("Local drain valves retrieved:", vals))
-          .catch(err => console.error("Error retrieving local drain valves:", err));
-      } else {
-        ipSection.classList.remove('hidden');
-        drainValveSelect.innerHTML = '<option value="">Select Drain Valve</option>';
-      }
-    }
-    /***************************************************************/
-    /** Document Ready **/
-    /***************************************************************/
+    // JavaScript for Settings page (modified to remove moved items)
+
+    // Fetch current settings on load
     document.addEventListener('DOMContentLoaded', () => {
-      // Immediately fetch & populate USB devices, etc.
-      fetchUsbDevices();
-      // Fill/Drain mode toggles
-      document.getElementById('fill-valve-mode').addEventListener('change', handleFillValveModeChange);
-      document.getElementById('drain-valve-mode').addEventListener('change', handleDrainValveModeChange);
-      // On page load, run them once
-      handleFillValveModeChange();
-      handleDrainValveModeChange();
-      // Modal close logic
-      const modal = document.getElementById('updateModal');
-      const closeBtn = document.getElementsByClassName('close')[0];
-      closeBtn.onclick = () => { modal.style.display = 'none'; };
-      window.onclick = (event) => {
-        if (event.target == modal) {
-          modal.style.display = 'none';
-        }
-      };
-      document.getElementById('cancelApply').onclick = () => { modal.style.display = 'none'; };
-      document.getElementById('confirmApply').onclick = applyUpdate;
+      fetch('/api/settings')
+        .then(response => response.json())
+        .then(settings => {
+          // USB Roles
+          fetchUsbDevices();
+
+          // pH Min/Max Range
+          document.getElementById('ph-min').value = settings.ph_range.min || 5.5;
+          document.getElementById('ph-max').value = settings.ph_range.max || 6.5;
+
+          // General Settings (remaining)
+          document.getElementById('ph-target').value = settings.ph_target || 5.8;
+          document.getElementById('max-dosing').value = settings.max_dosing_amount || 5;
+          document.getElementById('dosing-interval').value = settings.dosing_interval || 1.0;
+
+          // Dosage Strength
+          document.getElementById('ph-up-strength').value = settings.dosage_strength.ph_up || 1.3;
+          document.getElementById('ph-down-strength').value = settings.dosage_strength.ph_down || 0.9;
+
+          // System Name
+          document.getElementById('system-name').value = settings.system_name || 'Garden';
+
+          // Time Zone
+          fetchTimeZones().then(timezones => {
+            const tzSelect = document.getElementById('time-zone');
+            timezones.forEach(tz => {
+              const option = document.createElement('option');
+              option.value = tz;
+              option.textContent = tz;
+              tzSelect.appendChild(option);
+            });
+            tzSelect.value = settings.time_zone || 'America/New_York';
+          });
+          document.getElementById('daylight-savings').checked = settings.daylight_savings_enabled || true;
+
+          // Pump Calibration
+          document.getElementById('pump1-calibration').value = settings.pump_calibration.pump1 || 0.5;
+          document.getElementById('pump2-calibration').value = settings.pump_calibration.pump2 || 0.5;
+          document.getElementById('pump1-last-calibrated').textContent = settings.pump_calibration.pump1_last_calibrated || 'N/A';
+          document.getElementById('pump2-last-calibrated').textContent = settings.pump_calibration.pump2_last_calibrated || 'N/A';
+
+          // Relay Ports
+          document.getElementById('ph-up-port').value = settings.relay_ports.ph_up || 1;
+          document.getElementById('ph-down-port').value = settings.relay_ports.ph_down || 2;
+
+          // Power Controls
+          renderPowerOutlets(settings.power_controls || []);
+
+          // Discord
+          document.getElementById('discord-enabled').checked = settings.discord_enabled || false;
+          document.getElementById('discord-webhook-url').value = settings.discord_webhook_url || '';
+
+          // Telegram
+          document.getElementById('telegram-enabled').checked = settings.telegram_enabled || false;
+          document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
+          document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
+
+          // Check if dosing relay is assigned
+          if (!settings.usb_roles.relay) {
+            disableDosingSections();
+          }
+        })
+        .catch(err => console.error('Error fetching settings:', err));
     });
-    // Handle "Retrieve" clicks for fill/drain
-    document.getElementById('retrieve-fill-valves').addEventListener('click', () => {
-      const fillMode = document.getElementById('fill-valve-mode').value; // "local" or "remote"
-      if (fillMode === 'local') {
-        retrieveLocalValves('fill-valve')
-          .then(valves => console.log("Local fill valves retrieved:", valves))
-          .catch(err => console.error("Error retrieving local fill valves:", err));
-      } else {
-        const fillIP = document.getElementById('fill-valve-ip').value.trim();
-        retrieveValvesFromIP(fillIP, 'fill-valve')
-          .then(valves => console.log("Remote fill valves retrieved:", valves))
-          .catch(err => console.error("Error retrieving remote fill valves:", err));
-      }
-    });
-    document.getElementById('retrieve-drain-valves').addEventListener('click', () => {
-      const drainMode = document.getElementById('drain-valve-mode').value; // "local" or "remote"
-      if (drainMode === 'local') {
-        retrieveLocalValves('drain-valve')
-          .then(vals => console.log("Local drain valves retrieved:", vals))
-          .catch(err => console.error("Error retrieving local drain valves:", err));
-      } else {
-        const drainIP = document.getElementById('drain-valve-ip').value.trim();
-        retrieveValvesFromIP(drainIP, 'drain-valve')
-          .then(vals => console.log("Remote drain valves retrieved:", vals))
-          .catch(err => console.error("Error retrieving remote drain valves:", err));
-      }
-    });
-    /***************************************************************/
-    /** fetchUsbDevices & other existing code below... **/
-    /***************************************************************/
-    function updateWeeksSinceStart(startDateStr) {
-      const weeksSpan = document.getElementById('weeks-since-start');
-      if (!startDateStr) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const startDate = new Date(startDateStr);
-      if (isNaN(startDate)) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const now = new Date();
-      const diffMs = now - startDate;
-      if (diffMs < 0) {
-        weeksSpan.textContent = '0';
-        return;
-      }
-      const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-      weeksSpan.textContent = weeks.toString();
+
+    // Function to disable dosing-related sections
+    function disableDosingSections() {
+      document.getElementById('ph-range-container').classList.add('disabled-section');
+      document.getElementById('ph-range-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('general-settings-container').classList.add('disabled-section');
+      document.getElementById('general-settings-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('dosage-strength-container').classList.add('disabled-section');
+      document.getElementById('dosage-strength-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('pump-calibration-container').classList.add('disabled-section');
+      document.getElementById('pump-calibration-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('relay-ports-container').classList.add('disabled-section');
+      document.getElementById('relay-ports-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('relay-warning').style.display = 'block';
     }
+
+    // Fetch USB devices
     function fetchUsbDevices() {
-      console.log('Rescanning USB devices...');
-      Promise.all([
-        fetch("/api/settings/usb_devices").then(r => r.json()),
-        fetch("/api/settings/").then(r => r.json())
-      ])
-      .then(([devices, settings]) => {
-        console.log('Devices:', devices);
-        console.log('Settings:', settings);
-        // For each role, we'll re-populate the dropdown
-        const phDevSelect = document.getElementById('ph-device');
-        const dosingDevSelect = document.getElementById('dosing-relay-device');
-        const valveDevSelect = document.getElementById('valve-relay-device');
-        const ecMeterSelect = document.getElementById('ec-meter-device'); // NEW
-        const assignedPh = settings.usb_roles?.ph_probe || "";
-        const assignedDosing = settings.usb_roles?.relay || "";
-        const assignedValve = settings.usb_roles?.valve_relay || "";
-        const assignedEC = settings.usb_roles?.ec_meter || ""; // NEW
-        phDevSelect.innerHTML = '<option value="">Select a device</option>';
-        dosingDevSelect.innerHTML = '<option value="">Select a device</option>';
-        valveDevSelect.innerHTML = '<option value="">Select a device</option>';
-        ecMeterSelect.innerHTML = '<option value="">Select a device</option>';
-        devices.forEach(dev => {
-          // pH Option
-          const phOption = document.createElement('option');
-          phOption.value = dev.device;
-          phOption.textContent = dev.device;
-          if (phOption.value === assignedPh) {
-            phOption.selected = true;
-          }
-          phDevSelect.appendChild(phOption);
-          // Dosing Relay
-          const dosingOption = document.createElement('option');
-          dosingOption.value = dev.device;
-          dosingOption.textContent = dev.device;
-          if (dosingOption.value === assignedDosing) {
-            dosingOption.selected = true;
-          }
-          dosingDevSelect.appendChild(dosingOption);
-          // Valve Relay
-          const valveOption = document.createElement('option');
-          valveOption.value = dev.device;
-          valveOption.textContent = dev.device;
-          if (valveOption.value === assignedValve) {
-            valveOption.selected = true;
-          }
-          valveDevSelect.appendChild(valveOption);
-          // EC Meter
-          const ecOption = document.createElement('option');
-          ecOption.value = dev.device;
-          ecOption.textContent = dev.device;
-          if (ecOption.value === assignedEC) {
-            ecOption.selected = true;
-          }
-          ecMeterSelect.appendChild(ecOption);
-        });
-        // 1) If NO pH probe => disable pH range
-        const isPhProbeAssigned = Boolean(assignedPh);
-        const phRangeContainer = document.getElementById('ph-range-container');
-        if (!isPhProbeAssigned) {
-          phRangeContainer.classList.add('disabled-section');
-          phRangeContainer.setAttribute('data-disabled-title', 'Assign pH probe');
-        } else {
-          phRangeContainer.classList.remove('disabled-section');
-          phRangeContainer.removeAttribute('data-disabled-title');
-        }
-        // 2) If NO pH OR NO dosing => disable the big 4
-        const isDosingRelayAssigned = Boolean(assignedDosing);
-        const mustDisableBig4 = (!isPhProbeAssigned || !isDosingRelayAssigned);
-        const generalSettings = document.getElementById('general-settings-container');
-        const dosageStrength = document.getElementById('dosage-strength-container');
-        const pumpCalibration = document.getElementById('pump-calibration-container');
-        const relayPortSection = document.getElementById('relay-port-container');
-        if (mustDisableBig4) {
-          generalSettings.classList.add('disabled-section');
-          generalSettings.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-          dosageStrength.classList.add('disabled-section');
-          dosageStrength.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-          pumpCalibration.classList.add('disabled-section');
-          pumpCalibration.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-          relayPortSection.classList.add('disabled-section');
-          relayPortSection.setAttribute('data-disabled-title', 'Assign pH probe and dosing relay');
-        } else {
-          generalSettings.classList.remove('disabled-section');
-          generalSettings.removeAttribute('data-disabled-title');
-          dosageStrength.classList.remove('disabled-section');
-          dosageStrength.removeAttribute('data-disabled-title');
-          pumpCalibration.classList.remove('disabled-section');
-          pumpCalibration.removeAttribute('data-disabled-title');
-          relayPortSection.classList.remove('disabled-section');
-          relayPortSection.removeAttribute('data-disabled-title');
-        }
-        // Show/hide the Dosing Relay warning
-        const relayWarning = document.getElementById('relay-warning');
-        relayWarning.style.display = isDosingRelayAssigned ? 'none' : 'block';
-        // === ADDED LINES: Show/hide the "pH Calibration" link & "Manage Valves" link ===
-        const phCalibrationLink = document.getElementById('ph-calibration-link');
-        phCalibrationLink.style.display = isPhProbeAssigned ? 'inline-block' : 'none';
-        const isValveRelayAssigned = Boolean(assignedValve);
-        const valveRelayLink = document.getElementById('valve-relay-link');
-        valveRelayLink.style.display = isValveRelayAssigned ? 'inline-block' : 'none';
-        // pH Range
-        document.getElementById('ph-min').value = settings.ph_range?.min || '';
-        document.getElementById('ph-max').value = settings.ph_range?.max || '';
-        // General (dosing) settings
-        document.getElementById('ph-target').value = settings.ph_target || '5.8';
-        document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
-        document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
-        document.getElementById('system-volume').value = settings.system_volume || '';
-        document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
-        document.getElementById('allow-remote-feeding').checked = !!settings.allow_remote_feeding;
-        // System Info
-        const plantInfo = settings.plant_info || {};
-        document.getElementById('system-name').value = settings.system_name || '';
-        document.getElementById('plant-name').value = plantInfo.name || '';
-        document.getElementById('plant-start-date').value = plantInfo.start_date || '';
-        updateWeeksSinceStart(plantInfo.start_date);
-        // Dosage Strength
-        document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
-        document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
-        // Pump Calibration
-        document.getElementById('pump1-calibration').value = settings.pump_calibration?.pump1 || '';
-        document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
-        document.getElementById('pump1-last-calibrated').textContent = settings.pump_calibration?.pump1_last_calibrated || 'Never';
-        document.getElementById('pump2-last-calibrated').textContent = settings.pump_calibration?.pump2_last_calibrated || 'Never';
-        // Relay Ports
-        const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
-        document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
-        document.getElementById('ph-down-relay-port').value = relayPorts.ph_down;
-        // Water Level Sensors
-        const sensors = settings.water_level_sensors || {
-          sensor1: { label: "Full", pin: 22 },
-          sensor2: { label: "3 Gal", pin: 23 },
-          sensor3: { label: "Empty", pin: 24 }
-        };
-        document.getElementById('sensor1-label').value = sensors.sensor1.label;
-        document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
-        document.getElementById('sensor2-label').value = sensors.sensor2.label;
-        document.getElementById('sensor2-pin').value = sensors.sensor2.pin;
-        document.getElementById('sensor3-label').value = sensors.sensor3.label;
-        document.getElementById('sensor3-pin').value = sensors.sensor3.pin;
-        // Populate the Fill/Drain Sensor dropdowns
-        const fillSensorSelect = document.getElementById('fill-sensor');
-        const drainSensorSelect = document.getElementById('drain-sensor');
-        fillSensorSelect.innerHTML = '<option value="">Select Fill Sensor</option>';
-        drainSensorSelect.innerHTML = '<option value="">Select Drain Sensor</option>';
-        Object.keys(sensors).forEach(sensorKey => {
-          const sensorLabel = sensors[sensorKey].label || sensorKey;
-          fillSensorSelect.add(new Option(sensorLabel, sensorKey));
-          drainSensorSelect.add(new Option(sensorLabel, sensorKey));
-        });
-        fillSensorSelect.value = settings.fill_sensor || '';
-        drainSensorSelect.value = settings.drain_sensor || '';
-        // Populate the Auto Fill Sensor dropdown
-        const autoFillSelect = document.getElementById('auto-fill-sensor');
-        autoFillSelect.innerHTML = '<option value="disabled">Disabled</option>';
-        Object.keys(sensors).forEach(sensorKey => {
-          const sensorLabel = sensors[sensorKey].label || sensorKey;
-          autoFillSelect.add(new Option(sensorLabel, sensorKey));
-        });
-        autoFillSelect.value = settings.auto_fill_sensor || 'disabled';
-        /*************************************************************
-         * Re-populate Fill/Drain Valve info
-         *************************************************************/
-        // 1) Set the local/remote mode from settings
-        document.getElementById('fill-valve-mode').value = settings.fill_valve_mode || 'local';
-        document.getElementById('drain-valve-mode').value = settings.drain_valve_mode || 'local';
-        // 2) Update the IP text fields from settings
-        // so that if the mode is remote, the user sees the old IP.
-        document.getElementById('fill-valve-ip').value = settings.fill_valve_ip || "";
-        document.getElementById('drain-valve-ip').value = settings.drain_valve_ip || "";
-        // 3) Immediately call the mode-change handlers so the UI toggles
-        handleFillValveModeChange();
-        handleDrainValveModeChange();
-        // 4) If fill mode is local => retrieveLocalValves(...).value = fill_valve
-        // If fill mode is remote => retrieveValvesFromIP(fill_valve_ip, "fill-valve").value = fill_valve
-        if (settings.fill_valve_mode === 'local') {
-          retrieveLocalValves('fill-valve').then(() => {
-            document.getElementById('fill-valve').value = settings.fill_valve || '';
+      fetch('/api/settings/usb_devices')
+        .then(response => response.json())
+        .then(data => {
+          const phSelect = document.getElementById('ph-device');
+          const dosingRelaySelect = document.getElementById('dosing-relay-device');
+          const valveRelaySelect = document.getElementById('valve-relay-device');
+          const ecMeterSelect = document.getElementById('ec-meter-device');
+
+          phSelect.innerHTML = '<option value="">Select a device</option>';
+          dosingRelaySelect.innerHTML = '<option value="">Select a device</option>';
+          valveRelaySelect.innerHTML = '<option value="">Select a device</option>';
+          ecMeterSelect.innerHTML = '<option value="">Select a device</option>';
+
+          data.devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.path;
+            option.textContent = device.name;
+            phSelect.appendChild(option.cloneNode(true));
+            dosingRelaySelect.appendChild(option.cloneNode(true));
+            valveRelaySelect.appendChild(option.cloneNode(true));
+            ecMeterSelect.appendChild(option.cloneNode(true));
           });
-        } else {
-          if (settings.fill_valve_ip) {
-            retrieveValvesFromIP(settings.fill_valve_ip, 'fill-valve').then(() => {
-              document.getElementById('fill-valve').value = settings.fill_valve || '';
+
+          // Set current values
+          fetch('/api/settings')
+            .then(r => r.json())
+            .then(settings => {
+              phSelect.value = settings.usb_roles.ph_probe || '';
+              dosingRelaySelect.value = settings.usb_roles.relay || '';
+              valveRelaySelect.value = settings.usb_roles.valve_relay || '';
+              ecMeterSelect.value = settings.usb_roles.ec_meter || '';
+
+              // Show/hide calibration link
+              document.getElementById('ph-calibration-link').style.display = phSelect.value ? 'block' : 'none';
+
+              // Show/hide valves link
+              document.getElementById('valve-relay-link').style.display = valveRelaySelect.value ? 'block' : 'none';
             });
-          } else {
-            document.getElementById('fill-valve').innerHTML = '<option value="">Select Fill Valve</option>';
-          }
-        }
-        // 5) Same approach for the drain side:
-        if (settings.drain_valve_mode === 'local') {
-          retrieveLocalValves('drain-valve').then(() => {
-            document.getElementById('drain-valve').value = settings.drain_valve || '';
-          });
-        } else {
-          if (settings.drain_valve_ip) {
-            retrieveValvesFromIP(settings.drain_valve_ip, 'drain-valve').then(() => {
-              document.getElementById('drain-valve').value = settings.drain_valve || '';
-            });
-          } else {
-            document.getElementById('drain-valve').innerHTML = '<option value="">Select Drain Valve</option>';
-          }
-        }
-        // Additional plants
-        renderAdditionalPlants(settings.additional_plants || []);
-        // Program version
-        document.getElementById('current-version').textContent = settings.current_version || 'N/A';
-        // Render power outlets
-        renderPowerOutlets(settings.power_controls || []);
-        // Discord fields
-        document.getElementById('discord-enabled').checked = !!settings.discord_enabled;
-        document.getElementById('discord-webhook-url').value = settings.discord_webhook_url || '';
-        // Telegram fields (NEW)
-        document.getElementById('telegram-enabled').checked = !!settings.telegram_enabled;
-        document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
-        document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
-      })
-      .catch(err => console.error('Error scanning devices or fetching settings:', err));
+        })
+        .catch(err => console.error('Error fetching USB devices:', err));
     }
-    // USB assignment
-    function saveUsbAssignment(role, device) {
-      fetch("/api/settings/assign_usb", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, device })
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === 'success') {
-          document.getElementById('status').textContent = `${role} assigned successfully.`;
-        } else {
-          document.getElementById('status').textContent = `Failed to assign ${role}: ${data.error}`;
-        }
-        fetchUsbDevices();
-      })
-      .catch(err => console.error(`Error assigning ${role}:`, err));
+
+    // Fetch time zones
+    function fetchTimeZones() {
+      return fetch('/api/device/timezones')
+        .then(response => response.json())
+        .then(data => data.timezones)
+        .catch(err => {
+          console.error('Error fetching time zones:', err);
+          return [];
+        });
     }
-    // Save settings
-    function saveSettings(endpoint, payload) {
-      fetch(endpoint, {
+
+    // Render power outlets
+    function renderPowerOutlets(powerControls) {
+      const list = document.getElementById('power-outlets-list');
+      list.innerHTML = '';
+      powerControls.forEach((outlet, index) => {
+        const card = document.createElement('div');
+        card.classList.add('power-outlet-card');
+        card.innerHTML = `
+          <h4>${outlet.label || `Outlet ${index + 1}`}</h4>
+          <p>IP: ${outlet.outlet_ip}</p>
+          <button onclick="removeOutlet(${index})">Remove Outlet</button>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // Save settings generic function
+    function saveSettings(url, payload) {
+      fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      .then(() => {
-        console.log('Settings saved successfully');
-        // Refresh everything
-        fetchUsbDevices();
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          console.log('Settings saved successfully');
+        } else {
+          console.error('Failed to save settings:', data.error);
+        }
       })
-      .catch(error => console.error('Error saving settings:', error));
+      .catch(err => console.error('Error saving settings:', err));
     }
-    // FORM SUBMISSIONS for pH, Dosing, etc.
+
+    // Event listeners for forms (modified)
+    // pH Form
     document.getElementById('ph-form').addEventListener('submit', e => {
       e.preventDefault();
-      const dev = document.getElementById('ph-device').value;
-      saveUsbAssignment('ph_probe', dev);
+      const device = document.getElementById('ph-device').value;
+      saveSettings("/api/settings/usb_roles", { ph_probe: device });
     });
+
+    // Dosing Relay Form
     document.getElementById('dosing-relay-form').addEventListener('submit', e => {
       e.preventDefault();
-      const dev = document.getElementById('dosing-relay-device').value;
-      saveUsbAssignment('relay', dev);
+      const device = document.getElementById('dosing-relay-device').value;
+      saveSettings("/api/settings/usb_roles", { relay: device });
     });
+
+    // Valve Relay Form
     document.getElementById('valve-relay-form').addEventListener('submit', e => {
       e.preventDefault();
-      const dev = document.getElementById('valve-relay-device').value;
-      saveUsbAssignment('valve_relay', dev);
+      const device = document.getElementById('valve-relay-device').value;
+      saveSettings("/api/settings/usb_roles", { valve_relay: device });
     });
+
+    // EC Meter Form
     document.getElementById('ec-meter-form').addEventListener('submit', e => {
       e.preventDefault();
-      const dev = document.getElementById('ec-meter-device').value;
-      saveUsbAssignment('ec_meter', dev);
+      const device = document.getElementById('ec-meter-device').value;
+      saveSettings("/api/settings/usb_roles", { ec_meter: device });
     });
-    // Water Valve IP/Valves
-    document.getElementById('water-valve-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const fillMode = document.getElementById('fill-valve-mode').value;
-      const drainMode= document.getElementById('drain-valve-mode').value;
-      const fillValSelect = document.getElementById('fill-valve');
-      const fillValveId = fillValSelect.value;
-      const fillValveLbl = fillValSelect.options[fillValSelect.selectedIndex]?.text || "";
-      const drainValSelect= document.getElementById('drain-valve');
-      const drainValveId = drainValSelect.value;
-      const drainValveLbl = drainValSelect.options[drainValSelect.selectedIndex]?.text || "";
-      const fillIp = (fillMode === 'local')
-        ? ""
-        : document.getElementById('fill-valve-ip').value.trim();
-      const drainIp = (drainMode === 'local')
-        ? ""
-        : document.getElementById('drain-valve-ip').value.trim();
-      const payload = {
-        // Save the selected modes:
-        fill_valve_mode: fillMode,
-        drain_valve_mode: drainMode,
-        fill_valve_ip: fillIp,
-        fill_valve: fillValveId,
-        fill_valve_label: fillValveLbl,
-        fill_sensor: document.getElementById('fill-sensor').value,
-        drain_valve_ip: drainIp,
-        drain_valve: drainValveId,
-        drain_valve_label: drainValveLbl,
-        drain_sensor: document.getElementById('drain-sensor').value,
-        auto_fill_sensor: document.getElementById('auto-fill-sensor').value
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    // pH Range
+
+    // pH Range Form
     document.getElementById('ph-range-form').addEventListener('submit', e => {
       e.preventDefault();
-      const minVal = parseFloat(document.getElementById('ph-min').value);
-      const maxVal = parseFloat(document.getElementById('ph-max').value);
-      const payload = {
-        ph_range: { min: minVal, max: maxVal }
-      };
-      saveSettings("/api/settings/", payload);
+      const min = parseFloat(document.getElementById('ph-min').value);
+      const max = parseFloat(document.getElementById('ph-max').value);
+      saveSettings("/api/settings/", { ph_range: { min, max } });
     });
-    // General (dosing) settings
+
+    // General Settings Form (remaining)
     document.getElementById('general-settings-form').addEventListener('submit', e => {
       e.preventDefault();
+      const phTarget = parseFloat(document.getElementById('ph-target').value);
+      const maxDosing = parseFloat(document.getElementById('max-dosing').value);
+      const dosingInterval = parseFloat(document.getElementById('dosing-interval').value);
       const payload = {
-        ph_target: parseFloat(document.getElementById('ph-target').value),
-        max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
-        dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
-        system_volume: parseFloat(document.getElementById('system-volume').value),
-        auto_dosing_enabled: document.getElementById('auto-dosing').checked,
-        allow_remote_feeding: document.getElementById('allow-remote-feeding').checked
+        ph_target: phTarget,
+        max_dosing_amount: maxDosing,
+        dosing_interval: dosingInterval
       };
       saveSettings("/api/settings/", payload);
     });
-    // Dosage Strength
+
+    // Dosage Strength Form
     document.getElementById('dosage-strength-form').addEventListener('submit', e => {
       e.preventDefault();
       const phUp = parseFloat(document.getElementById('ph-up-strength').value);
       const phDown = parseFloat(document.getElementById('ph-down-strength').value);
-      const payload = {
-        dosage_strength: { ph_up: phUp, ph_down: phDown }
-      };
-      saveSettings("/api/settings/", payload);
+      saveSettings("/api/settings/", { dosage_strength: { ph_up: phUp, ph_down: phDown } });
     });
-    // Pump Calibration - separate saves
-    document.getElementById('save-pump1').addEventListener('click', e => {
-      const pump1 = parseFloat(document.getElementById('pump1-calibration').value);
-      const now = new Date().toISOString().split('T')[0];
-      const payload = {
-        pump_calibration: {
-          pump1: pump1,
-          pump1_last_calibrated: now
-        }
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    document.getElementById('save-pump2').addEventListener('click', e => {
-      const pump2 = parseFloat(document.getElementById('pump2-calibration').value);
-      const now = new Date().toISOString().split('T')[0];
-      const payload = {
-        pump_calibration: {
-          pump2: pump2,
-          pump2_last_calibrated: now
-        }
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    // Relay Ports
-    document.getElementById('relay-port-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const phUpPort = parseInt(document.getElementById('ph-up-relay-port').value, 10);
-      const phDownPort = parseInt(document.getElementById('ph-down-relay-port').value, 10);
-      const payload = {
-        relay_ports: {
-          ph_up: phUpPort,
-          ph_down: phDownPort
-        }
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    // System Info
-    document.getElementById('system-info-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const systemName = document.getElementById('system-name').value.trim();
-      const plantName = document.getElementById('plant-name').value.trim();
-      const startDate = document.getElementById('plant-start-date').value;
-      const payload = {
-        system_name: systemName,
-        plant_info: {
-          name: plantName,
-          start_date: startDate
-        }
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    document.getElementById('plant-start-date').addEventListener('change', e => {
-      updateWeeksSinceStart(e.target.value);
-    });
-    // Water Level Sensors
-    document.getElementById('water-level-sensors-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const sensor1Label = document.getElementById('sensor1-label').value;
-      const sensor1Pin = parseInt(document.getElementById('sensor1-pin').value, 10) || 22;
-      const sensor2Label = document.getElementById('sensor2-label').value;
-      const sensor2Pin = parseInt(document.getElementById('sensor2-pin').value, 10) || 23;
-      const sensor3Label = document.getElementById('sensor3-label').value;
-      const sensor3Pin = parseInt(document.getElementById('sensor3-pin').value, 10) || 24;
-      const payload = {
-        water_level_sensors: {
-          sensor1: { label: sensor1Label, pin: sensor1Pin },
-          sensor2: { label: sensor2Label, pin: sensor2Pin },
-          sensor3: { label: sensor3Label, pin: sensor3Pin }
-        }
-      };
-      saveSettings("/api/settings/", payload);
-    });
-    // Additional Plants
-    function renderAdditionalPlants(plantsArray) {
-      const container = document.getElementById('plants-list');
-      container.innerHTML = ""; // clear old content
-      plantsArray.forEach(plant => {
-        const rowDiv = document.createElement('div');
-        rowDiv.style.display = "flex";
-        rowDiv.style.justifyContent = "space-between";
-        rowDiv.style.alignItems = "center";
-        rowDiv.style.marginBottom = "5px";
-        const labelSpan = document.createElement('span');
-        labelSpan.textContent = plant;
-        rowDiv.appendChild(labelSpan);
-        const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete";
-        delBtn.onclick = () => deletePlant(plant);
-        rowDiv.appendChild(delBtn);
-        container.appendChild(rowDiv);
-      });
-    }
-    document.getElementById('add-plant-btn').addEventListener('click', () => {
-      const newVal = document.getElementById('new-plant-input').value.trim();
-      if (!newVal) {
-        alert("Please enter an IP or DNS name.");
-        return;
-      }
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const arr = settings.additional_plants || [];
-          if (arr.includes(newVal)) {
-            alert("That entry already exists!");
-            return;
-          }
-          arr.push(newVal);
-          saveSettings("/api/settings/", { additional_plants: arr });
-          document.getElementById('new-plant-input').value = "";
-        })
-        .catch(err => console.error("Error adding new plant:", err));
-    });
-    function deletePlant(plant) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          let arr = settings.additional_plants || [];
-          arr = arr.filter(item => item !== plant);
-          saveSettings("/api/settings/", { additional_plants: arr });
-        })
-        .catch(err => console.error("Error deleting plant:", err));
-    }
-    // Software Update Check
-    document.getElementById('check-update-btn').addEventListener('click', () => {
-      fetch("/api/settings/check_update", { method: "GET" })
-        .then(res => res.json())
-        .then(data => {
-          const checkStatus = document.getElementById('check-status');
-          if (data.status === "success") {
-            checkStatus.textContent = data.message;
-            if (data.update_available) {
-              document.getElementById('apply-update-btn').style.display = 'block';
-              document.getElementById('apply-update-btn').disabled = false;
-            }
-          } else {
-            checkStatus.textContent = "Error: " + data.error;
-          }
-        })
-        .catch(err => {
-          document.getElementById('check-status').textContent = "Fetch error: " + err;
-        });
-    });
-    // Software Update Apply - show modal
-    document.getElementById('apply-update-btn').addEventListener('click', () => {
-      document.getElementById('updateModal').style.display = 'block';
-      // Simulate progress
-      let progress = 0;
-      const progressBar = document.getElementById('progressBar');
-      progressBar.textContent = '0%';
-      const interval = setInterval(() => {
-        progress += 10;
-        progressBar.style.width = progress + '%';
-        progressBar.textContent = progress + '%';
-        if (progress >= 100) {
-          clearInterval(interval);
-          // After update, reload page
-          setTimeout(() => window.location.reload(), 1000);
-        }
-      }, 500); // Adjust speed as needed
 
-      // Actual update logic
-      fetch('/api/settings/apply_update', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'success') {
-            console.log('Update applied successfully');
-            // Reload or show success
-          } else {
-            console.error('Update failed');
-          }
-        });
-    });
-    // Close modal function
-    function closeModal() {
-      document.getElementById('updateModal').style.display = 'none';
-    }
-    // POWER OUTLETS SECTION
-    function renderPowerOutlets(powerControls) {
-      const container = document.getElementById('power-outlets-list');
-      container.innerHTML = ""; // Clear old contents
-      powerControls.forEach((outlet, index) => {
-        const card = document.createElement('div');
-        card.classList.add('power-outlet-card');
-        // Title
-        const title = document.createElement('h4');
-        title.textContent = `${outlet.label || 'Unnamed Outlet'} (${outlet.outlet_ip})`;
-        card.appendChild(title);
-        // Existing tracked valves
-        const tvList = document.createElement('div');
-        tvList.id = `tv-list-${index}`;
-        (outlet.tracked_valves || []).forEach(tv => {
-          const row = document.createElement('div');
-          row.classList.add('tracked-valve-row');
-          // Show the label if it exists, else fallback to the raw valve_id
-          const displayLabel = tv.valve_label || tv.valve_id;
-          row.innerHTML = `<span>Host: ${tv.host_ip}, Valve: ${displayLabel}</span>`;
-          const removeBtn = document.createElement('button');
-          removeBtn.textContent = "Remove";
-          removeBtn.addEventListener('click', () => {
-            removeTrackedValve(index, tv.host_ip, tv.valve_id);
-          });
-          row.appendChild(removeBtn);
-          tvList.appendChild(row);
-        });
-        card.appendChild(tvList);
-        // Add new tracked valve form
-        const addDiv = document.createElement('div');
-        addDiv.style.marginTop = "8px";
-        addDiv.innerHTML = `
-          <label>Remote IP: </label>
-          <input type="text" id="tv-ip-${index}" style="width:120px;margin-right:6px;">
-          <button id="tv-retrieve-btn-${index}">Retrieve</button>
-          <label> Valve:</label>
-          <select id="tv-select-${index}" style="margin-right:6px;">
-            <option value="">Select Valve</option>
-          </select>
-          <button id="tv-add-btn-${index}">Add Valve</button>
-        `;
-        card.appendChild(addDiv);
-        // Delete-outlet button
-        const delBtn = document.createElement('button');
-        delBtn.textContent = "Delete This Outlet";
-        delBtn.style.marginTop = "10px";
-        delBtn.addEventListener('click', () => {
-          removeOutlet(index);
-        });
-        card.appendChild(delBtn);
-        container.appendChild(card);
-        // Attach event listeners
-        const retrieveBtn = document.getElementById(`tv-retrieve-btn-${index}`);
-        const addValveBtn = document.getElementById(`tv-add-btn-${index}`);
-        const ipField = document.getElementById(`tv-ip-${index}`);
-        const valveSelect = document.getElementById(`tv-select-${index}`);
-        if (retrieveBtn) {
-          retrieveBtn.addEventListener('click', () => {
-            const ipVal = (ipField?.value || "").trim();
-            if (!ipVal) return;
-            retrieveValvesFromIP(ipVal, `tv-select-${index}`)
-              .then(vals => console.log("Valves retrieved for outlet:", vals))
-              .catch(err => console.error("Error retrieving valves:", err));
-          });
-        }
-        if (addValveBtn) {
-          addValveBtn.addEventListener('click', () => {
-            const ipVal = (ipField?.value || "").trim();
-            const valveVal = valveSelect?.value || "";
-            if (!ipVal || !valveVal) return;
-            addTrackedValve(index, ipVal, valveVal);
-          });
-        }
-      });
-    }
-    function addTrackedValve(outletIndex, host_ip, valve_id) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (!powerControls[outletIndex]) return;
-          if (!powerControls[outletIndex].tracked_valves) {
-            powerControls[outletIndex].tracked_valves = [];
-          }
-          // Get the label from the selected <option>
-          const theSelect = document.getElementById('tv-select-' + outletIndex);
-          const selectedLabel = theSelect.options[theSelect.selectedIndex].text;
-          // Store both ID and label
-          powerControls[outletIndex].tracked_valves.push({
-            host_ip: host_ip,
-            valve_id: valve_id,
-            valve_label: selectedLabel
-          });
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error adding tracked valve:", err));
-    }
-    function removeOutlet(outletIndex) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (outletIndex < 0 || outletIndex >= powerControls.length) return;
-          powerControls.splice(outletIndex, 1);
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error removing outlet:", err));
-    }
-    function removeTrackedValve(outletIndex, host_ip, valve_id) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const powerControls = settings.power_controls || [];
-          if (!powerControls[outletIndex]) return;
-          let tv = powerControls[outletIndex].tracked_valves || [];
-          tv = tv.filter(item => !(item.host_ip === host_ip && item.valve_id === valve_id));
-          powerControls[outletIndex].tracked_valves = tv;
-          saveSettings("/api/settings/", { power_controls: powerControls });
-        })
-        .catch(err => console.error("Error removing tracked valve:", err));
-    }
-    // Export
-    document.getElementById('export-btn').addEventListener('click', () => {
-      window.location.href = '/api/settings/export';
-    });
-    // Import
-    document.getElementById('import-form').addEventListener('submit', e => {
+    // System Name Form
+    document.getElementById('system-name-form').addEventListener('submit', e => {
       e.preventDefault();
-      const fileInput = document.getElementById('import-file');
-      if (!fileInput.files || fileInput.files.length === 0) {
-        alert("Please select a .json file first.");
-        return;
-      }
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      fetch('/api/settings/import', {
-        method: 'POST',
-        body: formData
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'success') {
-          document.getElementById('import-status').textContent =
-            "Settings file imported successfully. Restarting service...";
-          setTimeout(() => {
-            fetch("/api/system/restart", { method: "POST" })
-              .then(() => {
-                document.getElementById('import-status').textContent =
-                  "Service is restarting. Please wait...";
-                setTimeout(() => window.location.reload(), 5000);
-              })
-              .catch(() => {
-                document.getElementById('import-status').textContent =
-                  "Could not contact server, but it may be restarting anyway. Reloading...";
-                setTimeout(() => window.location.reload(), 5000);
-              });
-          }, 1000);
-        } else {
-          document.getElementById('import-status').textContent =
-            "Error importing settings: " + (data.error || 'Unknown error');
-        }
-      })
-      .catch(err => {
-        document.getElementById('import-status').textContent =
-          "Fetch error: " + err;
-      });
+      const name = document.getElementById('system-name').value.trim();
+      saveSettings("/api/settings/", { system_name: name });
     });
-    // ============ Discord Form + Test =============
+
+    // Time Zone Form
+    document.getElementById('time-zone-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const tz = document.getElementById('time-zone').value;
+      const dst = document.getElementById('daylight-savings').checked;
+      saveSettings("/api/settings/", { time_zone: tz, daylight_savings_enabled: dst });
+    });
+
+    // Pump Calibration Form
+    document.getElementById('pump-calibration-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const pump1 = parseFloat(document.getElementById('pump1-calibration').value);
+      const pump2 = parseFloat(document.getElementById('pump2-calibration').value);
+      saveSettings("/api/settings/", { pump_calibration: { pump1, pump2 } });
+    });
+
+    // Relay Ports Form
+    document.getElementById('relay-ports-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const phUp = parseInt(document.getElementById('ph-up-port').value);
+      const phDown = parseInt(document.getElementById('ph-down-port').value);
+      saveSettings("/api/settings/", { relay_ports: { ph_up: phUp, ph_down: phDown } });
+    });
+
+    // Discord Form + Test
     document.getElementById('discord-form').addEventListener('submit', e => {
       e.preventDefault();
       const enabled = document.getElementById('discord-enabled').checked;
@@ -1468,7 +632,8 @@
         resultDiv.textContent = `Exception: ${err}`;
       });
     });
-    // ============ Telegram Form + Test =============
+
+    // Telegram Form + Test
     document.getElementById('telegram-form').addEventListener('submit', e => {
       e.preventDefault();
       const enabled = document.getElementById('telegram-enabled').checked;
@@ -1540,6 +705,37 @@
           document.getElementById('new-outlet-label').value = '';
         })
         .catch(err => console.error("Error adding outlet:", err));
+    });
+
+    // Export
+    document.getElementById('export-btn').addEventListener('click', () => {
+      window.location.href = '/api/settings/export';
+    });
+
+    // Import
+    document.getElementById('import-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fileInput = document.getElementById('import-file');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Please select a .json file first.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      fetch('/api/settings/import', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+          // Re-fetch or wait for status_update
+          location.reload();
+        } else {
+          console.error("Failed to import settings:", data.error);
+        }
+      })
+      .catch(err => console.error("Error importing settings:", err));
     });
   </script>
 </body>

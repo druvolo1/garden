@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Plant Info</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+  <style>
+    /* Existing styles can be copied if needed */
+  </style>
+</head>
+<body>
+  <!-- Navigation Menu -->
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/plant_info">Plant Info</a></li>
+      <li><a href="/logs">Logs</a></li>
+      <li><a href="/changelog">Changelog</a></li>
+    </ul>
+  </nav>
+  <main>
+    <h1>Plant Info</h1>
+    <p class="subtitle">Configure plant-related settings.</p>
+    <div class="settings-grid">
+      <!-- Moved General Settings (partial) -->
+      <div class="data-container" id="general-settings-container">
+        <h2>General Settings</h2>
+        <form id="general-settings-form">
+          <label for="system-volume">System Volume (gallons):</label>
+          <input type="number" id="system-volume" step=".1">
+          <label for="auto-dosing">Auto-Dosing Enabled:</label>
+          <input type="checkbox" id="auto-dosing">
+          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
+          <input type="checkbox" id="allow-remote-feeding">
+          <button type="submit" id="general-save-btn">Save General Settings</button>
+        </form>
+      </div>
+      <!-- Plant Info -->
+      <div class="data-container" id="plant-info-container">
+        <h2>Plant Info</h2>
+        <form id="plant-info-form">
+          <label for="plant-name">Plant Name:</label>
+          <input type="text" id="plant-name">
+          <label for="plant-start-date">Plant Start Date:</label>
+          <input type="date" id="plant-start-date">
+          <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
+          <button type="submit">Save Plant Info</button>
+        </form>
+      </div>
+    </div>
+  </main>
+  <script>
+    // JavaScript for Plant Info page
+    // Similar to settings.html, but only for moved items
+
+    // Fetch current settings on load
+    document.addEventListener('DOMContentLoaded', () => {
+      fetch('/api/settings')
+        .then(response => response.json())
+        .then(settings => {
+          // General Settings (moved)
+          document.getElementById('system-volume').value = settings.system_volume || 5.5;
+          document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
+          document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
+
+          // Plant Info
+          const plantInfo = settings.plant_info || {};
+          document.getElementById('plant-name').value = plantInfo.name || '';
+          document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+          document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
+        })
+        .catch(err => console.error('Error fetching settings:', err));
+    });
+
+    // Function to calculate weeks since start
+    function getWeeksSinceStart(startDate) {
+      if (!startDate) return 'N/A';
+      const start = new Date(startDate);
+      const now = new Date();
+      const diffMs = now - start;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      return Math.floor(diffDays / 7);
+    }
+
+    // Save General Settings (moved)
+    document.getElementById('general-settings-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const systemVolume = parseFloat(document.getElementById('system-volume').value);
+      const autoDosing = document.getElementById('auto-dosing').checked;
+      const allowRemoteFeeding = document.getElementById('allow-remote-feeding').checked;
+      const payload = {
+        system_volume: systemVolume,
+        auto_dosing_enabled: autoDosing,
+        allow_remote_feeding: allowRemoteFeeding
+      };
+      saveSettings("/api/plant_info/", payload);  /*Assuming API endpoint for plant info */
+    });
+
+    /* Save Plant Info */
+    document.getElementById('plant-info-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const plantName = document.getElementById('plant-name').value.trim();
+      const plantStartDate = document.getElementById('plant-start-date').value;
+      const payload = {
+        plant_info: {
+          name: plantName,
+          start_date: plantStartDate
+        }
+      };
+      saveSettings("/api/plant_info/", payload);  /*Assuming API endpoint for plant info */
+      document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantStartDate);
+    });
+
+    /*Generic save function */
+    function saveSettings(url, payload) {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          console.log('Settings saved successfully');
+        } else {
+          console.error('Failed to save settings:', data.error);
+        }
+      })
+      .catch(err => console.error('Error saving settings:', err));
+    }
+  </script>
+</body>
+</html>
