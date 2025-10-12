@@ -138,6 +138,11 @@
         <h2>pH Probe</h2>
 
         <div id="ph-assigned-content">
+          <!-- NEW: Calibration Mode Toggle (bypasses rogue reading checks) -->
+          <h3>Calibration Mode</h3>
+          <p>Enable to bypass rogue reading filters during calibration (allows large pH jumps).</p>
+          <button class="cal-btn" id="toggle-ph-cal-mode">Enter Calibration Mode</button>
+
           <h3>Current pH Value</h3>
           <div class="data-box"><span id="current-ph">--</span></div>
 
@@ -289,6 +294,38 @@
   
       // ============== PH STUFF ==============
       function initPhStuff() {
+        // NEW: Calibration mode toggle logic
+        const calModeBtn = document.getElementById("toggle-ph-cal-mode");
+        function updateCalModeBtn(enabled) {
+          calModeBtn.textContent = enabled ? "Exit Calibration Mode" : "Enter Calibration Mode";
+          calModeBtn.classList.toggle("danger", enabled);  // Red when enabled
+        }
+        function toggleCalMode() {
+          const enable = calModeBtn.textContent === "Enter Calibration Mode";  // True to enable, false to disable
+          fetch("/api/ph/calibration_mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: enable })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === "success") {
+                updateCalModeBtn(data.enabled);
+                appendPhLog(`Calibration mode ${data.enabled ? "enabled (bypassing rogue checks)" : "disabled (rogue checks active)"}.`);
+              } else {
+                appendPhLog("Failed to toggle calibration mode.", true);
+              }
+            })
+            .catch(() => appendPhLog("Error toggling calibration mode.", true));
+        }
+        calModeBtn.addEventListener("click", toggleCalMode);
+
+        // Fetch initial calibration mode state
+        fetch("/api/ph/calibration_mode")
+          .then(res => res.json())
+          .then(data => updateCalModeBtn(data.enabled))
+          .catch(() => appendPhLog("Error fetching initial calibration mode.", true));
+
         function fetchLatestPh() {
           fetch('/api/ph/latest')
             .then(res => res.json())

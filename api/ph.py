@@ -108,3 +108,16 @@ def ph_slope():
         "offset": offset,
         "overall_status": overall_status
     })
+
+# NEW: Endpoint to toggle/get calibration mode (bypasses rogue checks)
+@ph_blueprint.route('/calibration_mode', methods=['GET', 'POST'])
+def ph_calibration_mode():
+    from services.ph_service import set_ph_calibration_mode, get_ph_calibration_mode
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        enabled = data.get('enabled', False)
+        set_ph_calibration_mode(enabled)
+        return jsonify({"status": "success", "enabled": enabled})
+    else:
+        enabled = get_ph_calibration_mode()
+        return jsonify({"enabled": enabled})

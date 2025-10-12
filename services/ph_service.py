@@ -45,6 +45,18 @@ ser = None  # Global variable to track the serial connection
 # Optional median filter
 ph_median_window = deque(maxlen=5)
 
+# NEW: Global flag for calibration mode (bypasses rogue reading checks)
+calibration_mode = False
+
+def set_ph_calibration_mode(enabled):
+    global calibration_mode
+    calibration_mode = bool(enabled)
+    log_with_timestamp(f"[DEBUG] pH calibration mode set to {calibration_mode}")
+
+def get_ph_calibration_mode():
+    global calibration_mode
+    return calibration_mode
+
 def log_with_timestamp(message):
     from status_namespace import is_debug_enabled
     """Logs messages only if debugging is enabled for pH."""
@@ -208,12 +220,14 @@ def parse_buffer(ser):
             filtered_ph = sorted(ph_median_window)[median_window_size // 2]
             log_with_timestamp(f"[DEBUG] Filtered pH (median of {median_window_size}): {filtered_ph}")
 
-            if len(ph_median_window) >= 3:
-                recent_3 = list(ph_median_window)[-3:]
-                variance = max(recent_3) - min(recent_3)
-                if variance > stability_threshold:
-                    log_with_timestamp(f"[DEBUG] Discarded unstable reading (var {variance:.2f} > {stability_threshold}): {recent_3}")
-                    continue
+            # NEW: Skip stability variance check if in calibration mode
+            if not calibration_mode:
+                if len(ph_median_window) >= 3:
+                    recent_3 = list(ph_median_window)[-3:]
+                    variance = max(recent_3) - min(recent_3)
+                    if variance > stability_threshold:
+                        log_with_timestamp(f"[DEBUG] Discarded unstable reading (var {variance:.2f} > {stability_threshold}): {recent_3}")
+                        continue
 
             if old_ph_value is None:
                 delta = 0.0
@@ -222,17 +236,19 @@ def parse_buffer(ser):
 
             log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
 
-            if old_ph_value is not None and delta > jump_threshold:
-                now = datetime.now()
-                ph_jumps.append(now)
-                cutoff = now - timedelta(seconds=60)
-                ph_jumps = [t for t in ph_jumps if t >= cutoff]
+            # NEW: Skip jump check if in calibration mode
+            if not calibration_mode:
+                if old_ph_value is not None and delta > jump_threshold:
+                    now = datetime.now()
+                    ph_jumps.append(now)
+                    cutoff = now - timedelta(seconds=60)
+                    ph_jumps = [t for t in ph_jumps if t >= cutoff]
 
-                if len(ph_jumps) > 5:
-                    report_condition_error("ph_probe", "persistent_unstable_readings", f"{len(ph_jumps)} big jumps (> {jump_threshold}) in last 60s.")
+                    if len(ph_jumps) > 5:
+                        report_condition_error("ph_probe", "persistent_unstable_readings", f"{len(ph_jumps)} big jumps (> {jump_threshold}) in last 60s.")
 
-                log_with_timestamp(f"[DEBUG] Ignored jump (delta {delta:.2f} > {jump_threshold})")
-                continue
+                    log_with_timestamp(f"[DEBUG] Ignored jump (delta {delta:.2f} > {jump_threshold})")
+                    continue
 
             old_ph_value = filtered_ph
 

@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.86] - 2025-10-12
+- added calibration mode to bypass ph logic for filtering readings
+
 ## [1.0.85] - 2025-10-02
 - improved software update user experience
 - valve commands received within 5 seconds will queue so the valve can finish turning
