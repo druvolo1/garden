@@ -99,6 +99,114 @@ def ensure_venv_ownership(venv_path: str, user_group: str = "dave:dave"):
         return None
 
 
+def _check_for_update():
+    """
+    Helper to check for updates (extracted logic).
+    Returns (update_available: bool, message: str, error: str or None)
+    """
+    try:
+        # Git fetch to update remote refs
+        fetch_proc = subprocess.run(['git', 'fetch'], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30)
+        if fetch_proc.returncode != 0:
+            return False, "Failed to fetch updates", "Failed to fetch updates"
+
+        # Check status
+        status_proc = subprocess.run(['git', 'status', '-uno'], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30)
+        git_status = status_proc.stdout.strip()
+        if 'Your branch is behind' in git_status:
+            return True, "Update available", None
+        else:
+            return False, "No update available", None
+    except subprocess.TimeoutExpired:
+        return False, "Check timed out", "Check timed out"
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}", str(e)
+
+
+def _apply_update():
+    """
+    Helper to apply updates (extracted logic).
+    Returns (success: bool, output: str, error: str or None)
+    """
+    steps_output = []
+    try:
+        # 1) Hard reset: discards all local changes before pulling
+        out, err = run_cmd(["git", "reset", "--hard"], cwd=PROJECT_ROOT)
+        steps_output.append(out)
+        if err:
+            return False, "\n".join(steps_output), err
+
+        # 2) Pull latest changes (continue even if fails)
+        out, err = run_cmd(["git", "pull"], cwd=PROJECT_ROOT)
+        steps_output.append(out)
+        if err:
+            return False, "\n".join(steps_output), err
+
+        # 3) Ensure venv ownership before pip install
+        chown_out = ensure_venv_ownership(VENV_PATH)
+        if chown_out:
+            steps_output.append(chown_out)
+
+        # 4) Install any new requirements
+        req_path = os.path.join(PROJECT_ROOT, "requirements.txt")
+        out, err = run_cmd(
+            ["sudo", VENV_PIP, "install", "-r", req_path],
+            cwd=PROJECT_ROOT
+        )
+        steps_output.append(out)
+        if err:
+            return False, "\n".join(steps_output), err
+
+        # Restart the service
+        subprocess.Popen(['sudo', 'systemctl', 'restart', 'garden.service'],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=PROJECT_ROOT)
+
+        return True, "\n".join(steps_output), None
+    except subprocess.TimeoutExpired:
+        return False, "\n".join(steps_output), "Update timed out"
+    except Exception as e:
+        return False, "\n".join(steps_output), f"Unexpected error: {str(e)}"
+
+
+@update_code_blueprint.route("/check_update", methods=["GET"])
+def check_update():
+    update_available, message, error = _check_for_update()
+    if error:
+        return jsonify({"status": "failure", "error": error}), 500
+    return jsonify({"status": "success", "update_available": update_available, "message": message})
+
+
+@update_code_blueprint.route("/apply_update", methods=["POST"])
+def apply_update():
+    success, output, error = _apply_update()
+    if error:
+        return jsonify({"status": "failure", "error": error, "output": output}), 500
+    return jsonify({"status": "success", "output": output})
+
+
+@update_code_blueprint.route("/auto_update", methods=["POST"])
+def auto_update():
+    """
+    Single endpoint: Check for update, and if available, apply it.
+    """
+    steps_output = []
+    update_available, check_message, check_error = _check_for_update()
+    steps_output.append(check_message)
+    if check_error:
+        return jsonify({"status": "failure", "error": check_error, "output": "\n".join(steps_output)}), 500
+
+    if not update_available:
+        return jsonify({"status": "success", "message": "No update available, nothing applied", "output": "\n".join(steps_output)})
+
+    # Apply if available
+    success, apply_output, apply_error = _apply_update()
+    steps_output.append(apply_output)
+    if apply_error:
+        return jsonify({"status": "failure", "error": apply_error, "output": "\n".join(steps_output)}), 500
+
+    return jsonify({"status": "success", "message": "Update checked and applied", "output": "\n".join(steps_output)})
+
+
 @update_code_blueprint.route("/pull_no_restart", methods=["POST"])
 def pull_no_restart():
     """
