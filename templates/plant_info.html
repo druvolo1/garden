@@ -9,6 +9,29 @@
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
   <style>
     /* Existing styles can be copied if needed */
+    form label {
+      display: block;
+      margin-bottom: 8px;
+    }
+    form input[type="text"],
+    form input[type="date"] {
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    form .checkbox-group {
+      margin-top: 16px;
+    }
+    form .checkbox-group label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    form .checkbox-group input[type="checkbox"] {
+      margin-right: 8px;
+    }
+    #weeks-since-start {
+      margin-bottom: 24px; /* Added space below weeks since start */
+    }
   </style>
 </head>
 <body>
@@ -38,10 +61,16 @@
           <label for="plant-start-date">Plant Start Date:</label>
           <input type="date" id="plant-start-date">
           <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
-          <label for="auto-dosing">Auto-Dosing Enabled:</label>
-          <input type="checkbox" id="auto-dosing">
-          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
-          <input type="checkbox" id="allow-remote-feeding">
+          <div class="checkbox-group">
+            <label for="auto-dosing">
+              <input type="checkbox" id="auto-dosing">
+              Auto-Dosing Enabled
+            </label>
+            <label for="allow-remote-feeding">
+              <input type="checkbox" id="allow-remote-feeding">
+              Allow Remote Feeding
+            </label>
+          </div>
           <button type="submit">Save Plant Info</button>
         </form>
       </div>
