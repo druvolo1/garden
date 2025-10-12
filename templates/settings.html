@@ -1,67 +1,98 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Make page responsive on mobile -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Garden Monitoring System</title>
-
-  <!-- Link to your existing style.css (with .btn-on-active, .btn-off-active, .btn-inactive) -->
-  <link rel="stylesheet" href="/static/style.css">
-
-  <!-- jQuery and Socket.IO libraries -->
+  <title>Settings</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-  <!-- Google font for Poppins -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="manifest" href="/static/manifest.json">
   <style>
-    /* Add styles for expand button and extra controls */
-    .expand-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 0.8em;
-      color: #ccc;
-      padding: 0;
-      margin: 0;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    /* Example styling for a disabled section */
+    .disabled-section {
+      opacity: 0.1; /* Visually dims the section */
+      pointer-events: none; /* Prevents clicks, hovers, focus, etc. */
+      position: relative;
     }
-    .extra-controls {
+    .disabled-section::after {
+      content: attr(data-disabled-title); /* Show custom tooltip text */
+      display: none;
+      background: #444;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      z-index: 9999;
+    }
+    .disabled-section:hover::after {
+      display: block;
+    }
+    /* Optional: some minor styling for power-outlet cards */
+    .power-outlet-card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .power-outlet-card h4 {
+      margin: 0 0 10px 0;
+    }
+    .tracked-valve-row {
       display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-start;
+      justify-content: space-between;
+      margin-bottom: 4px;
       gap: 10px;
-      margin-top: 10px;
     }
-    .toggle-group {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      padding: 8px 12px;
-      background: #222;
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 8px;
-      min-width: 150px;
-      box-sizing: border-box;
+    .hidden {
+      display: none;
     }
-    .bottom-bar {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      margin-top: 10px;
-      gap: 5px;
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
     }
-    .button-group {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-start; /* Align left, not full width */
-      margin-top: 4px;
+    .modal-content {
+      background-color: #2a2a2a;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #f4c531;
+      width: 80%;
+      max-width: 400px;
+      color: #f4c531;
+    }
+    .close {
+      color: #f4c531;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .progress {
+      width: 100%;
+      background-color: #1e1e1e;
+      margin: 20px 0;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 30px;
+      background-color: #f4c531;
+      text-align: center;
+      line-height: 30px;
+      color: #2a2a2a;
     }
   </style>
 </head>
@@ -70,707 +101,693 @@
   <nav>
     <ul>
       <li><a href="/">Home</a></li>
+      <li><a href="/plant_info">Plant Info</a></li>
       <li><a href="/dosage">Dosage</a></li>
-      <!--<li><a href="/calibration">Calibration</a></li>-->
-      <!--<li><a href="/configuration">Configuration</a></li>-->
-      <li><a href="/settings">Settings</a></li>
-      <!--<li><a href="/valves">Valves</a></li>-->
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/settings" class="active" >Settings</a></li>
+      <li><a href="/valves">Valves</a></li>
       <li><a href="/logs">Logs</a></li>
+      <li><a href="/changelog">Changelog</a></li>
     </ul>
   </nav>
-
-  <main> 
-    <h1>Automated DWC Helper</h1>
-    <p class="subtitle">Monitor &amp; adjust your garden with confidence.</p>
-
-    <!-- LOCAL ZONE -->
-    <section class="data-container">
-      <h2 id="local-zone-header">Local Zone</h2>
-      <div class="row-flex">
-        <!-- System Name -->
-        <div>
-          <label>System Name</label>
-          <div id="local-system-name">Loading...</div>
-        </div>
+  <main>
+    <h1>Settings</h1>
+    <p class="subtitle">Configure your device, dosing, and sensors.</p>
+    <div class="settings-grid">
+      <!-- USB Device Assignment -->
+      <div class="data-container">
+        <h2>Assign USB Devices</h2>
+  
+        <!-- pH Probe Form -->
+        <form id="ph-form">
+          <label for="ph-device">pH Probe:</label>
+          <select id="ph-device" name="ph-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save pH Probe</button>
+        </form>
     
-        <!-- pH -->
-        <div>
-          <label>pH</label>
-          <div id="local-ph-display">Loading...</div>
-        </div>
+        <!-- Link that goes to Calibration - hidden by default and not blue -->
+        <a id="ph-calibration-link"
+           href="/calibration"
+           style="display: none;
+                  margin-bottom: 1em;
+                  text-decoration: underline;
+                  color: #ccc; /* or whatever color you like */
+                  cursor: pointer;">
+           Click here for Calibration
+        </a>
+  
+        <!-- Dosing Relay Module Form -->
+        <form id="dosing-relay-form">
+          <label for="dosing-relay-device">Dosing Relay Module:</label>
+          <select id="dosing-relay-device" name="dosing-relay-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save Dosing Relay Module</button>
+        </form>
+  
+        <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
+        <form id="valve-relay-form">
+          <label for="valve-relay-device">Valve Relay Module:</label>
+          <select id="valve-relay-device" name="valve-relay-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
+        </form>
     
-        <!-- EC -->
-        <div>
-          <label>EC (mS/cm)</label>
-          <div id="local-ec-display">N/A</div>
-        </div>
-    
-        <!-- Sensor #1 -->
-        <div>
-          <label>Sensor 1</label>
-          <div id="local-sensor1-display">Loading...</div>
-        </div>
-    
-        <!-- Sensor #2 -->
-        <div>
-          <label>Sensor 2</label>
-          <div id="local-sensor2-display">Loading...</div>
-        </div>
-    
-        <!-- Sensor #3 -->
-        <div>
-          <label>Sensor 3</label>
-          <div id="local-sensor3-display">Loading...</div>
-        </div>
-    
-        <!-- Fill Valve Controls -->
-        <div id="local-fill-container" style="display:none;">
-          <label>Fill Valve: <span id="local-fill-status">Off</span></label>
-          <div class="button-group">
-            <button id="local-fill-on" disabled>On</button>
-            <button id="local-fill-off" disabled>Off</button>
-          </div>
-        </div>
-    
-        <!-- Drain Valve Controls -->
-        <div id="local-drain-container" style="display:none;">
-          <label>Drain Valve: <span id="local-drain-status">Off</span></label>
-          <div class="button-group">
-            <button id="local-drain-on" disabled>On</button>
-            <button id="local-drain-off" disabled>Off</button>
-          </div>
+        <!-- Link that goes to Valves page - hidden by default and not blue -->
+        <a id="valve-relay-link"
+           href="/valves"
+           style="display: none;
+                  margin-top: 1em;
+                  text-decoration: underline;
+                  color: #ccc; /* or whatever color you like */
+                  cursor: pointer;">
+           Click here to Manage Valves
+        </a>
+  
+        <!-- EC Meter Form -->
+        <form id="ec-meter-form">
+          <label for="ec-meter-device">EC Meter:</label>
+          <select id="ec-meter-device" name="ec-meter-device">
+            <option value="">Select a device</option>
+          </select>
+          <button type="submit">Save EC Meter</button>
+        </form>
+        <button id="rescan-usb" onclick="fetchUsbDevices()">Rescan USB Devices</button>
+        <div id="status"></div>
+        <div id="relay-warning" class="error-message" style="display: none;">
+          <strong>Dosing Relay module not assigned. Dosing-related settings are disabled.</strong>
         </div>
       </div>
-
-      <!-- Extra Controls (Hidden by Default) -->
-      <div id="extra-controls-local" class="extra-controls" style="display:none;">
-        <div class="toggle-group">
-          <label>Feeding In Progress: <span id="feeding-status-local">Off</span></label>
-          <div class="button-group">
-            <button id="feeding-on-local">On</button>
-            <button id="feeding-off-local">Off</button>
-          </div>
-        </div>
-        <div class="toggle-group">
-          <label>---Plant Info---</label>
-          <div>Strain: <span id="plant-name-local">N/A</span></div>
-          <div>Start Date: <span id="plant-start-date-local">N/A</span></div>
-          <div>Weeks Elapsed: <span id="plant-weeks-local">N/A</span></div>
+      <!-- pH Min/Max Range -->
+      <div class="data-container" id="ph-range-container">
+        <h2>pH Min/Max Range</h2>
+        <form id="ph-range-form">
+          <label for="ph-min">pH Range - Min:</label>
+          <input type="number" id="ph-min" step="0.01">
+          <label for="ph-max">pH Range - Max:</label>
+          <input type="number" id="ph-max" step="0.01">
+          <button type="submit">Save pH Range</button>
+        </form>
+      </div>
+      <!-- General Settings (for Dosing) -->
+      <div class="data-container" id="general-settings-container">
+        <h2>General Settings</h2>
+        <form id="general-settings-form">
+          <label for="ph-target">pH Target:</label>
+          <input type="number" id="ph-target" step="0.01">
+          <label for="system-volume">System Volume (gallons):</label>
+          <input type="number" id="system-volume" step=".1">
+          <label for="max-dosing">Max Dosing Amount (ml):</label>
+          <input type="number" id="max-dosing" step="1">
+          <label for="dosing-interval">Dosing Interval (hours):</label>
+          <input type="number" id="dosing-interval" step=".0001">
+          <button type="submit" id="general-save-btn">Save General Settings</button>
+        </form>
+      </div>
+      <!-- Dosage Strength -->
+      <div class="data-container" id="dosage-strength-container">
+        <h2>Dosage Strength</h2>
+        <form id="dosage-strength-form">
+          <label for="ph-up-strength">pH Up Dosage Strength:</label>
+          <input type="number" id="ph-up-strength" step="0.01">
+          <label for="ph-down-strength">pH Down Dosage Strength:</label>
+          <input type="number" id="ph-down-strength" step="0.01">
+          <button type="submit">Save Dosage Strength</button>
+        </form>
+      </div>
+      <!-- System Name -->
+      <div class="data-container">
+        <h2>System Name</h2>
+        <form id="system-name-form">
+          <label for="system-name">System Name:</label>
+          <input type="text" id="system-name">
+          <button type="submit">Save System Name</button>
+        </form>
+      </div>
+      <!-- Time Zone -->
+      <div class="data-container">
+        <h2>Time Zone</h2>
+        <form id="time-zone-form">
+          <label for="time-zone">Time Zone:</label>
+          <select id="time-zone"></select>
+          <label for="daylight-savings">Daylight Savings Enabled:</label>
+          <input type="checkbox" id="daylight-savings">
+          <button type="submit">Save Time Zone</button>
+        </form>
+      </div>
+      <!-- Pump Calibration -->
+      <div class="data-container" id="pump-calibration-container">
+        <h2>Pump Calibration</h2>
+        <form id="pump-calibration-form">
+          <label id="pump1-label" for="pump1-calibration">Pump 1 Calibration (ml/s):</label>
+          <input type="number" id="pump1-calibration" step="0.01">
+          <label for="pump1-last-calibrated">Pump 1 Last Calibrated:</label>
+          <input type="date" id="pump1-last-calibrated">
+          <label id="pump2-label" for="pump2-calibration">Pump 2 Calibration (ml/s):</label>
+          <input type="number" id="pump2-calibration" step="0.01">
+          <label for="pump2-last-calibrated">Pump 2 Last Calibrated:</label>
+          <input type="date" id="pump2-last-calibrated">
+          <button type="submit">Save Pump Calibration</button>
+        </form>
+        <div id="pump-tracking">
+          <p>Pump 1 Activations: <span id="pump1-activations">0</span> <button id="clear-pump1">Clear Pump 1</button></p>
+          <p>Pump 1 Cumulative Duration: <span id="pump1-duration">0</span> seconds</p>
+          <p>Pump 2 Activations: <span id="pump2-activations">0</span> <button id="clear-pump2">Clear Pump 2</button></p>
+          <p>Pump 2 Cumulative Duration: <span id="pump2-duration">0</span> seconds</p>
         </div>
       </div>
-
-      <!-- Bottom Bar with Expand Button and Last Updated -->
-      <div class="bottom-bar">
-        <button id="expand-local" class="expand-btn">▼</button>
-        <div class="last-updated" id="local-last-updated">Last updated: Never</div>
+      <!-- Relay Ports -->
+      <div class="data-container" id="relay-ports-container">
+        <h2>Relay Ports</h2>
+        <form id="relay-ports-form">
+          <label for="ph-up-port">pH Up Port:</label>
+          <input type="number" id="ph-up-port" min="1" max="8">
+          <label for="ph-down-port">pH Down Port:</label>
+          <input type="number" id="ph-down-port" min="1" max="8">
+          <button type="submit">Save Relay Ports</button>
+        </form>
       </div>
-    </section>
-    
-    <!-- Container for Remote Zones (placed wherever you want them on the page) -->
-    <div id="remote-zones"></div>
+      <!-- Power Controls -->
+      <div class="data-container" id="power-controls-container">
+        <h2>Power Controls</h2>
+        <div id="power-outlets-list"></div>
+        <form id="add-outlet-form">
+          <label for="new-outlet-ip">Shelly Outlet IP:</label>
+          <input type="text" id="new-outlet-ip" placeholder="e.g., 192.168.1.100">
+          <label for="new-outlet-label">Label (optional):</label>
+          <input type="text" id="new-outlet-label" placeholder="e.g., Light Switch">
+          <button type="button" id="add-outlet-btn">Add Outlet</button>
+        </form>
+      </div>
+      <!-- Discord Notifications -->
+      <div class="data-container">
+        <h2>Discord Notifications</h2>
+        <form id="discord-form">
+          <label for="discord-enabled">Enable Discord Notifications:</label>
+          <input type="checkbox" id="discord-enabled">
+          <label for="discord-webhook-url">Discord Webhook URL:</label>
+          <input type="text" id="discord-webhook-url" placeholder="https://discord.com/api/webhooks/...">
+          <button type="submit">Save Discord Settings</button>
+        </form>
+        <div class="test-section">
+          <h3>Test Discord</h3>
+          <input type="text" id="discord-test-message" placeholder="Enter test message...">
+          <button id="discord-test-send-btn">Send Test Message</button>
+          <div id="discord-test-result"></div>
+        </div>
+      </div>
+      <!-- Telegram Notifications -->
+      <div class="data-container">
+        <h2>Telegram Notifications</h2>
+        <form id="telegram-form">
+          <label for="telegram-enabled">Enable Telegram Notifications:</label>
+          <input type="checkbox" id="telegram-enabled">
+          <label for="telegram-bot-token">Telegram Bot Token:</label>
+          <input type="text" id="telegram-bot-token" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+          <label for="telegram-chat-id">Telegram Chat ID:</label>
+          <input type="text" id="telegram-chat-id" placeholder="e.g., -123456789 or @channelname">
+          <button type="submit">Save Telegram Settings</button>
+        </form>
+        <div class="test-section">
+          <h3>Test Telegram</h3>
+          <input type="text" id="telegram-test-message" placeholder="Enter test message...">
+          <button id="telegram-test-send-btn">Send Test Message</button>
+          <div id="telegram-test-result"></div>
+        </div>
+      </div>
+      <!-- Export/Import -->
+      <div class="data-container">
+        <h2>Export/Import Settings</h2>
+        <button id="export-btn">Export Settings</button>
+        <form id="import-form">
+          <input type="file" id="import-file" accept=".json">
+          <button type="submit">Import Settings</button>
+        </form>
+        <div id="import-status"></div>
+      </div>
+    </div>
   </main>
-
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      // 1) Connect to local /status namespace
-      const localSocket = io("/status", {
-        transports: ["websocket"],
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000
-      });
-  
-      localSocket.on("connect", () => {
-        console.log("[LOCAL] Socket connected");
-      });
-  
-      localSocket.on("disconnect", () => {
-        console.log("[LOCAL] Socket disconnected");
-      });
-  
-      localSocket.on("connect_error", (err) => {
-        console.error("[LOCAL] connect_error:", err);
-      });
-  
-        // 2) When we receive a status_update, refresh local zone UI
-        localSocket.on("status_update", (data) => {
-          console.log("[LOCAL] status_update:", data);
-          const plant = data.settings?.plant_info || {};
-          let headerText = "Local Zone";
-          if (plant.name && plant.start_date) {
-            headerText = `${plant.name} – ${plant.start_date}`;
-          } else if (plant.name) {
-            headerText = plant.name;
-          } else if (plant.start_date) {
-            headerText = plant.start_date;
+    // JavaScript for Settings page (modified to remove moved items)
+    // Fetch current settings on load
+    document.addEventListener('DOMContentLoaded', () => {
+      fetch('/api/settings')
+        .then(response => response.json())
+        .then(settings => {
+          // USB Roles
+          fetchUsbDevices();
+
+          // pH Min/Max Range
+          document.getElementById('ph-min').value = settings.ph_range.min || 5.5;
+          document.getElementById('ph-max').value = settings.ph_range.max || 6.5;
+
+          // General Settings (remaining)
+          document.getElementById('ph-target').value = settings.ph_target || 5.8;
+          document.getElementById('system-volume').value = settings.system_volume || 5.5;
+          document.getElementById('max-dosing').value = settings.max_dosing_amount || 5;
+          document.getElementById('dosing-interval').value = settings.dosing_interval || 1.0;
+
+          // Dosage Strength
+          document.getElementById('ph-up-strength').value = settings.dosage_strength.ph_up || 1.3;
+          document.getElementById('ph-down-strength').value = settings.dosage_strength.ph_down || 0.9;
+
+          // System Name
+          document.getElementById('system-name').value = settings.system_name || 'Garden';
+
+          // Time Zone
+          fetchTimeZones().then(timezones => {
+            const tzSelect = document.getElementById('time-zone');
+            timezones.forEach(tz => {
+              const option = document.createElement('option');
+              option.value = tz;
+              option.textContent = tz;
+              tzSelect.appendChild(option);
+            });
+            tzSelect.value = settings.time_zone || 'America/New_York';
+          });
+          document.getElementById('daylight-savings').checked = settings.daylight_savings_enabled || true;
+
+          // Pump Calibration
+          document.getElementById('pump1-calibration').value = settings.pump_calibration.pump1 || 0.5;
+          document.getElementById('pump2-calibration').value = settings.pump_calibration.pump2 || 0.5;
+          document.getElementById('pump1-last-calibrated').value = settings.pump_calibration.pump1_last_calibrated || '';
+          document.getElementById('pump2-last-calibrated').value = settings.pump_calibration.pump2_last_calibrated || '';
+
+          // Dynamically set pump labels based on relay ports
+          const phUpPort = settings.relay_ports.ph_up || 1;
+          const phDownPort = settings.relay_ports.ph_down || 2;
+          document.getElementById('pump1-label').textContent = `Pump 1${phUpPort === 1 ? ' (pH Up)' : phDownPort === 1 ? ' (pH Down)' : ''} Calibration (ml/s):`;
+          document.getElementById('pump2-label').textContent = `Pump 2${phUpPort === 2 ? ' (pH Up)' : phDownPort === 2 ? ' (pH Down)' : ''} Calibration (ml/s):`;
+
+          // Pump Tracking
+          const calibration = settings.pump_calibration || {};
+          document.getElementById('pump1-activations').textContent = calibration.pump1_activations || 0;
+          document.getElementById('pump1-duration').textContent = (calibration.pump1_cumulative_duration || 0.0).toFixed(2);
+          document.getElementById('pump2-activations').textContent = calibration.pump2_activations || 0;
+          document.getElementById('pump2-duration').textContent = (calibration.pump2_cumulative_duration || 0.0).toFixed(2);
+
+          // Relay Ports
+          document.getElementById('ph-up-port').value = phUpPort;
+          document.getElementById('ph-down-port').value = phDownPort;
+
+          // Power Controls
+          renderPowerOutlets(settings.power_controls || []);
+
+          // Discord
+          document.getElementById('discord-enabled').checked = settings.discord_enabled || false;
+          document.getElementById('discord-webhook-url').value = settings.discord_webhook_url || '';
+
+          // Telegram
+          document.getElementById('telegram-enabled').checked = settings.telegram_enabled || false;
+          document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
+          document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
+
+          // Check if dosing relay is assigned
+          if (!settings.usb_roles.relay) {
+            disableDosingSections();
           }
-          document.getElementById("local-zone-header").textContent = headerText;
+        })
+        .catch(err => console.error('Error fetching settings:', err));
+    });
 
-          
-        // If the local zone provides a system_name, update the <title>:
-        if (data.settings?.system_name) {
-          document.title = data.settings.system_name;
-        }
+    // Function to disable dosing-related sections
+    function disableDosingSections() {
+      document.getElementById('ph-range-container').classList.add('disabled-section');
+      document.getElementById('ph-range-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
 
+      document.getElementById('general-settings-container').classList.add('disabled-section');
+      document.getElementById('general-settings-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
 
-        // (A) Basic system info
-        document.getElementById("local-system-name").textContent =
-          data.settings?.system_name || "N/A";
+      document.getElementById('dosage-strength-container').classList.add('disabled-section');
+      document.getElementById('dosage-strength-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
 
-        // Update system name color based on pH range
-        const localPh = data.current_ph !== undefined ? parseFloat(data.current_ph) : NaN;
-        const localSystemNameEl = document.getElementById("local-system-name");
-        if (data.settings && data.settings.ph_range) {
-          const minPh = parseFloat(data.settings.ph_range.min) || 5.5;
-          const maxPh = parseFloat(data.settings.ph_range.max) || 6.5;
-          if (!isNaN(localPh)) {
-            if (localPh >= minPh && localPh <= maxPh) {
-              localSystemNameEl.style.color = 'green';
-            } else {
-              localSystemNameEl.style.color = 'red';
-            }
-          } else {
-            localSystemNameEl.style.color = '';
-          }
+      document.getElementById('pump-calibration-container').classList.add('disabled-section');
+      document.getElementById('pump-calibration-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('relay-ports-container').classList.add('disabled-section');
+      document.getElementById('relay-ports-container').setAttribute('data-disabled-title', 'Requires Dosing Relay Module');
+
+      document.getElementById('relay-warning').style.display = 'block';
+    }
+
+    // Fetch USB devices
+    function fetchUsbDevices() {
+      fetch('/api/settings/usb_devices')
+        .then(response => response.json())
+        .then(data => {
+          const phSelect = document.getElementById('ph-device');
+          const dosingRelaySelect = document.getElementById('dosing-relay-device');
+          const valveRelaySelect = document.getElementById('valve-relay-device');
+          const ecMeterSelect = document.getElementById('ec-meter-device');
+
+          phSelect.innerHTML = '<option value="">Select a device</option>';
+          dosingRelaySelect.innerHTML = '<option value="">Select a device</option>';
+          valveRelaySelect.innerHTML = '<option value="">Select a device</option>';
+          ecMeterSelect.innerHTML = '<option value="">Select a device</option>';
+
+          data.devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.path;
+            option.textContent = device.name;
+            phSelect.appendChild(option.cloneNode(true));
+            dosingRelaySelect.appendChild(option.cloneNode(true));
+            valveRelaySelect.appendChild(option.cloneNode(true));
+            ecMeterSelect.appendChild(option.cloneNode(true));
+          });
+
+          // Set current values
+          fetch('/api/settings')
+            .then(r => r.json())
+            .then(settings => {
+              phSelect.value = settings.usb_roles.ph_probe || '';
+              dosingRelaySelect.value = settings.usb_roles.relay || '';
+              valveRelaySelect.value = settings.usb_roles.valve_relay || '';
+              ecMeterSelect.value = settings.usb_roles.ec_meter || '';
+
+              // Show/hide calibration link
+              document.getElementById('ph-calibration-link').style.display = phSelect.value ? 'block' : 'none';
+
+              // Show/hide valves link
+              document.getElementById('valve-relay-link').style.display = valveRelaySelect.value ? 'block' : 'none';
+            });
+        })
+        .catch(err => console.error('Error fetching USB devices:', err));
+    }
+
+    // Fetch time zones
+    function fetchTimeZones() {
+      return fetch('/api/device/timezones')
+        .then(response => response.json())
+        .then(data => data.timezones)
+        .catch(err => {
+          console.error('Error fetching time zones:', err);
+          return [];
+        });
+    }
+
+    // Render power outlets
+    function renderPowerOutlets(powerControls) {
+      const list = document.getElementById('power-outlets-list');
+      list.innerHTML = '';
+      powerControls.forEach((outlet, index) => {
+        const card = document.createElement('div');
+        card.classList.add('power-outlet-card');
+        card.innerHTML = `
+          <h4>${outlet.label || `Outlet ${index + 1}`}</h4>
+          <p>IP: ${outlet.outlet_ip}</p>
+          <button onclick="removeOutlet(${index})">Remove Outlet</button>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // Save settings generic function
+    function saveSettings(url, payload) {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          console.log('Settings saved successfully');
         } else {
-          localSystemNameEl.style.color = '';
+          console.error('Failed to save settings:', data.error);
         }
+      })
+      .catch(err => console.error('Error saving settings:', err));
+    }
 
-        document.getElementById("local-ph-display").textContent =
-          data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
-        document.getElementById("local-ec-display").textContent =
-          data.current_ec !== undefined ? parseFloat(data.current_ec).toFixed(2) : "N/A";
-  
-        // Update last-updated timestamp (Local)
-        document.getElementById("local-last-updated").textContent =
-          "Last updated: " + new Date().toLocaleString();
-  
-        // (B) Water level sensors
-        if (data.water_level && data.settings?.water_level_sensors) {
-          renderSensors("local", data.settings.water_level_sensors, data.water_level);
+    // Event listeners for forms (modified)
+    // pH Form
+    document.getElementById('ph-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const device = document.getElementById('ph-device').value;
+      saveSettings("/api/settings/usb_roles", { ph_probe: device });
+    });
+
+    // Dosing Relay Form
+    document.getElementById('dosing-relay-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const device = document.getElementById('dosing-relay-device').value;
+      saveSettings("/api/settings/usb_roles", { relay: device });
+    });
+
+    // Valve Relay Form
+    document.getElementById('valve-relay-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const device = document.getElementById('valve-relay-device').value;
+      saveSettings("/api/settings/usb_roles", { valve_relay: device });
+    });
+
+    // EC Meter Form
+    document.getElementById('ec-meter-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const device = document.getElementById('ec-meter-device').value;
+      saveSettings("/api/settings/usb_roles", { ec_meter: device });
+    });
+
+    // pH Range Form
+    document.getElementById('ph-range-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const min = parseFloat(document.getElementById('ph-min').value);
+      const max = parseFloat(document.getElementById('ph-max').value);
+      saveSettings("/api/settings/", { ph_range: { min, max } });
+    });
+
+    // General Settings Form (remaining)
+    document.getElementById('general-settings-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const phTarget = parseFloat(document.getElementById('ph-target').value);
+      const systemVolume = parseFloat(document.getElementById('system-volume').value);
+      const maxDosing = parseFloat(document.getElementById('max-dosing').value);
+      const dosingInterval = parseFloat(document.getElementById('dosing-interval').value);
+      const payload = {
+        ph_target: phTarget,
+        system_volume: systemVolume,
+        max_dosing_amount: maxDosing,
+        dosing_interval: dosingInterval
+      };
+      saveSettings("/api/settings/", payload);
+    });
+
+    // Dosage Strength Form
+    document.getElementById('dosage-strength-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const phUp = parseFloat(document.getElementById('ph-up-strength').value);
+      const phDown = parseFloat(document.getElementById('ph-down-strength').value);
+      saveSettings("/api/settings/", { dosage_strength: { ph_up: phUp, ph_down: phDown } });
+    });
+
+    // System Name Form
+    document.getElementById('system-name-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('system-name').value.trim();
+      saveSettings("/api/settings/", { system_name: name });
+    });
+
+    // Time Zone Form
+    document.getElementById('time-zone-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const tz = document.getElementById('time-zone').value;
+      const dst = document.getElementById('daylight-savings').checked;
+      saveSettings("/api/settings/", { time_zone: tz, daylight_savings_enabled: dst });
+    });
+
+    // Pump Calibration Form
+    document.getElementById('pump-calibration-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const pump1 = parseFloat(document.getElementById('pump1-calibration').value);
+      const pump2 = parseFloat(document.getElementById('pump2-calibration').value);
+      const pump1Last = document.getElementById('pump1-last-calibrated').value;
+      const pump2Last = document.getElementById('pump2-last-calibrated').value;
+      saveSettings("/api/settings/", { pump_calibration: { pump1, pump2, pump1_last_calibrated: pump1Last, pump2_last_calibrated: pump2Last } });
+    });
+
+    // Relay Ports Form
+    document.getElementById('relay-ports-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const phUp = parseInt(document.getElementById('ph-up-port').value);
+      const phDown = parseInt(document.getElementById('ph-down-port').value);
+      saveSettings("/api/settings/", { relay_ports: { ph_up: phUp, ph_down: phDown } });
+      // Reload settings to update pump labels
+      location.reload();
+    });
+
+    // Discord Form + Test
+    document.getElementById('discord-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const enabled = document.getElementById('discord-enabled').checked;
+      const webhook = document.getElementById('discord-webhook-url').value.trim();
+      const payload = {
+        discord_enabled: enabled,
+        discord_webhook_url: webhook
+      };
+      saveSettings("/api/settings/", payload);
+    });
+    document.getElementById('discord-test-send-btn').addEventListener('click', () => {
+      const testMessage = document.getElementById('discord-test-message').value.trim();
+      if (!testMessage) {
+        alert("Please enter a test message to send to Discord.");
+        return;
+      }
+      // POST to /api/settings/test_discord
+      fetch("/api/settings/discord_message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_message: testMessage })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const resultDiv = document.getElementById('discord-test-result');
+        if (data.status === "success") {
+          resultDiv.style.color = "#7CFC00"; // greenish
+          resultDiv.textContent = `Success: ${data.info || 'Message sent!'}`;
+        } else {
+          resultDiv.style.color = "#FF4444";
+          resultDiv.textContent = `Failed: ${data.error || 'Unknown error'}`;
         }
-  
-        // (C) Show/hide fill/drain UI if there's a fill_valve / drain_valve
-        const fillValveId   = data.settings?.fill_valve;   // e.g. "1"
-        const drainValveId  = data.settings?.drain_valve;  // e.g. "1"
-  
-        // IP addresses for controlling them locally
-        const fillValveIp   = data.settings?.fill_valve_ip   || window.location.hostname;
-        const drainValveIp  = data.settings?.drain_valve_ip  || window.location.hostname;
-  
-        document.getElementById("local-fill-container").style.display =
-          fillValveId ? "block" : "none";
-        document.getElementById("local-drain-container").style.display =
-          drainValveId ? "block" : "none";
-  
-        const fillOnBtn   = document.getElementById("local-fill-on");
-        const fillOffBtn  = document.getElementById("local-fill-off");
-        const drainOnBtn  = document.getElementById("local-drain-on");
-        const drainOffBtn = document.getElementById("local-drain-off");
-  
-        fillOnBtn.disabled   = !fillValveId;
-        fillOffBtn.disabled  = !fillValveId;
-        drainOnBtn.disabled  = !drainValveId;
-        drainOffBtn.disabled = !drainValveId;
-  
-        // Wire up the on/off clicks once
-        if (!fillOnBtn.onclick) {
-          fillOnBtn.onclick   = () => setValveLocal(fillValveIp,  fillValveId,  "local-fill-status",  "on");
-          fillOffBtn.onclick  = () => setValveLocal(fillValveIp,  fillValveId,  "local-fill-status",  "off");
-          drainOnBtn.onclick  = () => setValveLocal(drainValveIp, drainValveId, "local-drain-status", "on");
-          drainOffBtn.onclick = () => setValveLocal(drainValveIp, drainValveId, "local-drain-status", "off");
-        }
-  
-        // (D) If the server includes real-time statuses in data.valve_info.valve_relays, parse them
-        if (data.valve_info?.valve_relays) {
-          const relays = data.valve_info.valve_relays;
-
-          // Instead of looping over labelKey in relays, do direct lookups:
-          const fillLabel  = data.settings?.fill_valve_label  || "";
-          const drainLabel = data.settings?.drain_valve_label || "";
-
-          // 1) Fill valve direct lookup
-          if (fillLabel && relays[fillLabel]) {
-            const fillRelay  = relays[fillLabel];
-            const fillStatus = (fillRelay.status || "").toLowerCase();
-            document.getElementById("local-fill-status").textContent = (fillStatus === "on") ? "On" : "Off";
-            updateLocalValveButtons("fill", fillStatus);
-          }
-
-          // 2) Drain valve direct lookup
-          if (drainLabel && relays[drainLabel]) {
-            const drainRelay  = relays[drainLabel];
-            const drainStatus = (drainRelay.status || "").toLowerCase();
-            document.getElementById("local-drain-status").textContent = (drainStatus === "on") ? "On" : "Off";
-            updateLocalValveButtons("drain", drainStatus);
-          }
-        }
-
-        // Update feeding status
-        const feedingStatus = data.feeding_in_progress ? "On" : "Off";
-        document.getElementById("feeding-status-local").textContent = feedingStatus;
-        updateFeedingButtons("local", data.feeding_in_progress ? "on" : "off");
-
-        // Update plant info
-        document.getElementById("plant-name-local").textContent = plant.name || "N/A";
-        document.getElementById("plant-start-date-local").textContent = plant.start_date || "N/A";
-        let weeksElapsed = "N/A";
-        if (plant.start_date) {
-          try {
-            const startDate = new Date(plant.start_date);
-            if (!isNaN(startDate.getTime())) {
-              const now = new Date();
-              const diffMs = now - startDate;
-              const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-              weeksElapsed = Math.floor(diffDays / 7);
-            }
-          } catch (e) {
-            console.error("[LOCAL] Error parsing start_date:", e);
-          }
-        }
-        document.getElementById("plant-weeks-local").textContent = weeksElapsed;
+      })
+      .catch(err => {
+        const resultDiv = document.getElementById('discord-test-result');
+        resultDiv.style.color = "#FF4444";
+        resultDiv.textContent = `Exception: ${err}`;
       });
-  
-      // 3) Optionally fetch /api/settings to discover remote zones
-      fetch("/api/settings")
+    });
+
+    // Telegram Form + Test
+    document.getElementById('telegram-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const enabled = document.getElementById('telegram-enabled').checked;
+      const botToken = document.getElementById('telegram-bot-token').value.trim();
+      const chatId = document.getElementById('telegram-chat-id').value.trim(); // <-- read the chat_id
+      const payload = {
+        telegram_enabled: enabled,
+        telegram_bot_token: botToken,
+        telegram_chat_id: chatId // <-- store the chat_id in settings
+      };
+      saveSettings("/api/settings/", payload);
+    });
+    document.getElementById('telegram-test-send-btn').addEventListener('click', () => {
+      const testMessage = document.getElementById('telegram-test-message').value.trim();
+      if (!testMessage) {
+        alert("Please enter a test message for Telegram.");
+        return;
+      }
+      // POST to /api/settings/test_telegram
+      fetch("/api/settings/telegram_message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_message: testMessage })
+      })
+      .then(r => r.json())
+      .then(data => {
+        const resultDiv = document.getElementById('telegram-test-result');
+        if (data.status === "success") {
+          resultDiv.style.color = "#7CFC00"; // greenish
+          resultDiv.textContent = `Success: ${data.info || 'Message sent!'}`;
+        } else {
+          resultDiv.style.color = "#FF4444";
+          resultDiv.textContent = `Failed: ${data.error || 'Unknown error'}`;
+        }
+      })
+      .catch(err => {
+        const resultDiv = document.getElementById('telegram-test-result');
+        resultDiv.style.color = "#FF4444";
+        resultDiv.textContent = `Exception: ${err}`;
+      });
+    });
+    // NEW: Add event listener for adding a new power outlet
+    document.getElementById('add-outlet-btn').addEventListener('click', () => {
+      const ip = document.getElementById('new-outlet-ip').value.trim();
+      const label = document.getElementById('new-outlet-label').value.trim();
+      if (!ip) {
+        alert("Please enter an IP for the Shelly outlet.");
+        return;
+      }
+      fetch('/api/settings')
         .then(r => r.json())
         .then(settings => {
-          const extra = settings.additional_plants || [];
-          extra.forEach(host => {
-            setupRemoteZone(host);
+          const powerControls = settings.power_controls || [];
+          // Prevent duplicates by IP
+          if (powerControls.some(outlet => outlet.outlet_ip === ip)) {
+            alert("An outlet with that IP already exists.");
+            return;
+          }
+          // Append the new outlet
+          powerControls.push({
+            outlet_ip: ip,
+            label: label || `Outlet at ${ip}`,
+            tracked_valves: [] // Start with no tracked valves
           });
+          // Save the full updated list
+          saveSettings("/api/settings/", { power_controls: powerControls });
+          // Clear inputs
+          document.getElementById('new-outlet-ip').value = '';
+          document.getElementById('new-outlet-label').value = '';
         })
-        .catch(err => console.error("[LOCAL] error loading additional_plants:", err));
-  
-      // Render sensor statuses
-      function renderSensors(prefix, sensorDefs, waterLevel) {
-        for (let i = 1; i <= 3; i++) {
-          const sensorKey = `sensor${i}`;
-          const labelKey  = sensorDefs[sensorKey]?.label || `Sensor ${i}`;
-          const triggered = waterLevel[sensorKey]?.triggered ?? null;
-          const displayEl = document.getElementById(`${prefix}-sensor${i}-display`);
-          if (!displayEl) continue;
-
-          if (triggered === null) {
-            displayEl.textContent = `${labelKey}: No Data`;
-          } else {
-            const iconColor = triggered ? 'green' : 'yellow';
-            const icon = triggered ? '✅' : '⚠️';
-            const statusText = triggered ? 'Present' : 'Not Present';
-            displayEl.innerHTML = `${labelKey}: <span style="color: ${iconColor};">${icon}</span> ${statusText}`;
-          }
-        }
-      }
-  
-      // Toggling local fill/drain
-      function setValveLocal(host, valveName, statusSpanId, action) {
-        if (!valveName) return;
-        const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
-        fetch(url, { method: 'POST' })
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              // Optimistic update
-              updateValveStatusUI(statusSpanId, action);
-            } else {
-              console.error("[LOCAL] Valve error:", data.error);
-            }
-          })
-          .catch(err => console.error("[LOCAL] Valve fetch error:", err));
-      }
-  
-      function updateValveStatusUI(spanId, action) {
-        const span = document.getElementById(spanId);
-        if (span) {
-          span.textContent = (action === "on") ? "On" : "Off";
-        }
-        const prefix = spanId.includes("fill") ? "fill" : "drain";
-        updateLocalValveButtons(prefix, action);
-      }
-  
-      function updateLocalValveButtons(valvePrefix, newStatus) {
-        const onBtn  = document.getElementById(`local-${valvePrefix}-on`);
-        const offBtn = document.getElementById(`local-${valvePrefix}-off`);
-        if (!onBtn || !offBtn) return;
-  
-        onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-        offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-  
-        if (newStatus === "on") {
-          onBtn.classList.add("btn-on-active");
-          offBtn.classList.add("btn-inactive");
-        } else {
-          onBtn.classList.add("btn-inactive");
-          offBtn.classList.add("btn-off-active");
-        }
-      }
-  
-      // ===================== REMOTE ZONES ======================
-      const remoteSockets = {};  // Track active WebSocket connections
-  
-      function setupRemoteZone(host) {
-        if (remoteSockets[host]) {
-          console.log(`[REMOTE ${host}] Already connected`);
-          return;  // Skip if already connected
-        }
-
-        const zoneId = host.replace(/[^a-zA-Z0-9]/g, "_");
-        const container = document.createElement("section");
-        container.className = "data-container";
-        // Note: Header will be dynamically set on status_update.
-        container.innerHTML = `
-          <h2 id="${zoneId}-zone-header"><a href="http://${host}:8000" target="_blank">${host}</a></h2>
-          <div class="row-flex" id="${zoneId}-row">
-            <div>
-              <label>System Name</label>
-              <div id="${zoneId}-system-name">Loading...</div>
-            </div>
-            <div>
-              <label>pH</label>
-              <div id="${zoneId}-ph-display">Loading...</div>
-            </div>
-            <div>
-              <label>EC (mS/cm)</label>
-              <div id="${zoneId}-ec-display">N/A</div>
-            </div>
-            <div>
-              <label>Sensor 1</label>
-              <div id="${zoneId}-sensor1-display">Loading...</div>
-            </div>
-            <div>
-              <label>Sensor 2</label>
-              <div id="${zoneId}-sensor2-display">Loading...</div>
-            </div>
-            <div>
-              <label>Sensor 3</label>
-              <div id="${zoneId}-sensor3-display">Loading...</div>
-            </div>
-            <div style="display:none;" id="${zoneId}-fill-container">
-              <label>Fill Valve: <span id="${zoneId}-fill-status">Off</span></label>
-              <div class="button-group">
-                <button id="${zoneId}-fill-on" disabled>On</button>
-                <button id="${zoneId}-fill-off" disabled>Off</button>
-              </div>
-            </div>
-            <div style="display:none;" id="${zoneId}-drain-container">
-              <label>Drain Valve: <span id="${zoneId}-drain-status">Off</span></label>
-              <div class="button-group">
-                <button id="${zoneId}-drain-on" disabled>On</button>
-                <button id="${zoneId}-drain-off" disabled>Off</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Extra Controls (Hidden by Default) -->
-          <div id="extra-controls-${zoneId}" class="extra-controls" style="display:none;">
-            <div class="toggle-group">
-              <label>Feeding In Progress: <span id="feeding-status-${zoneId}">Off</span></label>
-              <div class="button-group">
-                <button id="feeding-on-${zoneId}">On</button>
-                <button id="feeding-off-${zoneId}">Off</button>
-              </div>
-            </div>
-            <div class="toggle-group">
-              <label>Plant Info</label>
-              <div>Name: <span id="plant-name-${zoneId}">N/A</span></div>
-              <div>Start Date: <span id="plant-start-date-${zoneId}">N/A</span></div>
-              <div>Weeks Elapsed: <span id="plant-weeks-${zoneId}">N/A</span></div>
-            </div>
-          </div>
-
-          <!-- Bottom Bar with Expand Button and Last Updated -->
-          <div class="bottom-bar">
-            <button id="expand-${zoneId}" class="expand-btn">▼</button>
-            <div class="last-updated" id="${zoneId}-last-updated">Last updated: Never</div>
-          </div>
-        `;
-        document.getElementById("remote-zones").appendChild(container);
-
-        const remoteUrl = `http://${host}:8000/status`;
-        console.log(`[REMOTE] Connecting to ${remoteUrl}`);
-
-        const socket = io(remoteUrl, {
-          transports: ["websocket"],
-          reconnectionAttempts: Infinity,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 1000
-        });
-
-        remoteSockets[host] = socket; // Store reference to avoid duplicate connections
-
-        let reconnectAttempts = 0;  // Track reconnect attempts
-
-        socket.on("connect", () => {
-          console.log(`[REMOTE ${host}] connected`);
-          reconnectAttempts = 0;  // Reset attempts on successful connection
-        });
-
-        socket.on("disconnect", () => {
-          console.log(`[REMOTE ${host}] disconnected`);
-          delete remoteSockets[host];  // Remove from tracking so it can reconnect later
-        });
-
-        socket.on("connect_error", (err) => {
-          reconnectAttempts++;
-          if (reconnectAttempts % 10 === 0) {
-            console.error(`[REMOTE ${host}] connect_error (attempt ${reconnectAttempts}):`, err);
-          }
-          delete remoteSockets[host];
-        });
-
-        socket.on("status_update", (data) => {
-          console.log(`[REMOTE ${host}] status_update:`, data);
-
-          // ---------- NEW: Set plant info header with link ----------
-          const plant = data.settings?.plant_info || {};
-          let headerText = "Unknown Plant";
-          if (plant.name && plant.start_date) {
-            headerText = `${plant.name} – ${plant.start_date}`;
-          } else if (plant.name) {
-            headerText = plant.name;
-          } else if (plant.start_date) {
-            headerText = plant.start_date;
-          }
-          // Always provide link to remote system
-          headerText += ` <a href="http://${host}:8000" target="_blank" style="font-size:0.8em;margin-left:8px;">[Open]</a>`;
-          document.getElementById(`${zoneId}-zone-header`).innerHTML = headerText;
-          // ---------------------------------------------------------
-
-          // Update UI data for the remote zone
-          if (data.settings?.system_name) {
-            document.getElementById(`${zoneId}-system-name`).textContent = data.settings.system_name;
-          }
-
-          // Update system name color based on pH range
-          const remotePh = data.current_ph !== undefined ? parseFloat(data.current_ph) : NaN;
-          const remoteSystemNameEl = document.getElementById(`${zoneId}-system-name`);
-          if (data.settings && data.settings.ph_range) {
-            const minPh = parseFloat(data.settings.ph_range.min) || 5.5;
-            const maxPh = parseFloat(data.settings.ph_range.max) || 6.5;
-            if (!isNaN(remotePh)) {
-              if (remotePh >= minPh && remotePh <= maxPh) {
-                remoteSystemNameEl.style.color = 'green';
-              } else {
-                remoteSystemNameEl.style.color = 'red';
-              }
-            } else {
-                remoteSystemNameEl.style.color = '';
-            }
-          } else {
-            remoteSystemNameEl.style.color = '';
-          }
-
-          document.getElementById(`${zoneId}-ph-display`).textContent =
-            data.current_ph !== undefined ? parseFloat(data.current_ph).toFixed(2) : "N/A";
-          document.getElementById(`${zoneId}-ec-display`).textContent =
-            data.current_ec !== undefined ? parseFloat(data.current_ec).toFixed(2) : "N/A";
-
-          // Update last-updated timestamp (Remote)
-          document.getElementById(`${zoneId}-last-updated`).textContent =
-            "Last updated: " + new Date().toLocaleString();
-
-          // Handle water levels
-          if (data.settings?.water_level_sensors && data.water_level) {
-            renderSensors(zoneId, data.settings.water_level_sensors, data.water_level);
-          }
-
-          // Handle fill/drain valves
-          const fillValveId  = data.settings?.fill_valve;
-          const drainValveId = data.settings?.drain_valve;
-          const fillValveIp  = data.valve_info?.fill_valve_ip  || host;
-          const drainValveIp = data.valve_info?.drain_valve_ip || host;
-
-          // Show or hide the fill/drain containers
-          document.getElementById(`${zoneId}-fill-container`).style.display =
-            fillValveId ? "block" : "none";
-          document.getElementById(`${zoneId}-drain-container`).style.display =
-            drainValveId ? "block" : "none";
-
-          // Enable or disable the On/Off buttons
-          const fillOnBtn   = document.getElementById(`${zoneId}-fill-on`);
-          const fillOffBtn  = document.getElementById(`${zoneId}-fill-off`);
-          const drainOnBtn  = document.getElementById(`${zoneId}-drain-on`);
-          const drainOffBtn = document.getElementById(`${zoneId}-drain-off`);
-
-          fillOnBtn.disabled   = !fillValveId;
-          fillOffBtn.disabled  = !fillValveId;
-          drainOnBtn.disabled  = !drainValveId;
-          drainOffBtn.disabled = !drainValveId;
-
-          // Remove existing event listeners by cloning & replace
-          fillOnBtn.replaceWith(fillOnBtn.cloneNode(true));
-          fillOffBtn.replaceWith(fillOffBtn.cloneNode(true));
-          drainOnBtn.replaceWith(drainOnBtn.cloneNode(true));
-          drainOffBtn.replaceWith(drainOffBtn.cloneNode(true));
-
-          // Re-grab the new button references
-          const newFillOnBtn   = document.getElementById(`${zoneId}-fill-on`);
-          const newFillOffBtn  = document.getElementById(`${zoneId}-fill-off`);
-          const newDrainOnBtn  = document.getElementById(`${zoneId}-drain-on`);
-          const newDrainOffBtn = document.getElementById(`${zoneId}-drain-off`);
-
-          // Attach fresh click handlers for On/Off
-          newFillOnBtn.onclick   = () => remoteSetValve(fillValveIp, fillValveId, `${zoneId}-fill-status`, "on",  zoneId, "fill");
-          newFillOffBtn.onclick  = () => remoteSetValve(fillValveIp, fillValveId, `${zoneId}-fill-status`, "off", zoneId, "fill");
-          newDrainOnBtn.onclick  = () => remoteSetValve(drainValveIp, drainValveId, `${zoneId}-drain-status`, "on",  zoneId, "drain");
-          newDrainOffBtn.onclick = () => remoteSetValve(drainValveIp, drainValveId, `${zoneId}-drain-status`, "off", zoneId, "drain");
-
-          // *** FIX: Compare dictionary key to fill_valve_label/drain_valve_label ***
-          if (data.valve_info?.valve_relays) {
-            const relays = data.valve_info.valve_relays;
-            const fillLabel  = data.settings?.fill_valve_label  || "";
-            const drainLabel = data.settings?.drain_valve_label || "";
-
-            // Go through each key in valve_relays
-            for (let labelKey in relays) {
-              const relay = relays[labelKey];
-              const relayStatus = (relay.status || "").toLowerCase();
-
-              // If labelKey matches the fill_valve_label
-              if (labelKey === fillLabel) {
-                document.getElementById(`${zoneId}-fill-status`).textContent =
-                  relayStatus === "on" ? "On" : "Off";
-                updateRemoteValveButtons(zoneId, "fill", relayStatus);
-              }
-
-              // If labelKey matches the drain_valve_label
-              if (labelKey === drainLabel) {
-                document.getElementById(`${zoneId}-drain-status`).textContent =
-                  relayStatus === "on" ? "On" : "Off";
-                updateRemoteValveButtons(zoneId, "drain", relayStatus);
-              }
-            }
-          }
-
-          // Update feeding status
-          const feedingStatus = data.feeding_in_progress ? "On" : "Off";
-          document.getElementById(`feeding-status-${zoneId}`).textContent = feedingStatus;
-          updateFeedingButtons(zoneId, data.feeding_in_progress ? "on" : "off");
-
-          // Update plant info
-          document.getElementById(`plant-name-${zoneId}`).textContent = plant.name || "N/A";
-          document.getElementById(`plant-start-date-${zoneId}`).textContent = plant.start_date || "N/A";
-          let weeksElapsed = "N/A";
-          if (plant.start_date) {
-            try {
-              const startDate = new Date(plant.start_date);
-              if (!isNaN(startDate.getTime())) {
-                const now = new Date();
-                const diffMs = now - startDate;
-                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                weeksElapsed = Math.floor(diffDays / 7);
-              }
-            } catch (e) {
-              console.error(`[REMOTE ${host}] Error parsing start_date:`, e);
-            }
-          }
-          document.getElementById(`plant-weeks-${zoneId}`).textContent = weeksElapsed;
-        });
-
-        // Add expand/collapse logic for this remote zone
-        document.getElementById(`expand-${zoneId}`).addEventListener("click", () => toggleExtra(zoneId));
-
-        // Wire up feeding toggle for this remote zone
-        document.getElementById(`feeding-on-${zoneId}`).addEventListener("click", () => setFeeding(zoneId, host, true));
-        document.getElementById(`feeding-off-${zoneId}`).addEventListener("click", () => setFeeding(zoneId, host, false));
-      }
-  
-      // Add expand/collapse logic for local
-      document.getElementById("expand-local").addEventListener("click", () => toggleExtra("local"));
-
-      // Wire up feeding toggle for local
-      document.getElementById("feeding-on-local").addEventListener("click", () => setFeeding("local", window.location.hostname, true));
-      document.getElementById("feeding-off-local").addEventListener("click", () => setFeeding("local", window.location.hostname, false));
-
-      // Function to toggle extra controls
-      function toggleExtra(zoneId) {
-        const extraDiv = document.getElementById(`extra-controls-${zoneId}`);
-        const expandBtn = document.getElementById(`expand-${zoneId}`);
-        if (extraDiv.style.display === "none") {
-          extraDiv.style.display = "flex";
-          expandBtn.textContent = "▲";
-        } else {
-          extraDiv.style.display = "none";
-          expandBtn.textContent = "▼";
-        }
-      }
-
-      // Function to update feeding buttons
-      function updateFeedingButtons(zoneId, newStatus) {
-        const onBtn = document.getElementById(`feeding-on-${zoneId}`);
-        const offBtn = document.getElementById(`feeding-off-${zoneId}`);
-        if (!onBtn || !offBtn) return;
-
-        onBtn.classList.remove("btn-on-active", "btn-off-active", "btn-inactive");
-        offBtn.classList.remove("btn-on-active", "btn-off-active", "btn-inactive");
-
-        if (newStatus === "on") {
-          onBtn.classList.add("btn-on-active");
-          offBtn.classList.add("btn-inactive");
-        } else {
-          onBtn.classList.add("btn-inactive");
-          offBtn.classList.add("btn-off-active");
-        }
-      }
-
-      // Function to set feeding status
-      function setFeeding(zoneId, host, inProgress) {
-        const url = `http://${host}:8000/api/settings/feeding_status`;
-        fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ in_progress: inProgress })
-        })
-        .then(r => r.json())
-        .then(data => {
-          if (data.status === "success") {
-            const statusText = inProgress ? "On" : "Off";
-            document.getElementById(`feeding-status-${zoneId}`).textContent = statusText;
-            updateFeedingButtons(zoneId, inProgress ? "on" : "off");
-          } else {
-            console.error(`[Feeding ${zoneId}] error:`, data.error);
-          }
-        })
-        .catch(err => console.error(`[Feeding ${zoneId}] fetch error:`, err));
-      }
-
-      // Remote valve set function (assuming you have this defined elsewhere or add it)
-      function remoteSetValve(host, valveName, statusSpanId, action, zoneId, valvePrefix) {
-        if (!valveName) return;
-        const url = `http://${host}:8000/api/valve_relay/${encodeURIComponent(valveName)}/${action}`;
-        fetch(url, { method: 'POST' })
-          .then(r => r.json())
-          .then(data => {
-            if (data.status === "success") {
-              // Optimistic update
-              const span = document.getElementById(statusSpanId);
-              if (span) {
-                span.textContent = (action === "on") ? "On" : "Off";
-              }
-              updateRemoteValveButtons(zoneId, valvePrefix, action);
-            } else {
-              console.error(`[REMOTE] Valve error:`, data.error);
-            }
-          })
-          .catch(err => console.error(`[REMOTE] Valve fetch error:`, err));
-      }
-
-      function updateRemoteValveButtons(zoneId, valvePrefix, newStatus) {
-        const onBtn  = document.getElementById(`${zoneId}-${valvePrefix}-on`);
-        const offBtn = document.getElementById(`${zoneId}-${valvePrefix}-off`);
-        if (!onBtn || !offBtn) return;
-  
-        onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-        offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
-  
-        if (newStatus === "on") {
-          onBtn.classList.add("btn-on-active");
-          offBtn.classList.add("btn-inactive");
-        } else {
-          onBtn.classList.add("btn-inactive");
-          offBtn.classList.add("btn-off-active");
-        }
-      }
+        .catch(err => console.error("Error adding outlet:", err));
     });
+
+    // Export
+    document.getElementById('export-btn').addEventListener('click', () => {
+      window.location.href = '/api/settings/export';
+    });
+
+    // Import
+    document.getElementById('import-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fileInput = document.getElementById('import-file');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Please select a .json file first.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      fetch('/api/settings/import', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+          // Re-fetch or wait for status_update
+          location.reload();
+        } else {
+          console.error("Failed to import settings:", data.error);
+        }
+      })
+      .catch(err => console.error("Error importing settings:", err));
+    });
+
+    // Clear Pump Tracking
+    document.getElementById('clear-pump1').addEventListener('click', () => {
+      clearPumpTracking("1");
+    });
+    document.getElementById('clear-pump2').addEventListener('click', () => {
+      clearPumpTracking("2");
+    });
+
+    function clearPumpTracking(pump) {
+      fetch('/api/settings/clear_pump_tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pump: pump })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "success") {
+          location.reload();  // Reload to update display
+        } else {
+          console.error("Failed to clear pump tracking:", data.error);
+        }
+      })
+      .catch(err => console.error("Error clearing pump tracking:", err));
+    }
   </script>
 </body>
 </html>
