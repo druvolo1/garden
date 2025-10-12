@@ -205,11 +205,7 @@
           <input type="number" id="dosing-interval" step=".0001">
           <label for="system-volume">System Volume (gallons):</label>
           <input type="number" id="system-volume" step=".1">
-          <label for="auto-dosing">Auto-Dosing Enabled:</label>
-          <input type="checkbox" id="auto-dosing">
          
-          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
-          <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
         </form>
       </div>
@@ -325,12 +321,6 @@
         <form id="system-info-form">
           <label for="system-name">System Name:</label>
           <input type="text" id="system-name"><br><br>
-          <label for="plant-name">Plant Name:</label>
-          <input type="text" id="plant-name"><br><br>
-          <label for="plant-start-date">Plant Start Date:</label>
-          <input type="date" id="plant-start-date"><br><br>
-          <label>Weeks Since Start:</label>
-          <span id="weeks-since-start">0</span><br><br>
           <button type="submit">Save System Info</button>
         </form>
       </div>
@@ -856,14 +846,9 @@
         document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
         document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
         document.getElementById('system-volume').value = settings.system_volume || '';
-        document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
-        document.getElementById('allow-remote-feeding').checked = !!settings.allow_remote_feeding;
         // System Info
         const plantInfo = settings.plant_info || {};
         document.getElementById('system-name').value = settings.system_name || '';
-        document.getElementById('plant-name').value = plantInfo.name || '';
-        document.getElementById('plant-start-date').value = plantInfo.start_date || '';
-        updateWeeksSinceStart(plantInfo.start_date);
         // Dosage Strength
         document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
         document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
@@ -1125,15 +1110,6 @@
     document.getElementById('system-info-form').addEventListener('submit', e => {
       e.preventDefault();
       const systemName = document.getElementById('system-name').value.trim();
-      const plantName = document.getElementById('plant-name').value.trim();
-      const startDate = document.getElementById('plant-start-date').value;
-      const payload = {
-        system_name: systemName,
-        plant_info: {
-          name: plantName,
-          start_date: startDate
-        }
-      };
       saveSettings("/api/settings/", payload);
     });
     document.getElementById('plant-start-date').addEventListener('change', e => {
