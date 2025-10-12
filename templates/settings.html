@@ -858,7 +858,6 @@
         document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
         document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
         document.getElementById('system-volume').value = settings.system_volume || '';
-        document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
         document.getElementById('allow-remote-feeding').checked = !!settings.allow_remote_feeding;
         // System Info
         const plantInfo = settings.plant_info || {};
@@ -1073,7 +1072,6 @@
         max_dosing_amount: parseFloat(document.getElementById('max-dosing').value),
         dosing_interval: parseFloat(document.getElementById('dosing-interval').value),
         system_volume: parseFloat(document.getElementById('system-volume').value),
-        auto_dosing_enabled: document.getElementById('auto-dosing').checked,
         allow_remote_feeding: document.getElementById('allow-remote-feeding').checked
       };
       saveSettings("/api/settings/", payload);
