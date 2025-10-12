@@ -29,18 +29,7 @@
     <h1>Plant Info</h1>
     <p class="subtitle">Configure plant-related settings.</p>
     <div class="settings-grid">
-      <!-- Moved General Settings (partial) -->
-      <div class="data-container" id="general-settings-container">
-        <h2>General Settings</h2>
-        <form id="general-settings-form">
-          <label for="auto-dosing">Auto-Dosing Enabled:</label>
-          <input type="checkbox" id="auto-dosing">
-          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
-          <input type="checkbox" id="allow-remote-feeding">
-          <button type="submit" id="general-save-btn">Save General Settings</button>
-        </form>
-      </div>
-      <!-- Plant Info -->
+      <!-- Plant Info (combined) -->
       <div class="data-container" id="plant-info-container">
         <h2>Plant Info</h2>
         <form id="plant-info-form">
@@ -49,6 +38,10 @@
           <label for="plant-start-date">Plant Start Date:</label>
           <input type="date" id="plant-start-date">
           <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
+          <label for="auto-dosing">Auto-Dosing Enabled:</label>
+          <input type="checkbox" id="auto-dosing">
+          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
+          <input type="checkbox" id="allow-remote-feeding">
           <button type="submit">Save Plant Info</button>
         </form>
       </div>
@@ -63,15 +56,13 @@
       fetch('/api/settings')
         .then(response => response.json())
         .then(settings => {
-          // General Settings (moved)
-          document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
-          document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
-
-          // Plant Info
+          // Plant Info (combined)
           const plantInfo = settings.plant_info || {};
           document.getElementById('plant-name').value = plantInfo.name || '';
           document.getElementById('plant-start-date').value = plantInfo.start_date || '';
           document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
+          document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
+          document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
         })
         .catch(err => console.error('Error fetching settings:', err));
     });
@@ -86,30 +77,22 @@
       return Math.floor(diffDays / 7);
     }
 
-    // Save General Settings (moved)
-    document.getElementById('general-settings-form').addEventListener('submit', e => {
-      e.preventDefault();
-      const autoDosing = document.getElementById('auto-dosing').checked;
-      const allowRemoteFeeding = document.getElementById('allow-remote-feeding').checked;
-      const payload = {
-        auto_dosing_enabled: autoDosing,
-        allow_remote_feeding: allowRemoteFeeding
-      };
-      saveSettings("/api/plant_info/", payload);  // Assuming API endpoint for plant info
-    });
-
-    // Save Plant Info
+    // Save Plant Info (combined)
     document.getElementById('plant-info-form').addEventListener('submit', e => {
       e.preventDefault();
       const plantName = document.getElementById('plant-name').value.trim();
       const plantStartDate = document.getElementById('plant-start-date').value;
+      const autoDosing = document.getElementById('auto-dosing').checked;
+      const allowRemoteFeeding = document.getElementById('allow-remote-feeding').checked;
       const payload = {
         plant_info: {
           name: plantName,
           start_date: plantStartDate
-        }
+        },
+        auto_dosing_enabled: autoDosing,
+        allow_remote_feeding: allowRemoteFeeding
       };
-      saveSettings("/api/plant_info/", payload);  // Assuming API endpoint for plant info
+      saveSettings("/api/settings/", payload);  // Use the settings endpoint
       document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantStartDate);
     });
 
