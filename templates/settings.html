@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Settings</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="manifest" href="/static/manifest.json">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
   <style>
@@ -108,7 +107,7 @@
       <li><a href="/settings">Settings</a></li>
       <!--<li><a href="/valves">Valves</a></li>-->
       <li><a href="/logs">Logs</a></li>
-      <li><a href="/changelog">Changelog</a></li>
+      <!--<li><a href="/changelog">Changelog</a></li>-->
     </ul>
   </nav>
   <main>
@@ -118,7 +117,7 @@
       <!-- USB Device Assignment -->
       <div class="data-container">
         <h2>Assign USB Devices</h2>
-  
+
         <!-- pH Probe Form -->
         <form id="ph-form">
           <label for="ph-device">pH Probe:</label>
@@ -127,18 +126,18 @@
           </select>
           <button type="submit">Save pH Probe</button>
         </form>
-    
+
         <!-- Link that goes to Calibration - hidden by default and not blue -->
         <a id="ph-calibration-link"
            href="/calibration"
            style="display: none;
                   margin-bottom: 1em;
                   text-decoration: underline;
-                  color: #ccc; /* or whatever color you like */
+                  color: #ccc; /* or or whatever color you like */
                   cursor: pointer;">
            Click here for Calibration
         </a>
-  
+
         <!-- Dosing Relay Module Form -->
         <form id="dosing-relay-form">
           <label for="dosing-relay-device">Dosing Relay Module:</label>
@@ -147,7 +146,7 @@
           </select>
           <button type="submit">Save Dosing Relay Module</button>
         </form>
-  
+
         <!-- Valve Relay Module Form (no mode dropdown, purely local USB path) -->
         <form id="valve-relay-form">
           <label for="valve-relay-device">Valve Relay Module:</label>
@@ -156,7 +155,7 @@
           </select>
           <button type="submit" id="valve-relay-save-btn">Save Valve Relay Setting</button>
         </form>
-    
+
         <!-- Link that goes to Valves page - hidden by default and not blue -->
         <a id="valve-relay-link"
            href="/valves"
@@ -167,7 +166,7 @@
                   cursor: pointer;">
            Click here to Manage Valves
         </a>
-  
+
         <!-- EC Meter Form -->
         <form id="ec-meter-form">
           <label for="ec-meter-device">EC Meter:</label>
@@ -205,7 +204,11 @@
           <input type="number" id="dosing-interval" step=".0001">
           <label for="system-volume">System Volume (gallons):</label>
           <input type="number" id="system-volume" step=".1">
-         
+          <label for="auto-dosing">Auto-Dosing Enabled:</label>
+          <input type="checkbox" id="auto-dosing">
+
+          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
+          <input type="checkbox" id="allow-remote-feeding">
           <button type="submit" id="general-save-btn">Save General Settings</button>
         </form>
       </div>
@@ -227,11 +230,17 @@
           <input type="number" id="pump1-calibration" step="0.01"><br><br>
           <label>Last Calibrated pH Up:</label>
           <span id="pump1-last-calibrated">Loading...</span><br><br>
+          <p>Activations: <span id="pump1-activations">Loading...</span></p>
+          <p>Cumulative Duration: <span id="pump1-duration">Loading...</span> seconds</p>
+          <button id="reset-pump1-stats">Reset pH Up Stats</button><br><br>
           <button id="save-pump1">Save pH Up Calibration</button><br><br>
           <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
           <input type="number" id="pump2-calibration" step="0.01"><br><br>
           <label>Last Calibrated pH Down:</label>
           <span id="pump2-last-calibrated">Loading...</span><br><br>
+          <p>Activations: <span id="pump2-activations">Loading...</span></p>
+          <p>Cumulative Duration: <span id="pump2-duration">Loading...</span> seconds</p>
+          <button id="reset-pump2-stats">Reset pH Down Stats</button><br><br>
           <button id="save-pump2">Save pH Down Calibration</button>
       </div>
       <!-- Relay Port Assignments (for Dosing) -->
@@ -321,6 +330,12 @@
         <form id="system-info-form">
           <label for="system-name">System Name:</label>
           <input type="text" id="system-name"><br><br>
+          <label for="plant-name">Plant Name:</label>
+          <input type="text" id="plant-name"><br><br>
+          <label for="plant-start-date">Plant Start Date:</label>
+          <input type="date" id="plant-start-date"><br><br>
+          <label>Weeks Since Start:</label>
+          <span id="weeks-since-start">0</span><br><br>
           <button type="submit">Save System Info</button>
         </form>
       </div>
@@ -360,7 +375,7 @@
         <input type="text" id="new-plant-input" placeholder="e.g. 192.168.1.45 or myplant.local">
         <button type="button" id="add-plant-btn">+ Add</button>
       </div>
-      <!-- POWER OUTLETS UI -->
+      <!-- POWER Outlets UI -->
       <div class="data-container">
         <h2>Power Outlets</h2>
         <div id="power-outlets-list"></div>
@@ -371,7 +386,7 @@
         <input type="text" id="new-outlet-label">
         <button type="button" id="add-outlet-btn">+ Add Outlet</button>
       </div>
-      <!-- END POWER OUTLETS UI -->
+      <!-- END POWER Outlets UI -->
       <!-- Notifications Section -->
       <div class="data-container" id="notifications-container">
         <h2>Notifications</h2>
@@ -436,7 +451,7 @@
       <!-- Import / Export Settings Section -->
       <div class="data-container">
         <h2>Import / Export Settings</h2>
-    
+
         <!-- Export button -->
         <p>Download a copy of the current settings.json:</p>
         <button id="export-btn">Export Settings</button>
@@ -846,9 +861,14 @@
         document.getElementById('max-dosing').value = settings.max_dosing_amount || '0';
         document.getElementById('dosing-interval').value = settings.dosing_interval || '1';
         document.getElementById('system-volume').value = settings.system_volume || '';
+        document.getElementById('auto-dosing').checked = !!settings.auto_dosing_enabled;
+        document.getElementById('allow-remote-feeding').checked = !!settings.allow_remote_feeding;
         // System Info
         const plantInfo = settings.plant_info || {};
         document.getElementById('system-name').value = settings.system_name || '';
+        document.getElementById('plant-name').value = plantInfo.name || '';
+        document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+        updateWeeksSinceStart(plantInfo.start_date);
         // Dosage Strength
         document.getElementById('ph-up-strength').value = settings.dosage_strength?.ph_up || '';
         document.getElementById('ph-down-strength').value = settings.dosage_strength?.ph_down || '';
@@ -857,6 +877,10 @@
         document.getElementById('pump2-calibration').value = settings.pump_calibration?.pump2 || '';
         document.getElementById('pump1-last-calibrated').textContent = settings.pump_calibration?.pump1_last_calibrated || 'Never';
         document.getElementById('pump2-last-calibrated').textContent = settings.pump_calibration?.pump2_last_calibrated || 'Never';
+        document.getElementById('pump1-activations').textContent = settings.pump_calibration?.pump1_activations || 0;
+        document.getElementById('pump1-duration').textContent = settings.pump_calibration?.pump1_cumulative_duration || 0.0;
+        document.getElementById('pump2-activations').textContent = settings.pump_calibration?.pump2_activations || 0;
+        document.getElementById('pump2-duration').textContent = settings.pump_calibration?.pump2_cumulative_duration || 0.0;
         // Relay Ports
         const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
         document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
@@ -1093,6 +1117,24 @@
       };
       saveSettings("/api/settings/", payload);
     });
+    document.getElementById('reset-pump1-stats').addEventListener('click', e => {
+      const payload = {
+        pump_calibration: {
+          pump1_activations: 0,
+          pump1_cumulative_duration: 0.0
+        }
+      };
+      saveSettings("/api/settings/", payload);
+    });
+    document.getElementById('reset-pump2-stats').addEventListener('click', e => {
+      const payload = {
+        pump_calibration: {
+          pump2_activations: 0,
+          pump2_cumulative_duration: 0.0
+        }
+      };
+      saveSettings("/api/settings/", payload);
+    });
     // Relay Ports
     document.getElementById('relay-port-form').addEventListener('submit', e => {
       e.preventDefault();
@@ -1110,6 +1152,15 @@
     document.getElementById('system-info-form').addEventListener('submit', e => {
       e.preventDefault();
       const systemName = document.getElementById('system-name').value.trim();
+      const plantName = document.getElementById('plant-name').value.trim();
+      const startDate = document.getElementById('plant-start-date').value;
+      const payload = {
+        system_name: systemName,
+        plant_info: {
+          name: plantName,
+          start_date: startDate
+        }
+      };
       saveSettings("/api/settings/", payload);
     });
     document.getElementById('plant-start-date').addEventListener('change', e => {
@@ -1137,7 +1188,7 @@
     function renderAdditionalPlants(plantsArray) {
       const container = document.getElementById('plants-list');
       container.innerHTML = ""; // clear old content
-      plantsArray.forEach(plant => {
+      plantsArray.forEach((plant, index) => {
         const rowDiv = document.createElement('div');
         rowDiv.style.display = "flex";
         rowDiv.style.justifyContent = "space-between";
@@ -1148,7 +1199,7 @@
         rowDiv.appendChild(labelSpan);
         const delBtn = document.createElement('button');
         delBtn.textContent = "Delete";
-        delBtn.onclick = () => deletePlant(plant);
+        delBtn.onclick = () => deletePlant(index);
         rowDiv.appendChild(delBtn);
         container.appendChild(rowDiv);
       });
@@ -1159,29 +1210,37 @@
         alert("Please enter an IP or DNS name.");
         return;
       }
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          const arr = settings.additional_plants || [];
-          if (arr.includes(newVal)) {
-            alert("That entry already exists!");
-            return;
-          }
-          arr.push(newVal);
-          saveSettings("/api/settings/", { additional_plants: arr });
-          document.getElementById('new-plant-input').value = "";
-        })
-        .catch(err => console.error("Error adding new plant:", err));
+      fetch('/api/settings/add_plant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_ip: newVal })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          document.getElementById('new-plant-input').value = '';
+          fetchUsbDevices();
+        } else {
+          alert("Failed to add plant: " + data.error);
+        }
+      })
+      .catch(err => console.error("Error adding new plant:", err));
     });
-    function deletePlant(plant) {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(settings => {
-          let arr = settings.additional_plants || [];
-          arr = arr.filter(item => item !== plant);
-          saveSettings("/api/settings/", { additional_plants: arr });
-        })
-        .catch(err => console.error("Error deleting plant:", err));
+    function deletePlant(index) {
+      fetch('/api/settings/remove_plant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index: index })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          fetchUsbDevices();
+        } else {
+          alert("Failed to remove plant: " + data.error);
+        }
+      })
+      .catch(err => console.error("Error deleting plant:", err));
     }
     // Software Update Check
     document.getElementById('check-update-btn').addEventListener('click', () => {
@@ -1432,7 +1491,7 @@
       .then(data => {
         const resultDiv = document.getElementById('discord-test-result');
         if (data.status === "success") {
-          resultDiv.style.color = "#7CFC00"; // greenish
+          resultDiv.style.color = "#7CFC00"; // or greenish
           resultDiv.textContent = `Success: ${data.info || 'Message sent!'}`;
         } else {
           resultDiv.style.color = "#FF4444";

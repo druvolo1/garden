@@ -46,7 +46,9 @@ if not os.path.exists(SETTINGS_FILE):
                 "valve_relay": None,
                 "ec_meter": None
             },
-            "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": ""},
+            "pump_calibration": {"pump1": 0.5, "pump2": 0.5, "pump1_last_calibrated": "", "pump2_last_calibrated": "",
+                                 "pump1_activations": 0, "pump1_cumulative_duration": 0.0,
+                                 "pump2_activations": 0, "pump2_cumulative_duration": 0.0},
             "relay_ports": {"ph_up": 1, "ph_down": 2},
 
             # The local usb-based labels for a physically attached relay board
@@ -157,6 +159,16 @@ def get_settings():
     # Inject our code-based version
     settings['current_version'] = CURRENT_VERSION
     settings["feeding_in_progress"] = feeding_in_progress
+    settings.setdefault('pump_calibration', {
+        "pump1": 0.5,
+        "pump2": 0.5,
+        "pump1_last_calibrated": "",
+        "pump2_last_calibrated": "",
+        "pump1_activations": 0,
+        "pump1_cumulative_duration": 0.0,
+        "pump2_activations": 0,
+        "pump2_cumulative_duration": 0.0
+    })
     return jsonify(settings)
 
 
@@ -278,6 +290,8 @@ def add_plant():
     current_settings = load_settings()
     if 'additional_plants' not in current_settings:
         current_settings['additional_plants'] = []
+    if new_ip in current_settings['additional_plants']:
+        return jsonify({"status": "failure", "error": "Plant already exists"}), 400
     current_settings['additional_plants'].append(new_ip)
     save_settings(current_settings)
     return jsonify({"status": "success", "settings": current_settings})
