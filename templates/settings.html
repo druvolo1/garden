@@ -8,98 +8,121 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
   <style>
-    /* Example styling for a disabled section */
-    .disabled-section {
-      opacity: 0.1; /* Visually dims the section */
-      pointer-events: none; /* Prevents clicks, hovers, focus, etc. */
-      position: relative;
-    }
-    .disabled-section::after {
-      content: attr(data-disabled-title); /* Show custom tooltip text */
-      display: none;
-      background: #444;
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      z-index: 9999;
-    }
-    .disabled-section:hover::after {
-      display: block;
-    }
-    /* Optional: some minor styling for power-outlet cards */
-    .power-outlet-card {
-      border: 1px solid #ccc;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    .power-outlet-card h4 {
-      margin: 0 0 10px 0;
-    }
-    .tracked-valve-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      gap: 10px;
-    }
-    .hidden {
-      display: none;
-    }
-    /* Modal styles */
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background-color: rgba(0,0,0,0.4);
-    }
-    .modal-content {
-      background-color: #2a2a2a;
-      margin: 15% auto;
-      padding: 20px;
-      border: 1px solid #f4c531;
-      width: 80%;
-      max-width: 400px;
-      color: #f4c531;
-    }
-    .close {
-      color: #f4c531;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-    }
-    .close:hover,
-    .close:focus {
-      color: #fff;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    .progress {
-      width: 100%;
-      background-color: #1e1e1e;
-      margin: 20px 0;
-    }
-    .progress-bar {
-      width: 0%;
-      height: 30px;
-      background-color: #f4c531;
-      text-align: center;
-      line-height: 30px;
-      color: #2a2a2a;
-    }
-    .settings-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-      gap: 20px;
-    }
-  </style>
+  /* Example styling for a disabled section */
+  .disabled-section {
+    opacity: 0.1; /* Visually dims the section */
+    pointer-events: none; /* Prevents clicks, hovers, focus, etc. */
+    position: relative;
+  }
+  .disabled-section::after {
+    content: attr(data-disabled-title); /* Show custom tooltip text */
+    display: none;
+    background: #444;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 9999;
+  }
+  .disabled-section:hover::after {
+    display: block;
+  }
+  /* Optional: some minor styling for power-outlet cards */
+  .power-outlet-card {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .power-outlet-card h4 {
+    margin: 0 0 10px 0;
+  }
+  .tracked-valve-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 10px;
+  }
+  .hidden {
+    display: none;
+  }
+  /* Modal styles */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+  }
+  .modal-content {
+    background-color: #2a2a2a;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #f4c531;
+    width: 80%;
+    max-width: 400px;
+    color: #f4c531;
+  }
+  .close {
+    color: #f4c531;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+  }
+  .close:hover,
+  .close:focus {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .progress {
+    width: 100%;
+    background-color: #1e1e1e;
+    margin: 20px 0;
+  }
+  .progress-bar {
+    width: 0%;
+    height: 30px;
+    background-color: #f4c531;
+    text-align: center;
+    line-height: 30px;
+    color: #2a2a2a;
+  }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+  }
+  form label {
+    display: block;
+    margin-bottom: 8px;
+  }
+  form input[type="text"],
+  form input[type="date"],
+  form input[type="number"] {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+  form .checkbox-group {
+    margin-top: 16px;
+  }
+  form .checkbox-group label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  form .checkbox-group input[type="checkbox"] {
+    margin-right: 4px; /* Reduced margin for closer spacing */
+    width: 24px; /* Larger checkbox for touch-friendliness */
+    height: 24px; /* Larger checkbox for touch-friendliness */
+  }
+</style>
 </head>
 <body>
   <!-- Navigation Menu -->
@@ -209,9 +232,12 @@
           <input type="number" id="dosing-interval" step=".0001">
           <label for="system-volume">System Volume (gallons):</label>
           <input type="number" id="system-volume" step=".1">
-
-          <label for="allow-remote-feeding">Allow Remote Feeding:</label>
-          <input type="checkbox" id="allow-remote-feeding">
+          <div class="checkbox-group">
+            <label for="allow-remote-feeding">
+              <input type="checkbox" id="allow-remote-feeding">
+              Allow Remote Feeding
+            </label>
+          </div>
           <button type="submit" id="general-save-btn">Save General Settings</button>
         </form>
       </div>
