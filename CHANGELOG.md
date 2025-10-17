@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.87] - 2025-10-16
+- if auto fill is set it will not trigger during draining
+
 ## [1.0.86] - 2025-10-12
 - added calibration mode to bypass ph logic for filtering readings
 
