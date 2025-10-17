@@ -904,6 +904,8 @@
         document.getElementById('pump1-duration').textContent = settings.pump_calibration?.pump1_cumulative_duration || 0.0;
         document.getElementById('pump2-activations').textContent = settings.pump_calibration?.pump2_activations || 0;
         document.getElementById('pump2-duration').textContent = settings.pump_calibration?.pump2_cumulative_duration || 0.0;
+        document.getElementById('pump1-cal-date').value = settings.pump_calibration?.pump1_last_calibrated || '';
+          document.getElementById('pump2-cal-date').value = settings.pump_calibration?.pump2_last_calibrated || '';
         // Relay Ports
         const relayPorts = settings.relay_ports || { ph_up: 1, ph_down: 2 };
         document.getElementById('ph-up-relay-port').value = relayPorts.ph_up;
