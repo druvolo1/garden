@@ -148,10 +148,10 @@
 
           <h3>pH Calibration</h3>
           <div class="cal-btn-row">
-            <button class="cal-btn" id="calibrate-ph-low">Low (4.00)</button>
-            <button class="cal-btn" id="calibrate-ph-mid">Mid (7.00)</button>
-            <button class="cal-btn" id="calibrate-ph-high">High (10.00)</button>
-            <button class="cal-btn danger" id="clear-ph-cal">Clear</button>
+            <button class="cal-btn" id="calibrate-ph-low" disabled>Low (4.00)</button>
+            <button class="cal-btn" id="calibrate-ph-mid" disabled>Mid (7.00)</button>
+            <button class="cal-btn" id="calibrate-ph-high" disabled>High (10.00)</button>
+            <button class="cal-btn danger" id="clear-ph-cal" disabled>Clear</button>
           </div>
 
           <!-- Moved the "Check Slope" button below the date section -->
@@ -296,9 +296,18 @@
       function initPhStuff() {
         // NEW: Calibration mode toggle logic
         const calModeBtn = document.getElementById("toggle-ph-cal-mode");
+        const lowBtn = document.getElementById("calibrate-ph-low");
+        const midBtn = document.getElementById("calibrate-ph-mid");
+        const highBtn = document.getElementById("calibrate-ph-high");
+        const clearBtn = document.getElementById("clear-ph-cal");
         function updateCalModeBtn(enabled) {
           calModeBtn.textContent = enabled ? "Exit Calibration Mode" : "Enter Calibration Mode";
           calModeBtn.classList.toggle("danger", enabled);  // Red when enabled
+          // Enable/disable calibration buttons based on mode
+          lowBtn.disabled = !enabled;
+          midBtn.disabled = !enabled;
+          highBtn.disabled = !enabled;
+          clearBtn.disabled = !enabled;
         }
         function toggleCalMode() {
           const enable = calModeBtn.textContent === "Enter Calibration Mode";  // True to enable, false to disable
