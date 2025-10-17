@@ -282,18 +282,41 @@ def monitor_water_level_sensors():
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
                         is_draining = False
-                        try:
-                            drain_valve_id = api.settings.get('drain_valve')
-                            log_water_level(f"[WaterLevel] Drain valve ID: {drain_valve_id}")
-                            if drain_valve_id:
-                                drain_valve_int = int(drain_valve_id)
-                                drain_status = get_valve_status(drain_valve_int)
-                                log_water_level(f"[WaterLevel] Drain status: {drain_status}")
-                                if drain_status == "on":
+                        drain_valve_mode = api.settings.get('drain_valve_mode', 'local')
+                        drain_valve_label = api.settings.get('drain_valve_label')
+                        log_water_level(f"[WaterLevel] Drain valve mode: {drain_valve_mode}, label: {drain_valve_label}")
+                        if drain_valve_mode == 'remote' and drain_valve_label:
+                            drain_valve_ip = api.settings.get('drain_valve_ip')
+                            if drain_valve_ip:
+                                try:
+                                    response = requests.get(f"http://{drain_valve_ip}:8000/api/status", timeout=5)
+                                    log_water_level(f"[WaterLevel] Remote status fetch response: {response.status_code}")
+                                    if response.ok:
+                                        data = response.json()
+                                        drain_status = data.get('valve_info', {}).get('valve_relays', {}).get(drain_valve_label, {}).get('status', 'off').lower()
+                                        log_water_level(f"[WaterLevel] Remote drain status: {drain_status}")
+                                        if drain_status == 'on':
+                                            is_draining = True
+                                    else:
+                                        log_water_level(f"[WaterLevel] Remote fetch failed with status {response.status_code}, assuming draining for safety")
+                                        is_draining = True
+                                except Exception as e:
+                                    log_water_level(f"[WaterLevel] Error fetching remote drain status: {str(e)}, assuming draining for safety")
                                     is_draining = True
-                        except Exception as e:
-                            log_water_level(f"[WaterLevel] Error checking drain status: {str(e)}")
-                            # Optionally, set is_draining = True for safety, but assuming False to allow fill
+                            else:
+                                log_water_level("[WaterLevel] No drain_valve_ip, assuming not draining")
+                        else:
+                            try:
+                                drain_valve_id = api.settings.get('drain_valve')
+                                log_water_level(f"[WaterLevel] Local drain valve ID: {drain_valve_id}")
+                                if drain_valve_id:
+                                    drain_valve_int = int(drain_valve_id)
+                                    drain_status = get_valve_status(drain_valve_int)
+                                    log_water_level(f"[WaterLevel] Local drain status: {drain_status}")
+                                    if drain_status == "on":
+                                        is_draining = True
+                            except Exception as e:
+                                log_water_level(f"[WaterLevel] Error checking local drain status: {str(e)}")
                         
                         if not is_draining:
                             log_water_level("[WaterLevel] Turning on fill for auto")
