@@ -281,18 +281,9 @@ def monitor_water_level_sensors():
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
-                        drain_valve_id = api.settings.get('drain_valve')
-                        is_draining = False
-                        if drain_valve_id:
-                            drain_status = get_valve_status(int(drain_valve_id))
-                            if drain_status == "on":
-                                is_draining = True
-                        if not is_draining:
-                            log_water_level("[WaterLevel] Turning on fill for auto")
-                            turn_on_fill_valve()
-                            _send_telegram_and_discord("Auto filling was triggered.")
-                        else:
-                            log_water_level("[WaterLevel] Not turning on fill for auto because draining is in progress")
+                        log_water_level("[WaterLevel] Turning on fill for auto")
+                        turn_on_fill_valve()
+                        _send_telegram_and_discord("Auto filling was triggered.")
                     else:
                         log_water_level("[WaterLevel] Not turning on fill for auto because feeding is in progress")
 
