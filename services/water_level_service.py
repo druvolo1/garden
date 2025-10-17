@@ -21,7 +21,7 @@ from status_namespace import is_debug_enabled
 
 _pins_lock = threading.Lock()
 _pins_inited = False
-_last_sensor_state = {}
+_last_sensor_state = None  # Changed from {} to None to skip initial "change" on startup
 
 def log_water_level(msg):
     """Logs messages only if debugging is enabled for water_level_service."""
@@ -251,9 +251,8 @@ def monitor_water_level_sensors():
     while True:
         current_state = get_water_level_status()
         log_water_level(f"[WaterLevel] Current state: {current_state}")
-        if current_state != _last_sensor_state:
+        if _last_sensor_state is not None and current_state != _last_sensor_state:  # Skip processing on first run (startup)
             previous_state = _last_sensor_state
-            _last_sensor_state = current_state
             settings = load_settings()
 
             fill_sensor_key  = settings.get("fill_sensor",  "sensor1")
@@ -339,6 +338,7 @@ def monitor_water_level_sensors():
 
             from status_namespace import emit_status_update
             emit_status_update()
+        _last_sensor_state = current_state  # Always update last state, even on first run
         time.sleep(0.5)
 
 def turn_off_valve(valve_label: str, valve_ip: str):
