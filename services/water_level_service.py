@@ -281,9 +281,26 @@ def monitor_water_level_sensors():
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
-                        log_water_level("[WaterLevel] Turning on fill for auto")
-                        turn_on_fill_valve()
-                        _send_telegram_and_discord("Auto filling was triggered.")
+                        is_draining = False
+                        try:
+                            drain_valve_id = api.settings.get('drain_valve')
+                            log_water_level(f"[WaterLevel] Drain valve ID: {drain_valve_id}")
+                            if drain_valve_id:
+                                drain_valve_int = int(drain_valve_id)
+                                drain_status = get_valve_status(drain_valve_int)
+                                log_water_level(f"[WaterLevel] Drain status: {drain_status}")
+                                if drain_status == "on":
+                                    is_draining = True
+                        except Exception as e:
+                            log_water_level(f"[WaterLevel] Error checking drain status: {str(e)}")
+                            # Optionally, set is_draining = True for safety, but assuming False to allow fill
+                        
+                        if not is_draining:
+                            log_water_level("[WaterLevel] Turning on fill for auto")
+                            turn_on_fill_valve()
+                            _send_telegram_and_discord("Auto filling was triggered.")
+                        else:
+                            log_water_level("[WaterLevel] Not turning on fill for auto because draining is in progress")
                     else:
                         log_water_level("[WaterLevel] Not turning on fill for auto because feeding is in progress")
 
