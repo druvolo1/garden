@@ -258,7 +258,7 @@
           <label for="pump1-calibration">pH Up Pump Calibration (seconds per ml):</label>
           <input type="number" id="pump1-calibration" step="0.01"><br><br>
           <label>Last Calibrated pH Up:</label>
-          <span id="pump1-last-calibrated">Loading...</span><br><br>
+          <input type="date" id="pump1-cal-date"><br><br>
           <p>Activations: <span id="pump1-activations">Loading...</span></p>
           <p>Cumulative Duration: <span id="pump1-duration">Loading...</span> seconds</p>
           <button id="reset-pump1-stats">Reset pH Up Stats</button><br><br>
@@ -266,7 +266,7 @@
           <label for="pump2-calibration">pH Down Pump Calibration (seconds per ml):</label>
           <input type="number" id="pump2-calibration" step="0.01"><br><br>
           <label>Last Calibrated pH Down:</label>
-          <span id="pump2-last-calibrated">Loading...</span><br><br>
+          <input type="date" id="pump2-cal-date"><br><br>
           <p>Activations: <span id="pump2-activations">Loading...</span></p>
           <p>Cumulative Duration: <span id="pump2-duration">Loading...</span> seconds</p>
           <button id="reset-pump2-stats">Reset pH Down Stats</button><br><br>
@@ -1119,22 +1119,22 @@
     // Pump Calibration - separate saves
     document.getElementById('save-pump1').addEventListener('click', e => {
       const pump1 = parseFloat(document.getElementById('pump1-calibration').value);
-      const now = new Date().toISOString().split('T')[0];
+      const calDate1 = document.getElementById('pump1-cal-date').value || new Date().toISOString().split('T')[0];
       const payload = {
         pump_calibration: {
           pump1: pump1,
-          pump1_last_calibrated: now
+          pump1_last_calibrated: calDate1
         }
       };
       saveSettings("/api/settings/", payload);
     });
     document.getElementById('save-pump2').addEventListener('click', e => {
       const pump2 = parseFloat(document.getElementById('pump2-calibration').value);
-      const now = new Date().toISOString().split('T')[0];
+      const calDate2 = document.getElementById('pump2-cal-date').value || new Date().toISOString().split('T')[0];
       const payload = {
         pump_calibration: {
           pump2: pump2,
-          pump2_last_calibrated: now
+          pump2_last_calibrated: calDate2
         }
       };
       saveSettings("/api/settings/", payload);
