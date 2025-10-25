@@ -343,7 +343,7 @@ def monitor_water_level_sensors():
             emit_status_update(force_emit=True)
         _last_sensor_state = current_state  # Always update last state, even on first run
         time.sleep(0.5)
-        
+     
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
     Calls /api/valve_relay/<valve_label>/off on the given IP (resolved by standardize_host_ip).
