@@ -92,6 +92,7 @@ def load_config():
     except Exception as e:
         print(f"[CONFIG ERROR] Failed to load or save config: {e}")
         return None, None, None
+load_config()
 
 ########################################################################
 # Added remote WS client
