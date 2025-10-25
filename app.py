@@ -216,9 +216,8 @@ def broadcast_status():
     while True:
         try:
             payload = emit_status_update()
-            # Added: Forward status to remote (adjust 'data' if emit_status_update returns specific data; otherwise, trigger a full status push)
             if ws_connected and payload is not None:
-                send_queue.put({'type': 'status_update', 'data': payload})  # Add actual data if available from emit
+                send_queue.put({'type': 'status_update', 'data': payload})  # Send full data
             eventlet.sleep(1)
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
