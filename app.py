@@ -117,11 +117,13 @@ async def ws_client():
                 # Send from queue
                 if not send_queue.empty():
                     data = send_queue.get()
+                    print(f"Sending to remote WS: {json.dumps(data)}")  # Log what is being sent
                     await ws.send(json.dumps(data))
                 
                 # Receive commands
                 data = await asyncio.wait_for(ws.recv(), timeout=1.0)
                 payload = json.loads(data)
+                print(f"Received from remote WS: {json.dumps(payload)}")  # Log received commands
                 # Handle incoming commands (e.g., from remote dashboard)
                 if payload.get('command') == 'manual_dose':
                     params = payload.get('params', {})
@@ -133,7 +135,7 @@ async def ws_client():
                     auto_dose_state["last_dose_type"] = dispense_type
                     auto_dose_state["last_dose_amount"] = amount
                     print(f"Remote manual dose executed: {dispense_type} {amount}ml")
-                # Add more command handlers here for index controls (e.g., toggle_pump)
+                # Add more command handlers here for index controls
             except asyncio.TimeoutError:
                 pass
             except Exception as e:
