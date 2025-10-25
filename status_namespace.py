@@ -5,6 +5,7 @@ import socket
 import subprocess
 import json
 import os
+import copy  # Added for deep copy
 
 
 # Import DNS helpers from your new file:
@@ -398,8 +399,13 @@ def emit_status_update(force_emit=False):
 
         # Re-enabled better comparison: Use deep_compare with float tolerance
         if not force_emit and LAST_EMITTED_STATUS is not None:
-            if deep_compare(status_payload, LAST_EMITTED_STATUS):
-                log_with_timestamp("[DEBUG] No changes detected (deep_compare); skipping emit.")
+            # Make copies without 'timestamp' for comparison
+            payload_copy = copy.deepcopy(status_payload)
+            last_copy = copy.deepcopy(LAST_EMITTED_STATUS)
+            payload_copy.pop('timestamp', None)
+            last_copy.pop('timestamp', None)
+            if deep_compare(payload_copy, last_copy):
+                log_with_timestamp("[DEBUG] No changes detected (deep_compare without timestamp); skipping emit.")
                 return None
 
         log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
