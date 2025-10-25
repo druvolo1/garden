@@ -334,6 +334,7 @@ def get_status_payload():
         # -----------------------------------------------------------
         from services.water_level_service import get_water_level_status
         water_level_info = get_water_level_status()  # <--- from water_level_service.py
+        log_with_timestamp(f"[DEBUG] Fetched water_level_info: {json.dumps(water_level_info)}")  # Added log for debugging
 
         # -----------------------------------------------------------
         #  7) Build final payload
@@ -369,13 +370,14 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
             return None
 
-        # Improved comparison: Use json.dumps with sort_keys and default=str for deep equality (handles nests and floats)
-        if not force_emit and LAST_EMITTED_STATUS is not None:
-            current_str = json.dumps(status_payload, sort_keys=True, default=str)
-            last_str = json.dumps(LAST_EMITTED_STATUS, sort_keys=True, default=str)
-            if current_str == last_str:
-                log_with_timestamp("[DEBUG] No changes detected (JSON comparison); skipping emit.")
-                return None
+        # Temporarily disable comparison to always emit (for testing)
+        # Comment out the if block below once issue resolved
+        # if not force_emit and LAST_EMITTED_STATUS is not None:
+        #     current_str = json.dumps(status_payload, sort_keys=True, default=str)
+        #     last_str = json.dumps(LAST_EMITTED_STATUS, sort_keys=True, default=str)
+        #     if current_str == last_str:
+        #         log_with_timestamp("[DEBUG] No changes detected (JSON comparison); skipping emit.")
+        #         return None
 
         log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
         _socketio.emit("status_update", status_payload, namespace="/status")
