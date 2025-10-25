@@ -11,6 +11,7 @@ from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from utils.settings_utils import load_settings, save_settings
+from app import device_id  # Added to import device_id for passing to template
 
 import requests  # For sending the Discord test POST
 
@@ -519,4 +520,4 @@ def update_feeding_status():
 
 @settings_blueprint.route('/settings')
 def settings_page():
-    return render_template('settings.html')
+    return render_template('settings.html', device_id=device_id)
