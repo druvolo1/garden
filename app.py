@@ -82,16 +82,25 @@ def load_config():
         # Load api_key and server_url if present
         api_key = settings.get('api_key')
         server_url = settings.get('server_url')
+        server_enabled = settings.get('server_enabled', False)
         
-        if api_key and server_url:
-            print("[CONFIG] API key and server URL loaded; will connect to remote server.")
+        if api_key and server_url and server_enabled:
+            print("[CONFIG] API key, server URL, and enabled flag loaded; will connect to remote server.")
         else:
-            print("[CONFIG] No API key or server URL in settings.json; remote sync disabled.")
+            print("[CONFIG] Missing API key, server URL, or not enabled; remote sync disabled.")
         
         return device_id, api_key, server_url
     except Exception as e:
         print(f"[CONFIG ERROR] Failed to load or save config: {e}")
         return None, None, None
+
+def start_ws_client():
+    settings = load_settings()
+    if settings.get('server_enabled', False) and api_key and server_url:
+        thread = threading.Thread(target=lambda: asyncio.run(ws_client()))
+        thread.daemon = True
+        thread.start()
+
 load_config()
 
 ########################################################################

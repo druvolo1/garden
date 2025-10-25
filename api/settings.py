@@ -98,7 +98,8 @@ if not os.path.exists(SETTINGS_FILE):
             "auto_fill_sensor": "disabled",
 
             # NEW: Server configuration
-            "server_url": ""
+            "server_url": "wss://garden.ruvolo.loseyourip.com/ws/devices",
+            "server_enabled": False
         }, f, indent=4)
 
 def get_device_id():

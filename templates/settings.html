@@ -480,6 +480,13 @@
         <h2>Server Configuration</h2>
         <p>Device ID: {{ device_id }}</p>
         <form id="server-config-form">
+          <div class="checkbox-group">
+            <label for="enable-server-comm">
+              <input type="checkbox" id="enable-server-comm">
+              Enable Server Communication
+            </label>
+          </div>
+          <br>
           <label for="server-url">Server URL:</label>
           <input type="text" id="server-url" style="width: 300px;">
           <br><br>
@@ -1008,6 +1015,7 @@
         document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
         // Server config
         document.getElementById('server-url').value = settings.server_url || '';
+        document.getElementById('enable-server-comm').checked = !!settings.server_enabled;
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -1574,10 +1582,11 @@
     document.getElementById('server-config-form').addEventListener('submit', e => {
       e.preventDefault();
       const payload = {
+        server_enabled: document.getElementById('enable-server-comm').checked,
         server_url: document.getElementById('server-url').value.trim()
       };
       saveSettings("/api/settings/", payload);
-      alert("Server URL saved. Restart the application for changes to take effect.");
+      alert("Server config saved. Restart the application for changes to take effect.");
     });
     // NEW: Add event listener for adding a new power outlet
     document.getElementById('add-outlet-btn').addEventListener('click', () => {
