@@ -226,9 +226,8 @@ def process_queue(valve_id):
                 poll_until_state_matches(valve_id, state)
                 final_state = valve_status.get(valve_id, "unknown")
                 log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
-                emit_status_update()
+                emit_status_update(force_emit=True)  # Force update after each queued change (covers both on/off)
     log_with_timestamp(f"[Valve] Queue processing complete for valve {valve_id}.")
-    emit_status_update(force_emit=True)
     is_processing[valve_id] = False
 
 def set_valve_state(valve_id, state):
@@ -257,7 +256,7 @@ def set_valve_state(valve_id, state):
             poll_until_state_matches(valve_id, state)
             final_state = valve_status.get(valve_id, "unknown")
             log_with_timestamp(f"[Valve] Valve {valve_id} turned {final_state.upper()} (requested {state.upper()}).")
-            emit_status_update(force_emit=True)
+            emit_status_update(force_emit=True)  # Force update after immediate change (covers both on/off)
     else:
         pending_commands[valve_id].append(state)
         log_with_timestamp(f"[Valve] Queued {state.upper()} for valve {valve_id} (queue size now: {len(pending_commands[valve_id])}, time since last: {time_since_last:.2f}s)")
