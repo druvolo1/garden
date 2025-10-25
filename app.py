@@ -30,6 +30,7 @@ from status_namespace import is_debug_enabled, get_status_payload  # Added get_s
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.ph_service import get_latest_ph_reading, serial_reader
+from services.ec_service import get_latest_ec_reading, ec_serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose, manual_dispense  # Added manual_dispense
 from services.error_service import check_for_hardware_errors
 from utils.settings_utils import load_settings
@@ -44,6 +45,9 @@ from queue import Queue
 import threading
 import asyncio
 import websockets
+
+# Added: Import emit_status_update for immediate triggers
+from status_namespace import emit_status_update
 
 ########################################################################
 # Added globals for remote WS
@@ -208,9 +212,32 @@ def broadcast_ph_readings():
                     # Added: Forward to remote server if connected
                     if ws_connected:
                         send_queue.put({'type': 'ph_update', 'ph': ph_value})
+                    # Added: Trigger full status update to mirror index.html's usage (via "status_update")
+                    emit_status_update()
             eventlet.sleep(0.5)  # Reduced for faster updates
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
+
+def broadcast_ec_readings():
+    log_with_timestamp("Inside function for broadcasting EC readings")
+    last_emitted_value = None
+    while True:
+        try:
+            ec_value = get_latest_ec_reading()
+            if ec_value is not None:
+                ec_value = round(ec_value, 2)
+                if ec_value != last_emitted_value:
+                    last_emitted_value = ec_value
+                    socketio.emit('ec_update', {'ec': ec_value})
+                    log_with_timestamp(f"[Broadcast] Emitting EC update: {ec_value}")
+                    # Forward to remote server if connected
+                    if ws_connected:
+                        send_queue.put({'type': 'ec_update', 'ec': ec_value})
+                    # Trigger full status update to mirror index.html's usage (via "status_update")
+                    emit_status_update()
+            eventlet.sleep(0.5)  # Match pH update rate
+        except Exception as e:
+            log_with_timestamp(f"[Broadcast] Error broadcasting EC value: {e}")
 
 def broadcast_status():
     """ Periodically call emit_status_update() from status_namespace. """
@@ -240,6 +267,10 @@ def start_threads():
     # Broadcast latest pH to websockets
     log_with_timestamp("Spawning broadcast_ph_readings…")
     eventlet.spawn(broadcast_ph_readings)
+
+    # Broadcast latest EC to websockets (new)
+    log_with_timestamp("Spawning broadcast_ec_readings…")
+    eventlet.spawn(broadcast_ec_readings)
 
     # Serial reader from services.ph_service import serial_reader
     log_with_timestamp("Spawning pH serial reader…")

@@ -368,17 +368,13 @@ def emit_status_update(force_emit=False):
         if status_payload is None:
             return None
 
-        # (Optional) Compare to LAST_EMITTED_STATUS, skip if no changes, etc.
+        # Improved comparison: Use json.dumps with sort_keys and default=str for deep equality (handles nests and floats)
         if not force_emit and LAST_EMITTED_STATUS is not None:
-            for key in status_payload:
-                old_val = LAST_EMITTED_STATUS.get(key)
-                new_val = status_payload[key]
-                if new_val != old_val:
-                    log_with_timestamp(f"[DEBUG] '{key}' changed from {old_val} to {new_val}")
-
-        if not force_emit and LAST_EMITTED_STATUS == status_payload:
-            log_with_timestamp("[DEBUG] No changes; skipping emit.")
-            return None
+            current_str = json.dumps(status_payload, sort_keys=True, default=str)
+            last_str = json.dumps(LAST_EMITTED_STATUS, sort_keys=True, default=str)
+            if current_str == last_str:
+                log_with_timestamp("[DEBUG] No changes detected (JSON comparison); skipping emit.")
+                return None
 
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
