@@ -230,7 +230,7 @@ def emit_status_update(force_emit=False):
     try:
         if not _socketio:
             log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
-            return
+            return None
 
         settings = load_settings()
 
@@ -367,15 +367,17 @@ def emit_status_update(force_emit=False):
 
         if not force_emit and LAST_EMITTED_STATUS == status_payload:
             log_with_timestamp("[DEBUG] No changes; skipping emit.")
-            return
+            return None
 
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
+        return status_payload  # Return the payload for remote sending
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
+        return None
 
 
 class StatusNamespace(Namespace):
