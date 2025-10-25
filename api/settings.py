@@ -99,7 +99,7 @@ if not os.path.exists(SETTINGS_FILE):
         }, f, indent=4)
 
 def get_device_id():
-    SETTINGS_FILE = 'settings.json'  # Match app.py path; change to 'data/settings.json' if needed
+    # Use the global SETTINGS_FILE ('data/settings.json') to match consistency
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, 'r') as f:
             settings = json.load(f)

@@ -57,7 +57,7 @@ server_url = 'wss://garden.ruvolo.loseyourip.com/ws/devices'  # e.g., 'wss://you
 ########################################################################
 # Added config loading (device_id, api_key, server_url)
 ########################################################################
-SETTINGS_FILE = 'settings.json'
+SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 
 def load_config():
     global device_id, api_key, server_url
