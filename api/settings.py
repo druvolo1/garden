@@ -546,5 +546,4 @@ def update_feeding_status():
 
 @app.route('/settings')
 def settings_page():
-    pi_ip = get_local_ip()
-    return render_template('settings.html', pi_ip=pi_ip, device_id=device_id)
+    return render_template('settings.html', device_id=device_id)
