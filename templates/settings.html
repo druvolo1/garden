@@ -1570,6 +1570,15 @@
         resultDiv.textContent = `Exception: ${err}`;
       });
     });
+    // Server Config
+    document.getElementById('server-config-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const payload = {
+        server_url: document.getElementById('server-url').value.trim()
+      };
+      saveSettings("/api/settings/", payload);
+      alert("Server URL saved. Restart the application for changes to take effect.");
+    });
     // NEW: Add event listener for adding a new power outlet
     document.getElementById('add-outlet-btn').addEventListener('click', () => {
       const ip = document.getElementById('new-outlet-ip').value.trim();
