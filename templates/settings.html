@@ -479,6 +479,12 @@
       <div class="data-container">
         <h2>Server Configuration</h2>
         <p>Device ID: {{ device_id }}</p>
+        <form id="server-config-form">
+          <label for="server-url">Server URL:</label>
+          <input type="text" id="server-url" style="width: 300px;">
+          <br><br>
+          <button type="submit">Save Server Config</button>
+        </form>
       </div>
       <!-- Import / Export Settings Section -->
       <div class="data-container">
@@ -1000,6 +1006,8 @@
         document.getElementById('telegram-enabled').checked = !!settings.telegram_enabled;
         document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
         document.getElementById('telegram-chat-id').value = settings.telegram_chat_id || '';
+        // Server config
+        document.getElementById('server-url').value = settings.server_url || '';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }

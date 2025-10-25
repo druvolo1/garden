@@ -95,7 +95,10 @@ if not os.path.exists(SETTINGS_FILE):
             "telegram_chat_id": "",
 
             "allow_remote_feeding": False,
-            "auto_fill_sensor": "disabled"
+            "auto_fill_sensor": "disabled",
+
+            # NEW: Server configuration
+            "server_url": ""
         }, f, indent=4)
 
 def get_device_id():
