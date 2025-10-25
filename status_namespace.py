@@ -395,3 +395,7 @@ class StatusNamespace(Namespace):
 
     def on_disconnect(self):
         log_with_timestamp("StatusNamespace: Client disconnected.")
+
+    def on_request_refresh(self):
+        log_with_timestamp("StatusNamespace: Received refresh request from client.")
+        emit_status_update(force_emit=True)  # Immediately send the latest status
