@@ -144,12 +144,6 @@ async def ws_client():
     await asyncio.sleep(10)
     await ws_client()  # Retry
 
-def start_ws_client():
-    if api_key and server_url:
-        thread = threading.Thread(target=lambda: asyncio.run(ws_client()))
-        thread.daemon = True
-        thread.start()
-
 ########################################################################
 # 1) Create the global SocketIO instance
 ########################################################################
