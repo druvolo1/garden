@@ -547,4 +547,5 @@ def update_feeding_status():
 @settings_blueprint.route('/settings')
 def settings_page():
     device_id = get_device_id()  # Load locally to avoid cycle
+    print(f"[SETTINGS_PAGE] Rendering with device_id: {device_id}")
     return render_template('settings.html', device_id=device_id)
