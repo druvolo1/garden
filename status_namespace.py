@@ -366,6 +366,7 @@ def emit_status_update(force_emit=False):
 
         status_payload = get_status_payload()
         if status_payload is None:
+            log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
             return None
 
         # Improved comparison: Use json.dumps with sort_keys and default=str for deep equality (handles nests and floats)
@@ -376,6 +377,7 @@ def emit_status_update(force_emit=False):
                 log_with_timestamp("[DEBUG] No changes detected (JSON comparison); skipping emit.")
                 return None
 
+        log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
         return status_payload  # Return the payload for remote sending

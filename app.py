@@ -131,7 +131,7 @@ async def ws_client():
                         await ws.send(json.dumps(data))
                     
                     # Receive commands
-                    data = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                    data = await asyncio.wait_for(ws.recv(), timeout=0.1)  # Reduced timeout for faster queue checks
                     payload = json.loads(data)
                     print(f"Received from remote WS: {json.dumps(payload)}")
                     # Handle incoming commands (e.g., from remote dashboard)
@@ -150,6 +150,12 @@ async def ws_client():
                         payload_data = emit_status_update(force_emit=True)  # Force emit the latest status
                         if payload_data:
                             send_queue.put({'type': 'status_update', 'data': payload_data})
+                            print("[WS] Queued forced status_update for remote send")
+                            # Force immediate send to avoid delay
+                            if not send_queue.empty():
+                                data = send_queue.get()
+                                print(f"[WS Immediate] Sending forced update: {json.dumps(data)}")
+                                await ws.send(json.dumps(data))
                     # Add more command handlers here for index controls
                 except asyncio.TimeoutError:
                     pass
