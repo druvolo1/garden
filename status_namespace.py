@@ -221,6 +221,31 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
+def deep_compare(d1, d2, tolerance=1e-6):
+    """
+    Recursive deep equality check with float tolerance.
+    """
+    if type(d1) != type(d2):
+        return False
+    if isinstance(d1, dict):
+        if set(d1.keys()) != set(d2.keys()):
+            return False
+        for key in d1:
+            if not deep_compare(d1[key], d2[key], tolerance):
+                return False
+        return True
+    elif isinstance(d1, list):
+        if len(d1) != len(d2):
+            return False
+        for a, b in zip(d1, d2):
+            if not deep_compare(a, b, tolerance):
+                return False
+        return True
+    elif isinstance(d1, float) or isinstance(d2, float):
+        return abs(float(d1) - float(d2)) < tolerance
+    else:
+        return d1 == d2
+
 def get_status_payload():
     """Build and return the status payload without emitting or comparing."""
     try:
@@ -370,14 +395,11 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
             return None
 
-        # Temporarily disable comparison to always emit (for testing)
-        # Comment out the if block below once issue resolved
-        # if not force_emit and LAST_EMITTED_STATUS is not None:
-        #     current_str = json.dumps(status_payload, sort_keys=True, default=str)
-        #     last_str = json.dumps(LAST_EMITTED_STATUS, sort_keys=True, default=str)
-        #     if current_str == last_str:
-        #         log_with_timestamp("[DEBUG] No changes detected (JSON comparison); skipping emit.")
-        #         return None
+        # Re-enabled better comparison: Use deep_compare with float tolerance
+        if not force_emit and LAST_EMITTED_STATUS is not None:
+            if deep_compare(status_payload, LAST_EMITTED_STATUS):
+                log_with_timestamp("[DEBUG] No changes detected (deep_compare); skipping emit.")
+                return None
 
         log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
         _socketio.emit("status_update", status_payload, namespace="/status")
