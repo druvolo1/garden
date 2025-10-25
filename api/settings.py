@@ -544,8 +544,7 @@ def update_feeding_status():
     emit_status_update()
     return jsonify({"status": "success", "feeding_in_progress": feeding_in_progress})
 
-@settings_blueprint.route('/settings')
+@app.route('/settings')
 def settings_page():
-    device_id = get_device_id()  # Load locally to avoid cycle
-    print(f"[SETTINGS_PAGE] Rendering with device_id: {device_id}")
-    return render_template('settings.html', device_id=device_id)
+    pi_ip = get_local_ip()
+    return render_template('settings.html', pi_ip=pi_ip, device_id=device_id)
