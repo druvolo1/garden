@@ -99,7 +99,8 @@ if not os.path.exists(SETTINGS_FILE):
 
             # NEW: Server configuration
             "server_url": "wss://garden.ruvolo.loseyourip.com/ws/devices",
-            "server_enabled": False
+            "server_enabled": False,
+            "api_key": ""
         }, f, indent=4)
 
 def get_device_id():

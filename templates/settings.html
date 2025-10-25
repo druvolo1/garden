@@ -490,6 +490,9 @@
           <label for="server-url">Server URL:</label>
           <input type="text" id="server-url" style="width: 300px;">
           <br><br>
+          <label for="api-key">API Key:</label>
+          <input type="text" id="api-key" style="width: 300px;">
+          <br><br>
           <button type="submit">Save Server Config</button>
         </form>
       </div>
@@ -1016,6 +1019,7 @@
         // Server config
         document.getElementById('server-url').value = settings.server_url || '';
         document.getElementById('enable-server-comm').checked = !!settings.server_enabled;
+        document.getElementById('api-key').value = settings.api_key || '';
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
@@ -1583,7 +1587,8 @@
       e.preventDefault();
       const payload = {
         server_enabled: document.getElementById('enable-server-comm').checked,
-        server_url: document.getElementById('server-url').value.trim()
+        server_url: document.getElementById('server-url').value.trim(),
+        api_key: document.getElementById('api-key').value.trim()
       };
       saveSettings("/api/settings/", payload);
       alert("Server config saved. Restart the application for changes to take effect.");
