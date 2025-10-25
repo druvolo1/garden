@@ -99,24 +99,30 @@ if not os.path.exists(SETTINGS_FILE):
         }, f, indent=4)
 
 def get_device_id():
-    # Use the global SETTINGS_FILE ('data/settings.json') to match consistency
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            settings = json.load(f)
-            if 'device_id' in settings:
-                return settings['device_id']
-    
-    # Generate if missing (this mirrors app.py logic)
-    device_id = str(uuid.uuid4())
-    settings = {}
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            settings = json.load(f)
-    settings['device_id'] = device_id
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings, f, indent=4)
-    
-    return device_id
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+                print(f"[DEVICE_ID] Settings loaded from {SETTINGS_FILE}")
+                if 'device_id' in settings:
+                    print(f"[DEVICE_ID] Device ID loaded: {settings['device_id']}")
+                    return settings['device_id']
+        
+        # Generate if missing
+        device_id = str(uuid.uuid4())
+        settings = {}
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+        settings['device_id'] = device_id
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=4)
+        print(f"[DEVICE_ID] New Device ID generated and saved: {device_id}")
+        
+        return device_id
+    except Exception as e:
+        print(f"[DEVICE_ID ERROR] Failed to load or save device_id: {e}")
+        return None
 
 @settings_blueprint.route('/check_update', methods=['GET'])
 def check_update():

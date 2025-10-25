@@ -62,30 +62,36 @@ SETTINGS_FILE = os.path.join(os.getcwd(), "data", "settings.json")
 def load_config():
     global device_id, api_key, server_url
     settings = {}
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            settings = json.load(f)
-    
-    # Generate/load device_id
-    if 'device_id' in settings:
-        device_id = settings['device_id']
-    else:
-        device_id = str(uuid.uuid4())
-        settings['device_id'] = device_id
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=4)
-    
-    # Load api_key and server_url if present
-    api_key = settings.get('api_key')
-    server_url = settings.get('server_url')
-    
-    print(f"Device ID: {device_id}")
-    if api_key and server_url:
-        print("API key and server URL loaded; will connect to remote server.")
-    else:
-        print("No API key or server URL in settings.json; remote sync disabled.")
-    
-    return device_id, api_key, server_url
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+                print(f"[CONFIG] Settings loaded from {SETTINGS_FILE}")
+        
+        # Generate/load device_id
+        if 'device_id' in settings:
+            device_id = settings['device_id']
+            print(f"[CONFIG] Device ID loaded: {device_id}")
+        else:
+            device_id = str(uuid.uuid4())
+            settings['device_id'] = device_id
+            with open(SETTINGS_FILE, 'w') as f:
+                json.dump(settings, f, indent=4)
+            print(f"[CONFIG] New Device ID generated and saved: {device_id}")
+        
+        # Load api_key and server_url if present
+        api_key = settings.get('api_key')
+        server_url = settings.get('server_url')
+        
+        if api_key and server_url:
+            print("[CONFIG] API key and server URL loaded; will connect to remote server.")
+        else:
+            print("[CONFIG] No API key or server URL in settings.json; remote sync disabled.")
+        
+        return device_id, api_key, server_url
+    except Exception as e:
+        print(f"[CONFIG ERROR] Failed to load or save config: {e}")
+        return None, None, None
 
 ########################################################################
 # Added remote WS client
