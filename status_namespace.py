@@ -222,8 +222,6 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-
-
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
 
