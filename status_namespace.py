@@ -372,6 +372,7 @@ def get_status_payload():
             "valve_info":   valve_info,
             "water_level":  water_level_info,  # <--- RE-ADDED LINE
             "feeding_in_progress": feeding_in_progress,
+            "timestamp": datetime.now().isoformat(),  # Added: Unique timestamp to force change detection
             # ... any additional fields ...
         }
 
