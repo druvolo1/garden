@@ -24,7 +24,7 @@ from api.plant_info import plant_info_blueprint  # New blueprint
 
 # Import the aggregator's set_socketio_instance + our /status namespace
 from status_namespace import StatusNamespace, set_socketio_instance
-from status_namespace import is_debug_enabled
+from status_namespace import is_debug_enabled, get_status_payload  # Added get_status_payload
 
 # Services
 from services.auto_dose_state import auto_dose_state
@@ -113,6 +113,11 @@ async def ws_client():
         async with websockets.connect(uri) as ws:
             ws_connected = True
             print(f"Connected to remote server WS at {uri}")
+            # Added: Send initial full status on connect
+            initial_payload = get_status_payload()
+            if initial_payload:
+                send_queue.put({'type': 'status_update', 'data': initial_payload})
+                print("Sent initial status_update on WS connect")
             while True:
                 try:
                     # Send from queue
@@ -182,8 +187,6 @@ socketio.init_app(app, async_mode="eventlet", cors_allowed_origins="*")
 # Let status_namespace.py have our main SocketIO reference
 set_socketio_instance(socketio)
 
-# Now register the /status namespace
-socketio.on_namespace(StatusNamespace('/status'))
 # Now register the /status namespace
 socketio.on_namespace(StatusNamespace('/status'))
 

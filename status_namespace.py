@@ -57,7 +57,6 @@ def log_with_timestamp(msg):
     if is_debug_enabled("websocket"):
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
-
 import socket
 
 def get_local_ip_addresses():
@@ -222,14 +221,9 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-def emit_status_update(force_emit=False):
-    global LAST_EMITTED_STATUS
-
+def get_status_payload():
+    """Build and return the status payload without emitting or comparing."""
     try:
-        if not _socketio:
-            log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
-            return None
-
         settings = load_settings()
 
         # -----------------------------------------------------------
@@ -354,6 +348,25 @@ def emit_status_update(force_emit=False):
             "feeding_in_progress": feeding_in_progress,
             # ... any additional fields ...
         }
+
+        return status_payload
+    except Exception as e:
+        log_with_timestamp(f"Error in get_status_payload: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def emit_status_update(force_emit=False):
+    global LAST_EMITTED_STATUS
+
+    try:
+        if not _socketio:
+            log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
+            return None
+
+        status_payload = get_status_payload()
+        if status_payload is None:
+            return None
 
         # (Optional) Compare to LAST_EMITTED_STATUS, skip if no changes, etc.
         if not force_emit and LAST_EMITTED_STATUS is not None:
