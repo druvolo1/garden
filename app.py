@@ -208,7 +208,7 @@ def broadcast_ph_readings():
                     # Added: Forward to remote server if connected
                     if ws_connected:
                         send_queue.put({'type': 'ph_update', 'ph': ph_value})
-            eventlet.sleep(1)
+            eventlet.sleep(0.5)  # Reduced for faster updates
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
 
@@ -222,10 +222,10 @@ def broadcast_status():
             # Added: Forward status to remote with full data if payload available
             if ws_connected and payload is not None:
                 send_queue.put({'type': 'status_update', 'data': payload})
-            eventlet.sleep(1)
+            eventlet.sleep(0.5)  # Reduced for faster updates
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
-            eventlet.sleep(1)
+            eventlet.sleep(0.5)
 
 def auto_dose_loop():
     while True:
