@@ -369,14 +369,13 @@ def emit_status_update(force_emit=False):
 
         _socketio.emit("status_update", status_payload, namespace="/status")
         LAST_EMITTED_STATUS = status_payload
-        return status_payload  # Return for remote
+        return status_payload  # Return the payload for remote sending
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
         import traceback
         traceback.print_exc()
         return None
-
 
 class StatusNamespace(Namespace):
     def on_connect(self, auth=None):
