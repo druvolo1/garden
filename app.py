@@ -294,7 +294,7 @@ def index():
 @app.route('/settings')
 def settings_page():
     pi_ip = get_local_ip()
-    return render_template('settings.html', pi_ip=pi_ip)
+    return render_template('settings.html', pi_ip=pi_ip, device_id=device_id)
 
 @app.route('/calibration')
 def calibration():
