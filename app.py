@@ -147,7 +147,7 @@ async def ws_client():
                         print(f"Remote manual dose executed: {dispense_type} {amount}ml")
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
-                        emit_status_update(force_emit=True) #force update
+                        emit_status_update(force_emit=True)  # Force emit the latest status
                     # Add more command handlers here for index controls
                 except asyncio.TimeoutError:
                     pass
