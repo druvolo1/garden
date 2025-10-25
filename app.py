@@ -109,38 +109,41 @@ load_config()
 async def ws_client():
     global ws_connected
     uri = f"{server_url}/{device_id}?api_key={api_key}"
-    async with websockets.connect(uri) as ws:
-        ws_connected = True
-        print(f"Connected to remote server WS at {uri}")
-        while True:
-            try:
-                # Send from queue
-                if not send_queue.empty():
-                    data = send_queue.get()
-                    print(f"Sending to remote WS: {json.dumps(data)}")  # Log what is being sent
-                    await ws.send(json.dumps(data))
-                
-                # Receive commands
-                data = await asyncio.wait_for(ws.recv(), timeout=1.0)
-                payload = json.loads(data)
-                print(f"Received from remote WS: {json.dumps(payload)}")  # Log received commands
-                # Handle incoming commands (e.g., from remote dashboard)
-                if payload.get('command') == 'manual_dose':
-                    params = payload.get('params', {})
-                    dispense_type = params.get('dispense_type')
-                    amount = params.get('amount', 0.0)
-                    manual_dispense(dispense_type, amount)
-                    reset_auto_dose_timer()
-                    auto_dose_state["last_dose_time"] = datetime.now()
-                    auto_dose_state["last_dose_type"] = dispense_type
-                    auto_dose_state["last_dose_amount"] = amount
-                    print(f"Remote manual dose executed: {dispense_type} {amount}ml")
-                # Add more command handlers here for index controls
-            except asyncio.TimeoutError:
-                pass
-            except Exception as e:
-                print(f"WS error: {e}")
-                break
+    try:
+        async with websockets.connect(uri) as ws:
+            ws_connected = True
+            print(f"Connected to remote server WS at {uri}")
+            while True:
+                try:
+                    # Send from queue
+                    if not send_queue.empty():
+                        data = send_queue.get()
+                        print(f"Sending to remote WS: {json.dumps(data)}")
+                        await ws.send(json.dumps(data))
+                    
+                    # Receive commands
+                    data = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                    payload = json.loads(data)
+                    print(f"Received from remote WS: {json.dumps(payload)}")
+                    # Handle incoming commands (e.g., from remote dashboard)
+                    if payload.get('command') == 'manual_dose':
+                        params = payload.get('params', {})
+                        dispense_type = params.get('dispense_type')
+                        amount = params.get('amount', 0.0)
+                        manual_dispense(dispense_type, amount)
+                        reset_auto_dose_timer()
+                        auto_dose_state["last_dose_time"] = datetime.now()
+                        auto_dose_state["last_dose_type"] = dispense_type
+                        auto_dose_state["last_dose_amount"] = amount
+                        print(f"Remote manual dose executed: {dispense_type} {amount}ml")
+                    # Add more command handlers here for index controls
+                except asyncio.TimeoutError:
+                    pass
+                except Exception as e:
+                    print(f"WS inner error: {e}")
+                    break
+    except Exception as e:
+        print(f"WS connection error: {e}")
     ws_connected = False
     print("WS disconnected; retrying in 10s...")
     await asyncio.sleep(10)
