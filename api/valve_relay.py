@@ -17,7 +17,7 @@ def valve_on(valve_id):
     try:
         turn_on_valve(valve_id)
         # Emit status_update so clients see changes immediately
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify({
             "status": "success",
             "valve_id": valve_id,
@@ -31,7 +31,7 @@ def valve_on(valve_id):
 def valve_off(valve_id):
     try:
         turn_off_valve(valve_id)
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify({
             "status": "success",
             "valve_id": valve_id,
@@ -59,7 +59,7 @@ def valve_toggle(valve_id):
         else:
             turn_on_valve(valve_id)
             action = "on"
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify({"status": "success", "valve_id": valve_id, "action": action})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
@@ -82,7 +82,7 @@ def valve_on_by_name(valve_name):
     if local_id is not None:
         try:
             turn_on_valve(local_id)
-            emit_status_update()
+            emit_status_update(force_emit=True)
             return jsonify({
                 "status": "success",
                 "valve_name": valve_name,
@@ -117,7 +117,7 @@ def valve_on_by_name(valve_name):
 
     # Evaluate the remote’s response
     if resp.status_code == 200 and data.get("status") == "success":
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify(data), 200
     else:
         # forward remote error or fallback
@@ -146,6 +146,7 @@ def rename_valve():
     settings["valve_labels"][str(valve_id)] = new_label
     save_settings(settings)
 
+    emit_status_update(force_emit=True)  # Force update after rename
     return jsonify({"status": "success"})
 
 @valve_relay_blueprint.route('/<string:valve_name>/off', methods=['POST'])
@@ -163,7 +164,7 @@ def valve_off_by_name(valve_name):
     if local_id is not None:
         try:
             turn_off_valve(local_id)
-            emit_status_update()
+            emit_status_update(force_emit=True)
             return jsonify({
                 "status": "success",
                 "valve_name": valve_name,
@@ -198,7 +199,7 @@ def valve_off_by_name(valve_name):
 
     # Evaluate the remote’s response
     if resp.status_code == 200 and data.get("status") == "success":
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify(data), 200
     else:
         return jsonify({
@@ -238,7 +239,7 @@ def valve_toggle_by_name(valve_name):
             else:
                 turn_on_valve(local_id)
                 action = "on"
-            emit_status_update()
+            emit_status_update(force_emit=True)
             return jsonify({"status": "success", "valve_name": valve_name, "action": action})
         except Exception as e:
             return jsonify({"status": "failure", "error": str(e)}), 500
@@ -268,7 +269,7 @@ def valve_toggle_by_name(valve_name):
 
     # Evaluate the remote’s response
     if resp.status_code == 200 and data.get("status") == "success":
-        emit_status_update()
+        emit_status_update(force_emit=True)
         return jsonify(data), 200
     else:
         return jsonify({
@@ -343,6 +344,7 @@ def set_valve_label(valve_id):
         # Store as a string
         settings["valve_labels"][str(valve_id)] = new_label
         save_settings(settings)
+        emit_status_update(force_emit=True)  # Force update after rename
         return jsonify({"status": "success", "valve_id": valve_id, "label": new_label})
     except Exception as e:
         return jsonify({"status": "failure", "error": str(e)}), 500
