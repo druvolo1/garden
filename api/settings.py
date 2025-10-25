@@ -5,13 +5,13 @@ import subprocess
 import stat
 from datetime import datetime
 import threading
+import uuid
 
 from status_namespace import emit_status_update
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
 from services.plant_service import get_weeks_since_start
 from utils.settings_utils import load_settings, save_settings
-from app import device_id  # Added to import device_id for passing to template
 
 import requests  # For sending the Discord test POST
 
@@ -97,6 +97,26 @@ if not os.path.exists(SETTINGS_FILE):
             "allow_remote_feeding": False,
             "auto_fill_sensor": "disabled"
         }, f, indent=4)
+
+def get_device_id():
+    SETTINGS_FILE = 'settings.json'  # Match app.py path; change to 'data/settings.json' if needed
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
+            settings = json.load(f)
+            if 'device_id' in settings:
+                return settings['device_id']
+    
+    # Generate if missing (this mirrors app.py logic)
+    device_id = str(uuid.uuid4())
+    settings = {}
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
+            settings = json.load(f)
+    settings['device_id'] = device_id
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=4)
+    
+    return device_id
 
 @settings_blueprint.route('/check_update', methods=['GET'])
 def check_update():
@@ -520,4 +540,5 @@ def update_feeding_status():
 
 @settings_blueprint.route('/settings')
 def settings_page():
+    device_id = get_device_id()  # Load locally to avoid cycle
     return render_template('settings.html', device_id=device_id)
