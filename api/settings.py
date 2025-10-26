@@ -554,3 +554,18 @@ def settings_page():
     device_id = get_device_id()  # Load locally to avoid cycle
     print(f"[SETTINGS_PAGE] Rendering with device_id: {device_id}")
     return render_template('settings.html', device_id=device_id)
+
+@settings_blueprint.route('/restart_server_connection', methods=['POST'])
+def restart_server_connection():
+    """
+    Restart the WebSocket connection to the server with new credentials.
+    Called when user updates server configuration.
+    """
+    try:
+        # Import from app module
+        from app import restart_ws_client
+        restart_ws_client()
+        return jsonify({"status": "success", "message": "Server connection restarted"})
+    except Exception as e:
+        print(f"[ERROR] Failed to restart server connection: {e}")
+        return jsonify({"status": "failure", "error": str(e)}), 500

@@ -61,6 +61,8 @@ ws_connected = False
 device_id = None
 api_key = None
 server_url = 'wss://garden.ruvolo.loseyourip.com/ws/devices'  # e.g., 'wss://your-server.com/ws/devices'
+ws_thread = None  # Track the WebSocket thread
+ws_stop_event = threading.Event()  # Event to signal stopping the WebSocket
 
 ########################################################################
 # Added config loading (device_id, api_key, server_url)
@@ -103,11 +105,48 @@ def load_config():
         return None, None, None
 
 def start_ws_client():
+    """Start the WebSocket client if server is enabled and credentials exist."""
+    global ws_thread, ws_stop_event
     settings = load_settings()
     if settings.get('server_enabled', False) and api_key and server_url:
-        thread = threading.Thread(target=lambda: asyncio.run(ws_client()))
-        thread.daemon = True
-        thread.start()
+        ws_stop_event.clear()  # Clear stop event
+        ws_thread = threading.Thread(target=lambda: asyncio.run(ws_client()))
+        ws_thread.daemon = True
+        ws_thread.start()
+        print("[WS] WebSocket client thread started")
+    else:
+        print("[WS] WebSocket client not started (disabled or missing credentials)")
+
+def stop_ws_client():
+    """Stop the WebSocket client gracefully."""
+    global ws_connected, ws_thread, ws_stop_event
+    print("[WS] Stopping WebSocket client...")
+    ws_stop_event.set()  # Signal the thread to stop
+    ws_connected = False
+    
+    # Wait for thread to finish (with timeout)
+    if ws_thread and ws_thread.is_alive():
+        ws_thread.join(timeout=5)
+        if ws_thread.is_alive():
+            print("[WS] WARNING: WebSocket thread did not stop cleanly")
+        else:
+            print("[WS] WebSocket thread stopped")
+    ws_thread = None
+
+def restart_ws_client():
+    """Restart the WebSocket client with new configuration."""
+    global device_id, api_key, server_url
+    print("[WS] Restarting WebSocket client...")
+    
+    # Stop existing client
+    stop_ws_client()
+    
+    # Reload configuration
+    load_config()
+    
+    # Start new client
+    start_ws_client()
+    print("[WS] WebSocket client restarted")
 
 load_config()
 
@@ -132,6 +171,11 @@ async def ws_client():
                 print("Sent initial full_sync on WS connect")
             
             while True:
+                # Check if we should stop
+                if ws_stop_event.is_set():
+                    print("[WS] Stop event detected, closing connection")
+                    break
+                
                 try:
                     # Send from queue
                     if not send_queue.empty():

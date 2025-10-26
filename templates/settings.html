@@ -1590,8 +1590,33 @@
         server_url: document.getElementById('server-url').value.trim(),
         api_key: document.getElementById('api-key').value.trim()
       };
-      saveSettings("/api/settings/", payload);
-      alert("Server config saved. Restart the application for changes to take effect.");
+      
+      // Save settings first
+      fetch('/api/settings/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Settings saved, now restart the connection
+          return fetch('/api/settings/restart_server_connection', { method: 'POST' });
+        } else {
+          throw new Error(data.error || 'Failed to save settings');
+        }
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert("Server configuration saved and connection restarted successfully!");
+        } else {
+          alert("Settings saved but failed to restart connection: " + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(err => {
+        alert("Error updating server config: " + err.message);
+      });
     });
     // NEW: Add event listener for adding a new power outlet
     document.getElementById('add-outlet-btn').addEventListener('click', () => {
