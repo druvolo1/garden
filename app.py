@@ -131,10 +131,11 @@ async def ws_client():
                         await ws.send(json.dumps(data))
                     
                     # Receive commands
-                    data = await asyncio.wait_for(ws.recv(), timeout=0.1)  # Reduced timeout for faster queue checks
+                    data = await asyncio.wait_for(ws.recv(), timeout=0.1)
                     payload = json.loads(data)
                     print(f"Received from remote WS: {json.dumps(payload)}")
-                    # Handle incoming commands (e.g., from remote dashboard)
+                    
+                    # Handle incoming commands
                     if payload.get('command') == 'manual_dose':
                         params = payload.get('params', {})
                         dispense_type = params.get('dispense_type')
@@ -145,9 +146,47 @@ async def ws_client():
                         auto_dose_state["last_dose_type"] = dispense_type
                         auto_dose_state["last_dose_amount"] = amount
                         print(f"Remote manual dose executed: {dispense_type} {amount}ml")
+                    
+                    elif payload.get('command') == 'valve_control':
+                        # NEW: Handle valve control commands
+                        params = payload.get('params', {})
+                        valve_label = params.get('valve_label')
+                        action = params.get('action')
+                        if valve_label and action in ['on', 'off']:
+                            print(f"[WS] Valve control command: {valve_label} -> {action}")
+                            # Import valve functions
+                            from services.valve_relay_service import turn_on_valve, turn_off_valve
+                            settings = load_settings()
+                            
+                            # Determine which valve this is (fill or drain) and get the valve number
+                            fill_label = settings.get('fill_valve_label')
+                            drain_label = settings.get('drain_valve_label')
+                            
+                            valve_number = None
+                            if valve_label == fill_label:
+                                valve_number = settings.get('fill_valve')
+                            elif valve_label == drain_label:
+                                valve_number = settings.get('drain_valve')
+                            
+                            if valve_number and valve_number.isdigit():
+                                valve_id = int(valve_number)
+                                if action == 'on':
+                                    turn_on_valve(valve_id)
+                                    print(f"[WS] Turned ON valve {valve_id} ({valve_label})")
+                                else:
+                                    turn_off_valve(valve_id)
+                                    print(f"[WS] Turned OFF valve {valve_id} ({valve_label})")
+                                
+                                # Force immediate status update to reflect change
+                                emit_status_update(force_emit=True)
+                            else:
+                                print(f"[WS ERROR] Could not find valve number for label: {valve_label}")
+                        else:
+                            print(f"[WS ERROR] Invalid valve control params: {params}")
+                    
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
-                        payload_data = emit_status_update(force_emit=True)  # Force emit the latest status
+                        payload_data = emit_status_update(force_emit=True)
                         if payload_data:
                             send_queue.put({'type': 'status_update', 'data': payload_data})
                             print("[WS] Queued forced status_update for remote send")
@@ -156,7 +195,7 @@ async def ws_client():
                                 data = send_queue.get()
                                 print(f"[WS Immediate] Sending forced update: {json.dumps(data)}")
                                 await ws.send(json.dumps(data))
-                    # Add more command handlers here for index controls
+                
                 except asyncio.TimeoutError:
                     pass
                 except Exception as e:
