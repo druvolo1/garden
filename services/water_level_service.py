@@ -273,8 +273,7 @@ def monitor_water_level_sensors():
     while True:
         current_state = get_water_level_status()
         if _last_sensor_state is not None and current_state != _last_sensor_state:
-            from status_namespace import emit_status_update
-            emit_status_update(force_emit=True)
+            # REMOVED: emit_status_update(force_emit=True)
             process_sensor_change(_last_sensor_state, current_state)
         _last_sensor_state = current_state
         time.sleep(1)
