@@ -352,7 +352,13 @@ def get_status_payload():
         log_with_timestamp(f"[DEBUG] Fetched water_level_info: {json.dumps(water_level_info)}")  # Added log for debugging
 
         # -----------------------------------------------------------
-        #  7) Build final payload
+        #  7) Dosage calculations
+        # -----------------------------------------------------------
+        dosage_info = get_dosage_info()
+        log_with_timestamp(f"[DEBUG] Fetched dosage_info: {json.dumps(dosage_info)}")
+
+        # -----------------------------------------------------------
+        #  8) Build final payload
         # -----------------------------------------------------------
         from api.settings import feeding_in_progress
         status_payload = {
@@ -360,11 +366,10 @@ def get_status_payload():
             "current_ph":   get_latest_ph_reading(),
             "current_ec":   get_latest_ec_reading(),
             "valve_info":   valve_info,
-            "water_level":  water_level_info,  # <--- RE-ADDED LINE
-            "dosage_info":  dosage_info,
+            "water_level":  water_level_info,
+            "dosage_info":  dosage_info,  # Now it's defined!
             "feeding_in_progress": feeding_in_progress,
-            "timestamp": datetime.now().isoformat(),  # Added: Unique timestamp to force change detection
-            # ... any additional fields ...
+            "timestamp": datetime.now().isoformat(),
         }
 
         return status_payload
