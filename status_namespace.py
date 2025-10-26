@@ -221,6 +221,19 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
+def round_floats(obj, decimals=2):
+    """
+    Recursively round floats in dict/list to given decimals.
+    """
+    if isinstance(obj, float):
+        return round(obj, decimals)
+    elif isinstance(obj, dict):
+        return {k: round_floats(v, decimals) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [round_floats(v, decimals) for v in obj]
+    else:
+        return obj
+
 def get_status_payload():
     """Build and return the status payload without emitting or comparing."""
     try:
