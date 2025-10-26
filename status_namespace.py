@@ -354,6 +354,7 @@ def get_status_payload():
         # -----------------------------------------------------------
         #  7) Dosage calculations
         # -----------------------------------------------------------
+        from services.dosage_service import get_dosage_info
         dosage_info = get_dosage_info()
         log_with_timestamp(f"[DEBUG] Fetched dosage_info: {json.dumps(dosage_info)}")
 
