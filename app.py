@@ -50,6 +50,9 @@ import websockets
 # Added: Import emit_status_update for immediate triggers
 from status_namespace import emit_status_update
 
+# Added: Import change tracker for granular updates
+import change_tracker
+
 ########################################################################
 # Added globals for remote WS
 ########################################################################
@@ -118,11 +121,16 @@ async def ws_client():
         async with websockets.connect(uri) as ws:
             ws_connected = True
             print(f"Connected to remote server WS at {uri}")
-            # Added: Send initial full status on connect
+            
+            # Reset change tracker on connect
+            change_tracker.reset_tracker()
+            
+            # Send initial full status on connect
             initial_payload = get_status_payload()
             if initial_payload:
-                send_queue.put({'type': 'status_update', 'data': initial_payload})
-                print("Sent initial status_update on WS connect")
+                send_queue.put({'type': 'full_sync', 'data': initial_payload})
+                print("Sent initial full_sync on WS connect")
+            
             while True:
                 try:
                     # Send from queue
@@ -137,7 +145,15 @@ async def ws_client():
                     print(f"Received from remote WS: {json.dumps(payload)}")
                     
                     # Handle incoming commands
-                    if payload.get('command') == 'manual_dose':
+                    if payload.get('type') == 'request_refresh':
+                        # User clicked refresh - send full status
+                        print("[WS] Refresh requested by user")
+                        full_payload = get_status_payload()
+                        if full_payload:
+                            send_queue.put({'type': 'full_sync', 'data': full_payload})
+                            print("Queued full_sync for refresh request")
+                    
+                    elif payload.get('command') == 'manual_dose':
                         params = payload.get('params', {})
                         dispense_type = params.get('dispense_type')
                         amount = params.get('amount', 0.0)
@@ -351,16 +367,30 @@ def broadcast_ec_readings():
             log_with_timestamp(f"[Broadcast] Error broadcasting EC value: {e}")
 
 def broadcast_status():
-    """ Periodically call emit_status_update() from status_namespace. """
-    from status_namespace import emit_status_update
+    """ 
+    Periodically emit status updates.
+    For local clients: sends full status if changed.
+    For remote server: sends granular updates only for what changed.
+    """
+    from status_namespace import emit_status_update, get_status_payload
     log_with_timestamp("Inside function for broadcasting status updates")
     while True:
         try:
+            # Emit to local WebSocket clients (will only emit if changed)
             payload = emit_status_update()
-            # Added: Forward status to remote with full data if payload available
-            if ws_connected and payload is not None:
-                send_queue.put({'type': 'status_update', 'data': payload})
-            eventlet.sleep(0.5)  # Reduced for faster updates
+            
+            # For remote server: send granular updates
+            if ws_connected:
+                # Get current full status
+                current_status = get_status_payload()
+                if current_status:
+                    # Check what changed and send granular updates
+                    changes = change_tracker.get_all_changes(current_status)
+                    for change in changes:
+                        send_queue.put(change)
+                        log_with_timestamp(f"[broadcast_status] Queued granular update: {change.get('type')}")
+            
+            eventlet.sleep(0.5)  # Check for updates frequently
         except Exception as e:
             log_with_timestamp(f"[broadcast_status] Error: {e}")
             eventlet.sleep(0.5)
