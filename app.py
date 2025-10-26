@@ -224,7 +224,7 @@ def broadcast_ph_readings():
                     if ws_connected:
                         send_queue.put({'type': 'ph_update', 'ph': ph_value})
                     # Added: Trigger full status update to mirror index.html's usage (via "status_update")
-                    emit_status_update()
+                    #emit_status_update()
             eventlet.sleep(0.5)  # Reduced for faster updates
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting pH value: {e}")
@@ -245,7 +245,7 @@ def broadcast_ec_readings():
                     if ws_connected:
                         send_queue.put({'type': 'ec_update', 'ec': ec_value})
                     # Trigger full status update to mirror index.html's usage (via "status_update")
-                    emit_status_update()
+                    #emit_status_update()
             eventlet.sleep(0.5)  # Match pH update rate
         except Exception as e:
             log_with_timestamp(f"[Broadcast] Error broadcasting EC value: {e}")

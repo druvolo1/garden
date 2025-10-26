@@ -246,32 +246,42 @@ def get_water_level_status():
 import api.settings
 from services.notification_service import _send_telegram_and_discord
 
+# Add this to your water_level_service.py where sensors change state
+
 def monitor_water_level_sensors():
-    global _last_sensor_state
-    ensure_pins_inited()
-    if not GPIO:
-        log_water_level("[WaterLevel] Mock mode; no events.")
-        while True:
-            current_state = get_water_level_status()
-            if _last_sensor_state is not None and current_state != _last_sensor_state:
-                process_sensor_change(_last_sensor_state, current_state)
-            _last_sensor_state = current_state
-            time.sleep(0.5)
-        return
-
-    sensors = load_water_level_sensors()
-    for sensor_key, cfg in sensors.items():
-        pin = cfg.get("pin")
-        if pin is not None:
-            GPIO.add_event_detect(pin, GPIO.BOTH, callback=lambda channel: handle_sensor_change(channel, sensor_key), bouncetime=200)  # Debounce 200ms
-
-    # Still poll periodically for full state sync
+    """Monitor water level sensors and trigger status updates on change"""
+    from status_namespace import emit_status_update
+    
+    last_state = {}  # Track last known state of each sensor
+    
     while True:
-        current_state = get_water_level_status()
-        if _last_sensor_state is not None and current_state != _last_sensor_state:
-            process_sensor_change(_last_sensor_state, current_state)
-        _last_sensor_state = current_state
-        time.sleep(1)  # Slower poll since events handle fast changes
+        try:
+            current_state = get_water_level_status()  # Your existing function
+            
+            # Check if ANY sensor changed
+            state_changed = False
+            for sensor_key in ['sensor1', 'sensor2', 'sensor3']:
+                current = current_state.get(sensor_key, {}).get('triggered')
+                last = last_state.get(sensor_key, {}).get('triggered')
+                
+                if current != last:
+                    state_changed = True
+                    log_msg = f"[WATER SENSOR] {sensor_key} changed: {last} -> {current}"
+                    print(log_msg, flush=True)
+            
+            # If state changed, force immediate status update
+            if state_changed:
+                print("[WATER SENSOR] Triggering immediate status_update", flush=True)
+                emit_status_update(force_emit=True)
+            
+            # Update last known state
+            last_state = current_state.copy()
+            
+            eventlet.sleep(0.1)  # Check every 100ms for fast response
+            
+        except Exception as e:
+            print(f"[WATER SENSOR] Error: {e}", flush=True)
+            eventlet.sleep(1)
 
 def handle_sensor_change(channel, sensor_key):
     current_state = get_water_level_status()
