@@ -148,39 +148,86 @@ async def ws_client():
                         print(f"Remote manual dose executed: {dispense_type} {amount}ml")
                     
                     elif payload.get('command') == 'valve_control':
-                        # NEW: Handle valve control commands
+                        # NEW: Handle valve control commands (supports both local and remote)
                         params = payload.get('params', {})
                         valve_label = params.get('valve_label')
                         action = params.get('action')
+                        
                         if valve_label and action in ['on', 'off']:
                             print(f"[WS] Valve control command: {valve_label} -> {action}")
-                            # Import valve functions
-                            from services.valve_relay_service import turn_on_valve, turn_off_valve
                             settings = load_settings()
                             
-                            # Determine which valve this is (fill or drain) and get the valve number
+                            # Determine which valve this is and get its configuration
                             fill_label = settings.get('fill_valve_label')
                             drain_label = settings.get('drain_valve_label')
                             
-                            valve_number = None
-                            if valve_label == fill_label:
-                                valve_number = settings.get('fill_valve')
-                            elif valve_label == drain_label:
-                                valve_number = settings.get('drain_valve')
+                            valve_mode = None
+                            valve_ip = None
+                            valve_id = None
                             
-                            if valve_number and valve_number.isdigit():
-                                valve_id = int(valve_number)
-                                if action == 'on':
-                                    turn_on_valve(valve_id)
-                                    print(f"[WS] Turned ON valve {valve_id} ({valve_label})")
-                                else:
-                                    turn_off_valve(valve_id)
-                                    print(f"[WS] Turned OFF valve {valve_id} ({valve_label})")
+                            if valve_label == fill_label:
+                                valve_mode = settings.get('fill_valve_mode', 'local')
+                                valve_ip = settings.get('fill_valve_ip', '')
+                                valve_id = settings.get('fill_valve', '')
+                            elif valve_label == drain_label:
+                                valve_mode = settings.get('drain_valve_mode', 'local')
+                                valve_ip = settings.get('drain_valve_ip', '')
+                                valve_id = settings.get('drain_valve', '')
+                            
+                            if valve_mode:
+                                if valve_mode == 'local':
+                                    # LOCAL MODE: Direct serial control
+                                    if not valve_id or not valve_id.isdigit():
+                                        print(f"[WS ERROR] Invalid valve ID for local control: {valve_id}")
+                                    else:
+                                        try:
+                                            from services.valve_relay_service import turn_on_valve, turn_off_valve
+                                            valve_num = int(valve_id)
+                                            if action == 'on':
+                                                turn_on_valve(valve_num)
+                                                print(f"[WS] Turned ON local valve {valve_num} ({valve_label})")
+                                            else:
+                                                turn_off_valve(valve_num)
+                                                print(f"[WS] Turned OFF local valve {valve_num} ({valve_label})")
+                                            
+                                            # Force immediate status update
+                                            emit_status_update(force_emit=True)
+                                        except Exception as ex:
+                                            print(f"[WS ERROR] Local valve control failed: {ex}")
                                 
-                                # Force immediate status update to reflect change
-                                emit_status_update(force_emit=True)
+                                elif valve_mode == 'remote':
+                                    # REMOTE MODE: HTTP request to remote IP
+                                    if not valve_ip:
+                                        print(f"[WS ERROR] No valve_ip configured for remote valve: {valve_label}")
+                                    else:
+                                        try:
+                                            from utils.network_utils import standardize_host_ip
+                                            import requests
+                                            
+                                            # Resolve .local names if needed
+                                            final_ip = standardize_host_ip(valve_ip)
+                                            if final_ip:
+                                                valve_ip = final_ip
+                                            
+                                            url = f"http://{valve_ip}:8000/api/valve_relay/{valve_label}/{action}"
+                                            print(f"[WS] Calling remote valve API: {url}")
+                                            
+                                            resp = requests.post(url, timeout=5)
+                                            if resp.status_code == 200:
+                                                data = resp.json()
+                                                if data.get("status") == "success":
+                                                    print(f"[WS] Remote valve {valve_label} {action} success")
+                                                else:
+                                                    print(f"[WS ERROR] Remote valve error: {data.get('error')}")
+                                            else:
+                                                print(f"[WS ERROR] Remote valve returned HTTP {resp.status_code}")
+                                            
+                                            # Force immediate status update
+                                            emit_status_update(force_emit=True)
+                                        except Exception as ex:
+                                            print(f"[WS ERROR] Remote valve control failed: {ex}")
                             else:
-                                print(f"[WS ERROR] Could not find valve number for label: {valve_label}")
+                                print(f"[WS ERROR] Could not identify valve: {valve_label}")
                         else:
                             print(f"[WS ERROR] Invalid valve control params: {params}")
                     
@@ -200,6 +247,8 @@ async def ws_client():
                     pass
                 except Exception as e:
                     print(f"WS inner error: {e}")
+                    import traceback
+                    traceback.print_exc()
                     break
     except Exception as e:
         print(f"WS connection error: {e}")
