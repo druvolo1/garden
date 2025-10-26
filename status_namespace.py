@@ -361,6 +361,7 @@ def get_status_payload():
             "current_ec":   get_latest_ec_reading(),
             "valve_info":   valve_info,
             "water_level":  water_level_info,  # <--- RE-ADDED LINE
+            "dosage_info":  dosage_info,
             "feeding_in_progress": feeding_in_progress,
             "timestamp": datetime.now().isoformat(),  # Added: Unique timestamp to force change detection
             # ... any additional fields ...
