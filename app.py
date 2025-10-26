@@ -6,6 +6,7 @@ import signal
 from datetime import datetime, timedelta
 import os
 import subprocess
+import requests
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO
@@ -140,15 +141,26 @@ async def ws_client():
                         params = payload.get('params', {})
                         dispense_type = params.get('dispense_type')
                         amount = params.get('amount', 0.0)
-                        manual_dispense(dispense_type, amount)
-                        reset_auto_dose_timer()
-                        auto_dose_state["last_dose_time"] = datetime.now()
-                        auto_dose_state["last_dose_type"] = dispense_type
-                        auto_dose_state["last_dose_amount"] = amount
-                        print(f"Remote manual dose executed: {dispense_type} {amount}ml")
+                        
+                        # Call the local API endpoint to properly start the dosing task
+                        try:
+                            import requests
+                            url = f"http://127.0.0.1:8000/api/dosage/manual"
+                            resp = requests.post(url, json={'type': dispense_type, 'amount': amount}, timeout=5)
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                print(f"Remote manual dose executed: {dispense_type} {amount}ml - {data.get('message')}")
+                                reset_auto_dose_timer()
+                                auto_dose_state["last_dose_time"] = datetime.now()
+                                auto_dose_state["last_dose_type"] = dispense_type
+                                auto_dose_state["last_dose_amount"] = amount
+                            else:
+                                print(f"[ERROR] Remote dose failed: HTTP {resp.status_code}")
+                        except Exception as ex:
+                            print(f"[ERROR] Remote dose API call failed: {ex}")
                     
                     elif payload.get('command') == 'valve_control':
-                        # NEW: Handle valve control commands (supports both local and remote)
+                        # Handle valve control commands (supports both local and remote)
                         params = payload.get('params', {})
                         valve_label = params.get('valve_label')
                         action = params.get('action')
