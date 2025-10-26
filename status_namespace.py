@@ -5,7 +5,6 @@ import socket
 import subprocess
 import json
 import os
-import copy  # Added for deep copy
 
 
 # Import DNS helpers from your new file:
@@ -222,30 +221,18 @@ def get_cached_remote_states(remote_ip):
         log_with_timestamp(f"[DEBUG] get_cached_remote_states({remote_ip}) -> empty")
     return data
 
-def deep_compare(d1, d2, tolerance=1e-6):
+def round_floats(obj, decimals=2):
     """
-    Recursive deep equality check with float tolerance.
+    Recursively round floats in dict/list to given decimals.
     """
-    if type(d1) != type(d2):
-        return False
-    if isinstance(d1, dict):
-        if set(d1.keys()) != set(d2.keys()):
-            return False
-        for key in d1:
-            if not deep_compare(d1[key], d2[key], tolerance):
-                return False
-        return True
-    elif isinstance(d1, list):
-        if len(d1) != len(d2):
-            return False
-        for a, b in zip(d1, d2):
-            if not deep_compare(a, b, tolerance):
-                return False
-        return True
-    elif isinstance(d1, float) or isinstance(d2, float):
-        return abs(float(d1) - float(d2)) < tolerance
+    if isinstance(obj, float):
+        return round(obj, decimals)
+    elif isinstance(obj, dict):
+        return {k: round_floats(v, decimals) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [round_floats(v, decimals) for v in obj]
     else:
-        return d1 == d2
+        return obj
 
 def get_status_payload():
     """Build and return the status payload without emitting or comparing."""
@@ -397,15 +384,18 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
             return None
 
-        # Re-enabled better comparison: Use deep_compare with float tolerance
+        # Make copy without timestamp for comparison
+        compare_payload = {k: v for k, v in status_payload.items() if k != 'timestamp'}
+        # Round floats in compare_payload (e.g., pH/EC to 2 decimals)
+        compare_payload = round_floats(compare_payload)
+
         if not force_emit and LAST_EMITTED_STATUS is not None:
-            # Make copies without 'timestamp' for comparison
-            payload_copy = copy.deepcopy(status_payload)
-            last_copy = copy.deepcopy(LAST_EMITTED_STATUS)
-            payload_copy.pop('timestamp', None)
-            last_copy.pop('timestamp', None)
-            if deep_compare(payload_copy, last_copy):
-                log_with_timestamp("[DEBUG] No changes detected (deep_compare without timestamp); skipping emit.")
+            compare_last = {k: v for k, v in LAST_EMITTED_STATUS.items() if k != 'timestamp'}
+            compare_last = round_floats(compare_last)
+            current_str = json.dumps(compare_payload, sort_keys=True)
+            last_str = json.dumps(compare_last, sort_keys=True)
+            if current_str == last_str:
+                log_with_timestamp("[DEBUG] No changes detected (JSON comparison without timestamp); skipping emit.")
                 return None
 
         log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
