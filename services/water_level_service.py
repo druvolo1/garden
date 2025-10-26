@@ -307,14 +307,12 @@ def process_sensor_change(previous_state, current_state):
         if fill_triggered:
             log_water_level("[WaterLevel] Turning off fill due to full sensor")
             turn_off_fill_valve()
-            #if not api.settings.feeding_in_progress:
-                #_send_telegram_and_discord("Auto filling is complete.")
-            emit_status_update(force_emit=True)  # Force update after safety off (for triggered state)
+            # REMOVED: emit_status_update(force_emit=True)
 
     # For auto fill: if auto_fill_sensor goes from triggered (water) to not triggered (low), and not fill_triggered, turn on fill
     if auto_fill_key != "disabled" and auto_fill_key in current_state:
         auto_triggered = current_state[auto_fill_key]["triggered"]
-        last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": True})["triggered"]  # Default to True for safety
+        last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": True})["triggered"]
         fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
         log_water_level(f"[WaterLevel] Auto fill check: auto_triggered={auto_triggered} last_auto_triggered={last_auto_triggered} fill_triggered={fill_triggered}")
         if last_auto_triggered and not auto_triggered and not fill_triggered:
@@ -362,7 +360,7 @@ def process_sensor_change(previous_state, current_state):
                     log_water_level("[WaterLevel] Turning on fill for auto")
                     turn_on_fill_valve()
                     _send_telegram_and_discord("Auto filling was triggered.")
-                    emit_status_update(force_emit=True)  # Force update after auto on (for not triggered state)
+                    # REMOVED: emit_status_update(force_emit=True)
                 else:
                     log_water_level("[WaterLevel] Not turning on fill for auto because draining is in progress")
             else:
@@ -371,16 +369,16 @@ def process_sensor_change(previous_state, current_state):
     # If drain sensor is not triggered (empty = no water) after being triggered => turn off drain valve
     if drain_sensor_key in current_state:
         drain_triggered = current_state[drain_sensor_key]["triggered"]
-        last_drain_triggered = previous_state.get(drain_sensor_key, {"triggered": True})["triggered"]  # Default to True for safety
+        last_drain_triggered = previous_state.get(drain_sensor_key, {"triggered": True})["triggered"]
         log_water_level(f"[WaterLevel] Drain check: drain_triggered={drain_triggered}")
         if last_drain_triggered and not drain_triggered:
             log_water_level("[WaterLevel] Turning off drain due to empty sensor")
             turn_off_drain_valve()
-            emit_status_update(force_emit=True)  # Force update after drain off (for not triggered state)
+            # REMOVED: emit_status_update(force_emit=True)
 
     from status_namespace import emit_status_update
-    emit_status_update(force_emit=True)
-
+    emit_status_update(force_emit=True)  # KEEP: Single emit at the end
+    
 def turn_off_valve(valve_label: str, valve_ip: str):
     """
     Calls /api/valve_relay/<valve_label>/off on the given IP (resolved by standardize_host_ip).
