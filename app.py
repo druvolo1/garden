@@ -321,18 +321,7 @@ def start_threads():
 
     # Added: Start remote WS client if configured
     start_ws_client()
-     # Broadcast latest EC to websockets (new)
-    log_with_timestamp("Inside function for broadcasting status updates")
-    while True:
-        try:
-            payload = emit_status_update()
-            # Added: Forward status to remote with full data if payload available
-            if ws_connected and payload is not None:
-                send_queue.put({'type': 'status_update', 'data': payload})
-            eventlet.sleep(0.5)  # Reduced for faster updates
-        except Exception as e:
-            log_with_timestamp(f"[broadcast_status] Error: {e}")
-            eventlet.sleep(0.5)
+    
 
 ########################################################################
 # Register Blueprints

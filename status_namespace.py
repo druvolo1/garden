@@ -5,6 +5,7 @@ import socket
 import subprocess
 import json
 import os
+import threading
 
 
 # Import DNS helpers from your new file:
@@ -36,6 +37,7 @@ remote_valve_states = {}  # Stores the latest valve states from remote systems
 LAST_EMITTED_STATUS = None  # Stores the last sent status update
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
+EMIT_LOCK = threading.Lock()
 
 def is_debug_enabled(component):
     """Check if debugging is enabled for a specific component."""
@@ -379,34 +381,36 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_status_update.")
             return None
 
-        status_payload = get_status_payload()
-        if status_payload is None:
-            log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
-            return None
-
-        # Create a deterministic JSON string for comparison (without timestamp)
-        compare_payload = {k: v for k, v in status_payload.items() if k != 'timestamp'}
-        # Round floats to avoid floating-point comparison issues
-        compare_payload = round_floats(compare_payload)
-        # Convert to sorted JSON string for reliable comparison
-        current_json = json.dumps(compare_payload, sort_keys=True, default=str)
-
-        if not force_emit and LAST_EMITTED_STATUS is not None:
-            compare_last = {k: v for k, v in LAST_EMITTED_STATUS.items() if k != 'timestamp'}
-            compare_last = round_floats(compare_last)
-            last_json = json.dumps(compare_last, sort_keys=True, default=str)
-            
-            if current_json == last_json:
-                log_with_timestamp("[DEBUG] No changes detected; skipping emit.")
+        # Acquire lock to prevent race conditions between threads
+        with EMIT_LOCK:
+            status_payload = get_status_payload()
+            if status_payload is None:
+                log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
                 return None
-            else:
-                # Optional: Log what changed for debugging
-                log_with_timestamp(f"[DEBUG] Change detected. Emitting status_update.")
 
-        log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
-        _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload.copy()  # Store a copy
-        return status_payload
+            # Create a deterministic JSON string for comparison (without timestamp)
+            compare_payload = {k: v for k, v in status_payload.items() if k != 'timestamp'}
+            # Round floats to avoid floating-point comparison issues
+            compare_payload = round_floats(compare_payload)
+            # Convert to sorted JSON string for reliable comparison
+            current_json = json.dumps(compare_payload, sort_keys=True, default=str)
+
+            if not force_emit and LAST_EMITTED_STATUS is not None:
+                compare_last = {k: v for k, v in LAST_EMITTED_STATUS.items() if k != 'timestamp'}
+                compare_last = round_floats(compare_last)
+                last_json = json.dumps(compare_last, sort_keys=True, default=str)
+                
+                if current_json == last_json:
+                    log_with_timestamp("[DEBUG] No changes detected; skipping emit.")
+                    return None
+                else:
+                    # Optional: Log what changed for debugging
+                    log_with_timestamp(f"[DEBUG] Change detected. Emitting status_update.")
+
+            log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
+            _socketio.emit("status_update", status_payload, namespace="/status")
+            LAST_EMITTED_STATUS = status_payload.copy()  # Store a copy
+            return status_payload
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")
