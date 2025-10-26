@@ -384,24 +384,29 @@ def emit_status_update(force_emit=False):
             log_with_timestamp("[DEBUG] get_status_payload returned None; skipping emit.")
             return None
 
-        # Make copy without timestamp for comparison
+        # Create a deterministic JSON string for comparison (without timestamp)
         compare_payload = {k: v for k, v in status_payload.items() if k != 'timestamp'}
-        # Round floats in compare_payload (e.g., pH/EC to 2 decimals)
+        # Round floats to avoid floating-point comparison issues
         compare_payload = round_floats(compare_payload)
+        # Convert to sorted JSON string for reliable comparison
+        current_json = json.dumps(compare_payload, sort_keys=True, default=str)
 
         if not force_emit and LAST_EMITTED_STATUS is not None:
             compare_last = {k: v for k, v in LAST_EMITTED_STATUS.items() if k != 'timestamp'}
             compare_last = round_floats(compare_last)
-            current_str = json.dumps(compare_payload, sort_keys=True)
-            last_str = json.dumps(compare_last, sort_keys=True)
-            if current_str == last_str:
-                log_with_timestamp("[DEBUG] No changes detected (JSON comparison without timestamp); skipping emit.")
+            last_json = json.dumps(compare_last, sort_keys=True, default=str)
+            
+            if current_json == last_json:
+                log_with_timestamp("[DEBUG] No changes detected; skipping emit.")
                 return None
+            else:
+                # Optional: Log what changed for debugging
+                log_with_timestamp(f"[DEBUG] Change detected. Emitting status_update.")
 
         log_with_timestamp(f"[DEBUG] Emitting status_update (force={force_emit}), payload keys={list(status_payload.keys())}")
         _socketio.emit("status_update", status_payload, namespace="/status")
-        LAST_EMITTED_STATUS = status_payload
-        return status_payload  # Return the payload for remote sending
+        LAST_EMITTED_STATUS = status_payload.copy()  # Store a copy
+        return status_payload
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_status_update: {e}")

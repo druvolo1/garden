@@ -280,33 +280,6 @@ def start_threads():
     eventlet.spawn(broadcast_ph_readings)
 
     # Broadcast latest EC to websockets (new)
-    log_with_timestamp("Inside function for broadcasting status updates")
-    while True:
-        try:
-            payload = emit_status_update()
-            # Added: Forward status to remote with full data if payload available
-            if ws_connected and payload is not None:
-                send_queue.put({'type': 'status_update', 'data': payload})
-            eventlet.sleep(0.5)  # Reduced for faster updates
-        except Exception as e:
-            log_with_timestamp(f"[broadcast_status] Error: {e}")
-            eventlet.sleep(0.5)
-
-def auto_dose_loop():
-    while True:
-        settings = load_settings()
-        dosing_interval_hours = settings.get("dosing_interval", 1.0)  # Define outside the if, with a default
-        if settings.get("auto_dosing_enabled", False):
-            perform_auto_dose(settings)
-        eventlet.sleep(dosing_interval_hours * 3600)  # Now always safe to use
-
-def start_threads():
-    settings = load_settings()
-    # Broadcast latest pH to websockets
-    log_with_timestamp("Spawning broadcast_ph_readings…")
-    eventlet.spawn(broadcast_ph_readings)
-
-    # Broadcast latest EC to websockets (new)
     log_with_timestamp("Spawning broadcast_ec_readings…")
     eventlet.spawn(broadcast_ec_readings)
 
@@ -348,6 +321,18 @@ def start_threads():
 
     # Added: Start remote WS client if configured
     start_ws_client()
+     # Broadcast latest EC to websockets (new)
+    log_with_timestamp("Inside function for broadcasting status updates")
+    while True:
+        try:
+            payload = emit_status_update()
+            # Added: Forward status to remote with full data if payload available
+            if ws_connected and payload is not None:
+                send_queue.put({'type': 'status_update', 'data': payload})
+            eventlet.sleep(0.5)  # Reduced for faster updates
+        except Exception as e:
+            log_with_timestamp(f"[broadcast_status] Error: {e}")
+            eventlet.sleep(0.5)
 
 ########################################################################
 # Register Blueprints
