@@ -295,7 +295,7 @@ def monitor_water_level_sensors():
                                 drain_valve_ip = settings.get('drain_valve_ip', None)
                                 if drain_valve_ip:
                                     try:
-                                        response = requests.get(f"http://{drain_valve_ip}:8000/api/status", timeout=5)
+                                        response = requests.get(f"http://{drain_valve_ip}:8000/api/status", timeout=2)
                                         log_water_level(f"[WaterLevel] Remote status fetch response: {response.status_code}")
                                         if response.ok:
                                             data = response.json()
@@ -304,11 +304,10 @@ def monitor_water_level_sensors():
                                             if drain_status == 'on':
                                                 is_draining = True
                                         else:
-                                            log_water_level(f"[WaterLevel] Remote fetch failed with status {response.status_code}, assuming draining for safety")
-                                            is_draining = True
+                                            log_water_level(f"[WaterLevel] Remote fetch failed with status {response.status_code}, assuming NOT draining")
                                     except Exception as e:
-                                        log_water_level(f"[WaterLevel] Error fetching remote drain status: {str(e)}, assuming draining for safety")
-                                        is_draining = True
+                                        log_water_level(f"[WaterLevel] Error fetching remote drain status: {str(e)}, assuming NOT draining")
+                                        print(f"[WaterLevel AUTO-FILL] Cannot reach remote drain valve system, assuming NOT draining")
                                 else:
                                     log_water_level("[WaterLevel] No drain_valve_ip, assuming not draining")
                             else:
