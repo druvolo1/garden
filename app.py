@@ -330,25 +330,6 @@ async def ws_client():
                         except Exception as ex:
                             print(f"[WS ERROR] Update command failed: {ex}")
 
-                    elif payload.get('command') == 'request_version':
-                        # Handle version info request
-                        print("[WS] Received request_version command from remote server")
-                        try:
-                            from api.settings import CURRENT_VERSION
-                            settings = load_settings()
-                            system_name = settings.get('system_name', 'Unknown System')
-
-                            # Send version info back to server
-                            version_payload = {
-                                'type': 'version_info',
-                                'version': CURRENT_VERSION,
-                                'system_name': system_name
-                            }
-                            send_queue.put(version_payload)
-                            print(f"[WS] Queued version_info response: {CURRENT_VERSION}, {system_name}")
-                        except Exception as ex:
-                            print(f"[WS ERROR] Failed to get version info: {ex}")
-
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
                         payload_data = emit_status_update(force_emit=True)

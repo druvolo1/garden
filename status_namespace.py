@@ -361,7 +361,11 @@ def get_status_payload():
         # -----------------------------------------------------------
         #  8) Build final payload
         # -----------------------------------------------------------
-        from api.settings import feeding_in_progress
+        from api.settings import feeding_in_progress, CURRENT_VERSION
+
+        # Add version to settings before sending
+        settings['current_version'] = CURRENT_VERSION
+
         status_payload = {
             "settings":     settings,
             "current_ph":   get_latest_ph_reading(),
