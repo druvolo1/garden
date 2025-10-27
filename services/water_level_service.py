@@ -273,14 +273,18 @@ def monitor_water_level_sensors():
                         #_send_telegram_and_discord("Auto filling is complete.")
 
             # For auto fill: if auto_fill_sensor goes from triggered (water) to not triggered (low), and not fill_triggered, turn on fill
+            print(f"[WaterLevel AUTO-FILL] Checking auto-fill: key={auto_fill_key}")
             if auto_fill_key != "disabled" and auto_fill_key in current_state:
                 auto_triggered = current_state[auto_fill_key]["triggered"]
                 last_auto_triggered = previous_state.get(auto_fill_key, {"triggered": True})["triggered"]  # Default to True for safety
                 fill_triggered = current_state.get(fill_sensor_key, {"triggered": False})["triggered"]
+                print(f"[WaterLevel AUTO-FILL] Transition check: last={last_auto_triggered} current={auto_triggered} fill_full={fill_triggered}")
                 log_water_level(f"[WaterLevel] Auto fill check: auto_triggered={auto_triggered} last_auto_triggered={last_auto_triggered} fill_triggered={fill_triggered}")
                 if last_auto_triggered and not auto_triggered and not fill_triggered:
+                    print(f"[WaterLevel AUTO-FILL] Transition detected! Checking other conditions...")
                     log_water_level(f"[WaterLevel] Checking feeding_in_progress value: {api.settings.feeding_in_progress}")
                     if not api.settings.feeding_in_progress:
+                        print("[WaterLevel AUTO-FILL] Feeding not in progress, checking drain status...")
                         is_draining = False
                         try:
                             drain_valve_mode = settings.get('drain_valve_mode', 'local')
@@ -318,15 +322,22 @@ def monitor_water_level_sensors():
                                         is_draining = True
                         except Exception as e:
                             log_water_level(f"[WaterLevel] Error checking drain status: {str(e)}")
-                        
+                            print(f"[WaterLevel AUTO-FILL] ERROR checking drain: {str(e)}")
+
+                        print(f"[WaterLevel AUTO-FILL] Decision: is_draining={is_draining}")
                         if not is_draining:
+                            print("[WaterLevel AUTO-FILL] *** TURNING ON FILL VALVE ***")
                             log_water_level("[WaterLevel] Turning on fill for auto")
                             turn_on_fill_valve()
                             _send_telegram_and_discord("Auto filling was triggered.")
                         else:
+                            print("[WaterLevel AUTO-FILL] BLOCKED: Draining in progress")
                             log_water_level("[WaterLevel] Not turning on fill for auto because draining is in progress")
                     else:
+                        print("[WaterLevel AUTO-FILL] BLOCKED: Feeding in progress")
                         log_water_level("[WaterLevel] Not turning on fill for auto because feeding is in progress")
+                else:
+                    print(f"[WaterLevel AUTO-FILL] No transition: Conditions not met (need: last=True, current=False, fill_full=False)")
                         
             # If drain sensor is not triggered (empty = no water) after being triggered => turn off drain valve
             if drain_sensor_key in current_state:
