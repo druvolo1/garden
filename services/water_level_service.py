@@ -283,12 +283,12 @@ def monitor_water_level_sensors():
                     if not api.settings.feeding_in_progress:
                         is_draining = False
                         try:
-                            drain_valve_mode = getattr(api.settings, 'drain_valve_mode', 'local')
+                            drain_valve_mode = settings.get('drain_valve_mode', 'local')
                             log_water_level(f"[WaterLevel] Drain valve mode: {drain_valve_mode}")
-                            drain_valve_label = getattr(api.settings, 'drain_valve_label', None)
+                            drain_valve_label = settings.get('drain_valve_label', None)
                             log_water_level(f"[WaterLevel] Drain valve label: {drain_valve_label}")
                             if drain_valve_mode == 'remote' and drain_valve_label:
-                                drain_valve_ip = getattr(api.settings, 'drain_valve_ip', None)
+                                drain_valve_ip = settings.get('drain_valve_ip', None)
                                 if drain_valve_ip:
                                     try:
                                         response = requests.get(f"http://{drain_valve_ip}:8000/api/status", timeout=5)
@@ -308,7 +308,7 @@ def monitor_water_level_sensors():
                                 else:
                                     log_water_level("[WaterLevel] No drain_valve_ip, assuming not draining")
                             else:
-                                drain_valve_id = getattr(api.settings, 'drain_valve', None)
+                                drain_valve_id = settings.get('drain_valve', None)
                                 log_water_level(f"[WaterLevel] Local drain valve ID: {drain_valve_id}")
                                 if drain_valve_id:
                                     drain_valve_int = int(drain_valve_id)
