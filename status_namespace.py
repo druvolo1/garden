@@ -365,6 +365,8 @@ def get_status_payload():
 
         # Add version to settings before sending
         settings['current_version'] = CURRENT_VERSION
+        print(f"[STATUS_NAMESPACE DEBUG] Added current_version to settings: {CURRENT_VERSION}")
+        print(f"[STATUS_NAMESPACE DEBUG] Settings keys: {list(settings.keys())}")
 
         status_payload = {
             "settings":     settings,
