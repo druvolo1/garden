@@ -330,6 +330,32 @@ async def ws_client():
                         except Exception as ex:
                             print(f"[WS ERROR] Update command failed: {ex}")
 
+                    elif payload.get('command') == 'restart_service':
+                        # Handle remote service restart request
+                        print("[WS] Received restart_service command from remote server")
+                        try:
+                            import subprocess
+                            print("[WS] Restarting garden.service...")
+                            # Use subprocess.Popen so it doesn't wait for completion (service will restart this process)
+                            subprocess.Popen(['sudo', 'systemctl', 'restart', 'garden.service'],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            print("[WS] Service restart command issued")
+                        except Exception as ex:
+                            print(f"[WS ERROR] Service restart command failed: {ex}")
+
+                    elif payload.get('command') == 'reboot_system':
+                        # Handle remote system reboot request
+                        print("[WS] Received reboot_system command from remote server")
+                        try:
+                            import subprocess
+                            print("[WS] Rebooting system...")
+                            # Use subprocess.Popen so it doesn't block
+                            subprocess.Popen(['sudo', 'reboot'],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            print("[WS] System reboot command issued")
+                        except Exception as ex:
+                            print(f"[WS ERROR] System reboot command failed: {ex}")
+
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
                         payload_data = emit_status_update(force_emit=True)
