@@ -70,6 +70,7 @@ if not os.path.exists(SETTINGS_FILE):
                 "sensor2": {"label": "3 Gal", "pin": 18},
                 "sensor3": {"label": "Empty", "pin": 19}
             },
+            "water_sensors_enabled": False,
             "plant_info": {},
             "additional_plants": [],
 

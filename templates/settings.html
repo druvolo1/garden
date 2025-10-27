@@ -366,6 +366,12 @@
       <div class="data-container">
         <h2>Water Level Sensors</h2>
         <form id="water-level-sensors-form">
+          <div style="margin-bottom: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem;">
+              <input type="checkbox" id="water-sensors-enabled">
+              <span>Enable Water Level Sensors</span>
+            </label>
+          </div>
           <fieldset>
             <legend>Sensor 1</legend>
             <label>Label:</label>
@@ -935,6 +941,7 @@
           sensor2: { label: "Low", pin: 18 },
           sensor3: { label: "Empty", pin: 19 }
         };
+        document.getElementById('water-sensors-enabled').checked = settings.water_sensors_enabled || false;
         document.getElementById('sensor1-label').value = sensors.sensor1.label;
         document.getElementById('sensor1-pin').value = sensors.sensor1.pin;
         document.getElementById('sensor2-label').value = sensors.sensor2.label;
@@ -1207,6 +1214,7 @@
     // Water Level Sensors
     document.getElementById('water-level-sensors-form').addEventListener('submit', e => {
       e.preventDefault();
+      const waterSensorsEnabled = document.getElementById('water-sensors-enabled').checked;
       const sensor1Label = document.getElementById('sensor1-label').value;
       const sensor1Pin = parseInt(document.getElementById('sensor1-pin').value, 10) || 17;
       const sensor2Label = document.getElementById('sensor2-label').value;
@@ -1214,6 +1222,7 @@
       const sensor3Label = document.getElementById('sensor3-label').value;
       const sensor3Pin = parseInt(document.getElementById('sensor3-pin').value, 10) || 19;
       const payload = {
+        water_sensors_enabled: waterSensorsEnabled,
         water_level_sensors: {
           sensor1: { label: sensor1Label, pin: sensor1Pin },
           sensor2: { label: sensor2Label, pin: sensor2Pin },
