@@ -295,12 +295,14 @@ def monitor_water_level_sensors():
                                 drain_valve_ip = settings.get('drain_valve_ip', None)
                                 if drain_valve_ip:
                                     try:
-                                        response = requests.get(f"http://{drain_valve_ip}:8000/api/status", timeout=2)
-                                        log_water_level(f"[WaterLevel] Remote status fetch response: {response.status_code}")
+                                        # Use the valve relay API directly
+                                        response = requests.get(f"http://{drain_valve_ip}:8000/api/valve_relay/{drain_valve_label}/status", timeout=2)
+                                        log_water_level(f"[WaterLevel] Remote valve status fetch response: {response.status_code}")
                                         if response.ok:
                                             data = response.json()
-                                            drain_status = data.get('valve_info', {}).get('valve_relays', {}).get(drain_valve_label, {}).get('status', 'off').lower()
-                                            log_water_level(f"[WaterLevel] Remote drain status: {drain_status}")
+                                            drain_status = data.get('valve_status', 'off').lower()
+                                            log_water_level(f"[WaterLevel] Remote drain valve status: {drain_status}")
+                                            print(f"[WaterLevel AUTO-FILL] Remote drain valve '{drain_valve_label}' status: {drain_status}")
                                             if drain_status == 'on':
                                                 is_draining = True
                                         else:
