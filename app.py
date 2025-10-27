@@ -310,7 +310,45 @@ async def ws_client():
                                 print(f"[WS ERROR] Could not identify valve: {valve_label}")
                         else:
                             print(f"[WS ERROR] Invalid valve control params: {params}")
-                    
+
+                    elif payload.get('command') == 'update_software':
+                        # Handle remote software update request
+                        print("[WS] Received update_software command from remote server")
+                        try:
+                            import requests
+                            url = "http://127.0.0.1:8000/api/settings/apply_update"
+                            print(f"[WS] Calling local update API: {url}")
+                            resp = requests.post(url, timeout=5)
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                if data.get('status') == 'success':
+                                    print("[WS] Software update initiated successfully")
+                                else:
+                                    print(f"[WS ERROR] Update API returned error: {data.get('error')}")
+                            else:
+                                print(f"[WS ERROR] Update API returned HTTP {resp.status_code}")
+                        except Exception as ex:
+                            print(f"[WS ERROR] Update command failed: {ex}")
+
+                    elif payload.get('command') == 'request_version':
+                        # Handle version info request
+                        print("[WS] Received request_version command from remote server")
+                        try:
+                            from api.settings import CURRENT_VERSION
+                            settings = load_settings()
+                            system_name = settings.get('system_name', 'Unknown System')
+
+                            # Send version info back to server
+                            version_payload = {
+                                'type': 'version_info',
+                                'version': CURRENT_VERSION,
+                                'system_name': system_name
+                            }
+                            send_queue.put(version_payload)
+                            print(f"[WS] Queued version_info response: {CURRENT_VERSION}, {system_name}")
+                        except Exception as ex:
+                            print(f"[WS ERROR] Failed to get version info: {ex}")
+
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
                         payload_data = emit_status_update(force_emit=True)
