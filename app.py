@@ -160,29 +160,29 @@ async def ws_client():
         async with websockets.connect(uri) as ws:
             ws_connected = True
             print(f"Connected to remote server WS at {uri}")
-            
+
             # Reset change tracker on connect
             change_tracker.reset_tracker()
-            
+
             # Send initial full status on connect
             initial_payload = get_status_payload()
             if initial_payload:
                 send_queue.put({'type': 'full_sync', 'data': initial_payload})
                 print("Sent initial full_sync on WS connect")
-            
+
             while True:
                 # Check if we should stop
                 if ws_stop_event.is_set():
                     print("[WS] Stop event detected, closing connection")
                     break
-                
+
                 try:
                     # Send from queue
                     if not send_queue.empty():
                         data = send_queue.get()
                         print(f"Sending to remote WS: {json.dumps(data)}")
                         await ws.send(json.dumps(data))
-                    
+
                     # Receive commands
                     data = await asyncio.wait_for(ws.recv(), timeout=0.1)
                     payload = json.loads(data)
@@ -317,13 +317,23 @@ async def ws_client():
                 
                 except asyncio.TimeoutError:
                     pass
+                except websockets.exceptions.ConnectionClosedError as e:
+                    print(f"[WS] Server closed connection (code {e.code}): {e.reason or 'No reason provided'}")
+                    break
+                except websockets.exceptions.ConnectionClosed as e:
+                    print(f"[WS] Connection closed (code {e.code}): {e.reason or 'No reason provided'}")
+                    break
                 except Exception as e:
                     print(f"WS inner error: {e}")
                     import traceback
                     traceback.print_exc()
                     break
+    except websockets.exceptions.InvalidStatusCode as e:
+        print(f"[WS] Server rejected connection: HTTP {e.status_code}")
+    except websockets.exceptions.WebSocketException as e:
+        print(f"[WS] WebSocket error: {e}")
     except Exception as e:
-        print(f"WS connection error: {e}")
+        print(f"[WS] Connection error: {e}")
 
     ws_connected = False
 
