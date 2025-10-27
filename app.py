@@ -324,10 +324,29 @@ async def ws_client():
                     break
     except Exception as e:
         print(f"WS connection error: {e}")
+
     ws_connected = False
+
+    # Check if we should retry or exit
+    if ws_stop_event.is_set():
+        print("[WS] Stop event is set, not retrying connection")
+        return
+
+    # Check if server communication is still enabled
+    settings = load_settings()
+    if not settings.get('server_enabled', False):
+        print("[WS] Server communication disabled, not retrying connection")
+        return
+
+    # Only retry if still enabled and not stopped
     print("WS disconnected; retrying in 10s...")
     await asyncio.sleep(10)
-    await ws_client()  # Retry
+
+    # Double-check before retry
+    if not ws_stop_event.is_set():
+        await ws_client()  # Retry
+    else:
+        print("[WS] Stop event detected during retry wait, exiting")
 
 ########################################################################
 # 1) Create the global SocketIO instance
