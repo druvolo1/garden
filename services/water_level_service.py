@@ -8,6 +8,7 @@ from utils.network_utils import standardize_host_ip
 from utils.settings_utils import load_settings
 from services.valve_relay_service import turn_off_valve as turn_off_valve_local
 from services.valve_relay_service import turn_on_valve as turn_on_valve_local
+from services.valve_relay_service import get_valve_status
 
 try:
     import RPi.GPIO as GPIO

@@ -6,8 +6,72 @@ from utils.settings_utils import load_settings, save_settings
 # NEW: Import emit_status_update
 from status_namespace import emit_status_update
 from datetime import datetime  # Added for timestamp
+from services.water_level_service import get_water_level_status
 
 valve_relay_blueprint = Blueprint('valve_relay', __name__)
+
+# -------------------------
+# Safety Check Helpers
+# -------------------------
+def check_fill_valve_safety(valve_id, valve_name):
+    """
+    Checks if it's safe to turn on a fill valve.
+    Returns (is_safe, error_message)
+    """
+    settings = load_settings()
+
+    # Determine if this valve is a fill valve
+    is_fill_valve = False
+    fill_valve_id_str = settings.get("fill_valve")
+    fill_valve_label = settings.get("fill_valve_label")
+
+    if fill_valve_id_str and int(fill_valve_id_str) == valve_id:
+        is_fill_valve = True
+    elif fill_valve_label and valve_name and fill_valve_label.lower() == valve_name.lower():
+        is_fill_valve = True
+
+    if not is_fill_valve:
+        return (True, None)  # Not a fill valve, skip check
+
+    # Check if full sensor is triggered
+    water_status = get_water_level_status()
+    fill_sensor_key = settings.get("fill_sensor", "sensor1")
+
+    if fill_sensor_key in water_status:
+        if water_status[fill_sensor_key]["triggered"]:
+            return (False, f"Cannot turn on fill valve: full sensor ({water_status[fill_sensor_key]['label']}) is triggered")
+
+    return (True, None)
+
+def check_drain_valve_safety(valve_id, valve_name):
+    """
+    Checks if it's safe to turn on a drain valve.
+    Returns (is_safe, error_message)
+    """
+    settings = load_settings()
+
+    # Determine if this valve is a drain valve
+    is_drain_valve = False
+    drain_valve_id_str = settings.get("drain_valve")
+    drain_valve_label = settings.get("drain_valve_label")
+
+    if drain_valve_id_str and int(drain_valve_id_str) == valve_id:
+        is_drain_valve = True
+    elif drain_valve_label and valve_name and drain_valve_label.lower() == valve_name.lower():
+        is_drain_valve = True
+
+    if not is_drain_valve:
+        return (True, None)  # Not a drain valve, skip check
+
+    # Check if empty sensor is NOT triggered (meaning there's still water)
+    water_status = get_water_level_status()
+    drain_sensor_key = settings.get("drain_sensor", "sensor3")
+
+    if drain_sensor_key in water_status:
+        if not water_status[drain_sensor_key]["triggered"]:
+            return (False, f"Cannot turn on drain valve: empty sensor ({water_status[drain_sensor_key]['label']}) indicates water is still present")
+
+    return (True, None)
 
 # -------------------------
 # Numeric ID-based control
@@ -15,6 +79,16 @@ valve_relay_blueprint = Blueprint('valve_relay', __name__)
 @valve_relay_blueprint.route('/<int:valve_id>/on', methods=['POST'])
 def valve_on(valve_id):
     try:
+        # Safety check for fill valve
+        is_safe, error_msg = check_fill_valve_safety(valve_id, None)
+        if not is_safe:
+            return jsonify({"status": "failure", "error": error_msg}), 400
+
+        # Safety check for drain valve
+        is_safe, error_msg = check_drain_valve_safety(valve_id, None)
+        if not is_safe:
+            return jsonify({"status": "failure", "error": error_msg}), 400
+
         turn_on_valve(valve_id)
         # Emit status_update so clients see changes immediately
         emit_status_update(force_emit=True)
@@ -57,6 +131,15 @@ def valve_toggle(valve_id):
             turn_off_valve(valve_id)
             action = "off"
         else:
+            # Safety checks before turning on
+            is_safe, error_msg = check_fill_valve_safety(valve_id, None)
+            if not is_safe:
+                return jsonify({"status": "failure", "error": error_msg}), 400
+
+            is_safe, error_msg = check_drain_valve_safety(valve_id, None)
+            if not is_safe:
+                return jsonify({"status": "failure", "error": error_msg}), 400
+
             turn_on_valve(valve_id)
             action = "on"
         emit_status_update(force_emit=True)
@@ -81,6 +164,15 @@ def valve_on_by_name(valve_name):
     local_id = get_valve_id_by_name(valve_name)
     if local_id is not None:
         try:
+            # Safety checks before turning on
+            is_safe, error_msg = check_fill_valve_safety(local_id, valve_name)
+            if not is_safe:
+                return jsonify({"status": "failure", "error": error_msg}), 400
+
+            is_safe, error_msg = check_drain_valve_safety(local_id, valve_name)
+            if not is_safe:
+                return jsonify({"status": "failure", "error": error_msg}), 400
+
             turn_on_valve(local_id)
             emit_status_update(force_emit=True)
             return jsonify({
@@ -237,6 +329,15 @@ def valve_toggle_by_name(valve_name):
                 turn_off_valve(local_id)
                 action = "off"
             else:
+                # Safety checks before turning on
+                is_safe, error_msg = check_fill_valve_safety(local_id, valve_name)
+                if not is_safe:
+                    return jsonify({"status": "failure", "error": error_msg}), 400
+
+                is_safe, error_msg = check_drain_valve_safety(local_id, valve_name)
+                if not is_safe:
+                    return jsonify({"status": "failure", "error": error_msg}), 400
+
                 turn_on_valve(local_id)
                 action = "on"
             emit_status_update(force_emit=True)
