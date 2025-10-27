@@ -380,6 +380,32 @@ def get_status_payload():
         traceback.print_exc()
         return None
 
+def emit_valve_update(valve_id, label, status):
+    """
+    Emits a granular valve update event for immediate UI feedback.
+    This is much faster than a full status update.
+    """
+    try:
+        if not _socketio:
+            log_with_timestamp("[ERROR] _socketio is not set yet; cannot emit_valve_update.")
+            return
+
+        valve_update_payload = {
+            "type": "valve_update",
+            "valve_id": valve_id,
+            "label": label,
+            "status": status,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        log_with_timestamp(f"[DEBUG] Emitting granular valve_update: valve_id={valve_id}, label={label}, status={status}")
+        _socketio.emit("status_update", valve_update_payload, namespace="/status")
+
+    except Exception as e:
+        log_with_timestamp(f"Error in emit_valve_update: {e}")
+        import traceback
+        traceback.print_exc()
+
 def emit_status_update(force_emit=False):
     global LAST_EMITTED_STATUS
 
@@ -406,7 +432,7 @@ def emit_status_update(force_emit=False):
                 compare_last = {k: v for k, v in LAST_EMITTED_STATUS.items() if k != 'timestamp'}
                 compare_last = round_floats(compare_last)
                 last_json = json.dumps(compare_last, sort_keys=True, default=str)
-                
+
                 if current_json == last_json:
                     log_with_timestamp("[DEBUG] No changes detected; skipping emit.")
                     return None
