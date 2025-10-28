@@ -54,6 +54,33 @@
             const contentContainer = document.getElementById('log-content-container');
             const contentPre = document.getElementById('log-content');
 
+            let serverConfigured = false;
+
+            // Check if server is configured
+            async function checkServerConfig() {
+                try {
+                    const response = await fetch('/api/settings');
+                    const settings = await response.json();
+                    const serverUrl = settings.server_url || '';
+                    const apiKey = settings.api_key || '';
+                    const deviceId = settings.device_id || '';
+                    const plantInfo = settings.plant_info || {};
+                    const plantId = plantInfo.plant_id || '';
+
+                    // Server must be configured and have an active plant
+                    serverConfigured = serverUrl && apiKey && deviceId && plantId;
+
+                    if (!serverConfigured) {
+                        syncBtn.title = 'Server not configured or no active plant';
+                    } else {
+                        syncBtn.title = 'Upload selected log to server';
+                    }
+                } catch (err) {
+                    console.error('Error checking server config:', err);
+                    serverConfigured = false;
+                }
+            }
+
             // Fetch list of log files
             async function loadLogFiles() {
                 try {
@@ -77,7 +104,7 @@
                 const selected = select.value;
                 viewBtn.disabled = !selected;
                 downloadBtn.disabled = !selected;
-                syncBtn.disabled = !selected;
+                syncBtn.disabled = !selected || !serverConfigured;  // Only enable if file selected AND server configured
                 deleteBtn.disabled = !selected;
                 contentContainer.style.display = 'none';
             });
@@ -109,25 +136,30 @@
                 const selected = select.value;
                 if (!selected) return;
 
-                if (!confirm('Upload all pending logs to server? This will sync all local log files.')) return;
+                if (!serverConfigured) {
+                    alert('Server is not configured or no active plant. Please configure server connection and start a plant before syncing logs.');
+                    return;
+                }
+
+                if (!confirm(`Upload ${selected} to server? This will sync the selected log file and delete it locally.`)) return;
 
                 try {
                     syncBtn.disabled = true;
                     syncBtn.textContent = 'Syncing...';
 
-                    const response = await fetch('/api/plant_info/upload_logs', { method: 'POST' });
+                    const response = await fetch(`/api/plant_info/upload_log/${selected}`, { method: 'POST' });
                     const data = await response.json();
 
                     if (data.status === 'success') {
-                        alert('Logs synced successfully! Local log files have been uploaded and deleted.');
+                        alert(`${selected} synced successfully! The file has been uploaded and deleted locally.`);
                         loadLogFiles();
                         contentContainer.style.display = 'none';
                     } else {
-                        alert(`Failed to sync logs: ${data.message || 'Unknown error'}`);
+                        alert(`Failed to sync ${selected}: ${data.message || 'Unknown error'}`);
                     }
                 } catch (err) {
-                    console.error('Error syncing logs:', err);
-                    alert('Failed to sync logs to server. Check console for details.');
+                    console.error('Error syncing log:', err);
+                    alert('Failed to sync log to server. Check console for details.');
                 } finally {
                     syncBtn.disabled = false;
                     syncBtn.textContent = 'Sync to Server';
@@ -154,6 +186,7 @@
                 }
             });
 
+            checkServerConfig();
             loadLogFiles();
         });
     </script>

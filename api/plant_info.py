@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, render_template
 from utils.settings_utils import load_settings, save_settings
 from status_namespace import emit_status_update
 from services.plant_service import get_weeks_since_start
-from services.log_service import upload_pending_logs
+from services.log_service import upload_pending_logs, upload_specific_log_file
 import os
 
 plant_info_blueprint = Blueprint('plant_info', __name__)
@@ -62,5 +62,19 @@ def upload_logs():
             return jsonify({"status": "success", "message": "Logs uploaded successfully"})
         else:
             return jsonify({"status": "error", "message": "Failed to upload logs"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@plant_info_blueprint.route('/upload_log/<filename>', methods=['POST'])
+def upload_single_log(filename):
+    """
+    Upload a specific log file to the server.
+    """
+    try:
+        success = upload_specific_log_file(filename)
+        if success:
+            return jsonify({"status": "success", "message": f"Log file {filename} uploaded successfully"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to upload log file"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

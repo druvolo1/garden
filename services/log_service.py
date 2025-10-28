@@ -123,6 +123,87 @@ def log_ph_periodically():
             log_sensor_reading('ph', ph)
         time.sleep(6 * 3600)  # 6 hours in seconds
 
+def upload_specific_log_file(filename):
+    """
+    Upload a specific log file to the server.
+    """
+    try:
+        settings = get_cached_settings()
+        server_url = settings.get("server_url")
+        device_id = settings.get("device_id")
+        api_key = settings.get("api_key")
+        plant_info = settings.get("plant_info", {})
+        plant_id = plant_info.get("plant_id")
+
+        # Don't upload if not configured or no active plant
+        if not all([server_url, device_id, api_key, plant_id]):
+            print("Log upload skipped: server not configured or no active plant")
+            return False
+
+        # Convert WebSocket URL to HTTP URL for API calls
+        server_url = server_url.replace('wss://', 'https://').replace('ws://', 'http://')
+        # Remove /ws/devices path if present
+        server_url = server_url.replace('/ws/devices', '')
+
+        log_file_path = os.path.join(LOG_DIR, filename)
+
+        if not os.path.exists(log_file_path):
+            print(f"Log file {filename} not found")
+            return False
+
+        # Read all log entries from file
+        log_entries = []
+        with open(log_file_path, 'r') as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        log_entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        print(f"Skipping invalid JSON line in {filename}")
+                        continue
+
+        if not log_entries:
+            print(f"No log entries found in {filename}")
+            return False
+
+        # Upload in batches of 100
+        batch_size = 100
+        total_uploaded = 0
+
+        for i in range(0, len(log_entries), batch_size):
+            batch = log_entries[i:i + batch_size]
+
+            try:
+                url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}&plant_id={plant_id}"
+                response = requests.post(
+                    url,
+                    json=batch,
+                    timeout=30
+                )
+
+                if response.status_code == 200:
+                    total_uploaded += len(batch)
+                else:
+                    print(f"Failed to upload batch from {filename}: {response.status_code}")
+                    return False
+
+            except Exception as e:
+                print(f"Error uploading batch from {filename}: {e}")
+                return False
+
+        # If all batches uploaded successfully, delete the local file
+        try:
+            os.remove(log_file_path)
+            print(f"Deleted {filename} after successful upload ({total_uploaded} entries)")
+        except Exception as e:
+            print(f"Failed to delete {filename}: {e}")
+
+        return True
+
+    except Exception as e:
+        print(f"Error in upload_specific_log_file: {e}")
+        return False
+
 def upload_pending_logs():
     """
     Upload all pending logs from local JSONL files to the server.
