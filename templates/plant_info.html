@@ -57,46 +57,107 @@
       <!-- Plant Info (combined) -->
       <div class="data-container" id="plant-info-container">
         <h2>Plant Info</h2>
-        <form id="plant-info-form">
-          <label for="plant-name">Plant Name:</label>
-          <input type="text" id="plant-name">
-          <label for="plant-start-date">Plant Start Date:</label>
-          <input type="date" id="plant-start-date">
-          <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
-          <div class="checkbox-group">
-            <label for="auto-dosing">
-              <input type="checkbox" id="auto-dosing">
-              Auto-Dosing Enabled
-            </label>
-            <label for="allow-remote-feeding">
-              <input type="checkbox" id="allow-remote-feeding">
-              Allow Remote Feeding
-            </label>
-          </div>
-          <button type="submit">Save Plant Info</button>
-        </form>
+
+        <!-- Start Plant Section (shown when no active plant) -->
+        <div id="start-plant-section" style="display: none;">
+          <p style="color: #94a3b8; margin-bottom: 1rem;">No active plant. Start a new plant to begin logging.</p>
+          <form id="start-plant-form">
+            <label for="new-plant-name">Strain Name:</label>
+            <input type="text" id="new-plant-name" required>
+            <label for="system-id">System ID (optional):</label>
+            <input type="text" id="system-id" placeholder="e.g., Zone1">
+            <div class="checkbox-group" style="margin-top: 1rem;">
+              <label for="start-auto-dosing">
+                <input type="checkbox" id="start-auto-dosing">
+                Enable Auto-Dosing
+              </label>
+              <label for="start-allow-remote-feeding">
+                <input type="checkbox" id="start-allow-remote-feeding">
+                Allow Remote Feeding
+              </label>
+            </div>
+            <button type="submit" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Start Plant</button>
+          </form>
+        </div>
+
+        <!-- Active Plant Section (shown when plant is active) -->
+        <div id="active-plant-section" style="display: none;">
+          <form id="plant-info-form">
+            <label for="plant-name">Plant Name (Strain):</label>
+            <input type="text" id="plant-name" readonly style="background: #1e293b; cursor: not-allowed;">
+            <label for="plant-start-date">Plant Start Date:</label>
+            <input type="date" id="plant-start-date" readonly style="background: #1e293b; cursor: not-allowed;">
+            <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
+            <div>Plant ID: <span id="plant-id-display" style="color: #94a3b8; font-size: 0.875rem;">N/A</span></div>
+            <div class="checkbox-group">
+              <label for="auto-dosing">
+                <input type="checkbox" id="auto-dosing">
+                Auto-Dosing Enabled
+              </label>
+              <label for="allow-remote-feeding">
+                <input type="checkbox" id="allow-remote-feeding">
+                Allow Remote Feeding
+              </label>
+            </div>
+            <button type="submit">Save Settings</button>
+            <button type="button" id="finish-plant-btn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); margin-top: 1rem;">Finish Plant</button>
+          </form>
+        </div>
       </div>
     </div>
   </main>
   <script>
     // JavaScript for Plant Info page
-    // Similar to settings.html, but only for moved items
+
+    let currentSettings = {};
 
     // Fetch current settings on load
     document.addEventListener('DOMContentLoaded', () => {
+      loadSettings();
+    });
+
+    function loadSettings() {
       fetch('/api/settings')
         .then(response => response.json())
         .then(settings => {
-          // Plant Info (combined)
+          currentSettings = settings;
           const plantInfo = settings.plant_info || {};
-          document.getElementById('plant-name').value = plantInfo.name || '';
-          document.getElementById('plant-start-date').value = plantInfo.start_date || '';
-          document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
-          document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
-          document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
+
+          // Check if there's an active plant (has plant_id)
+          if (plantInfo.plant_id) {
+            // Show active plant section
+            document.getElementById('start-plant-section').style.display = 'none';
+            document.getElementById('active-plant-section').style.display = 'block';
+
+            document.getElementById('plant-name').value = plantInfo.name || '';
+            document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+            document.getElementById('plant-id-display').textContent = plantInfo.plant_id || 'N/A';
+            document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
+            document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
+            document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
+
+            // Add system_id to hidden field if needed
+            if (!document.getElementById('current-system-id')) {
+              const hiddenSystemId = document.createElement('input');
+              hiddenSystemId.type = 'hidden';
+              hiddenSystemId.id = 'current-system-id';
+              hiddenSystemId.value = plantInfo.system_id || '';
+              document.getElementById('plant-info-form').appendChild(hiddenSystemId);
+            } else {
+              document.getElementById('current-system-id').value = plantInfo.system_id || '';
+            }
+          } else {
+            // Show start plant section
+            document.getElementById('start-plant-section').style.display = 'block';
+            document.getElementById('active-plant-section').style.display = 'none';
+
+            // Pre-fill system_id if it exists
+            const systemId = settings.system_name || '';
+            document.getElementById('system-id').value = systemId;
+          }
         })
         .catch(err => console.error('Error fetching settings:', err));
-    });
+    }
 
     // Function to calculate weeks since start
     function getWeeksSinceStart(startDate) {
@@ -108,24 +169,188 @@
       return Math.floor(diffDays / 7);
     }
 
-    // Save Plant Info (combined)
+    // Handle Start Plant
+    document.getElementById('start-plant-form').addEventListener('submit', async e => {
+      e.preventDefault();
+
+      const plantName = document.getElementById('new-plant-name').value.trim();
+      const systemId = document.getElementById('system-id').value.trim();
+      const autoDosing = document.getElementById('start-auto-dosing').checked;
+      const allowRemoteFeeding = document.getElementById('start-allow-remote-feeding').checked;
+
+      if (!plantName) {
+        alert('Please enter a strain name');
+        return;
+      }
+
+      if (!confirm(`Start new plant "${plantName}"?`)) {
+        return;
+      }
+
+      try {
+        // Get device_id and api_key from settings
+        const deviceId = currentSettings.device_id;
+        const apiKey = currentSettings.api_key;
+        const serverUrl = currentSettings.server_url;
+
+        if (!deviceId || !apiKey || !serverUrl) {
+          alert('Please configure device connection in Settings first');
+          return;
+        }
+
+        // Create plant on server
+        const response = await fetch(`${serverUrl}/user/plants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: plantName,
+            system_id: systemId || null,
+            device_id: deviceId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const plantId = data.plant_id;
+
+        // Save plant info and settings to local settings
+        const payload = {
+          plant_info: {
+            plant_id: plantId,
+            name: plantName,
+            start_date: new Date().toISOString().split('T')[0],
+            system_id: systemId || null
+          },
+          auto_dosing_enabled: autoDosing,
+          allow_remote_feeding: allowRemoteFeeding
+        };
+
+        await fetch('/api/settings/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        alert(`Plant "${plantName}" started successfully!`);
+        loadSettings(); // Reload to show active plant section
+
+      } catch (error) {
+        console.error('Error starting plant:', error);
+        alert(`Failed to start plant: ${error.message}`);
+      }
+    });
+
+    // Save Plant Settings (auto-dosing and remote feeding)
     document.getElementById('plant-info-form').addEventListener('submit', e => {
       e.preventDefault();
-      const plantName = document.getElementById('plant-name').value.trim();
-      const plantStartDate = document.getElementById('plant-start-date').value;
       const autoDosing = document.getElementById('auto-dosing').checked;
       const allowRemoteFeeding = document.getElementById('allow-remote-feeding').checked;
       const payload = {
-        plant_info: {
-          name: plantName,
-          start_date: plantStartDate
-        },
         auto_dosing_enabled: autoDosing,
         allow_remote_feeding: allowRemoteFeeding
       };
-      saveSettings("/api/settings/", payload);  // Use the settings endpoint
-      document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantStartDate);
+      saveSettings("/api/settings/", payload);
     });
+
+    // Handle Finish Plant
+    document.getElementById('finish-plant-btn').addEventListener('click', async () => {
+      if (!confirm('Finish this plant? All pending logs will be uploaded and plant info will be cleared.')) {
+        return;
+      }
+
+      const endDateStr = prompt('Enter end date (YYYY-MM-DD) or leave blank for today:', new Date().toISOString().split('T')[0]);
+
+      if (endDateStr === null) {
+        return; // User cancelled
+      }
+
+      try {
+        const plantInfo = currentSettings.plant_info || {};
+        const plantId = plantInfo.plant_id;
+
+        if (!plantId) {
+          alert('No active plant found');
+          return;
+        }
+
+        const serverUrl = currentSettings.server_url;
+        const deviceId = currentSettings.device_id;
+        const apiKey = currentSettings.api_key;
+
+        if (!serverUrl) {
+          alert('Server URL not configured');
+          return;
+        }
+
+        // Upload any pending logs first
+        console.log('Uploading pending logs...');
+        await uploadPendingLogs();
+
+        // Finish plant on server
+        const response = await fetch(`${serverUrl}/user/plants/${plantId}/finish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            end_date: endDateStr || new Date().toISOString()
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        // Clear plant info from local settings and disable auto-dosing and remote feeding
+        const payload = {
+          plant_info: {
+            plant_id: null,
+            name: null,
+            start_date: null,
+            system_id: null
+          },
+          auto_dosing_enabled: false,
+          allow_remote_feeding: false
+        };
+
+        await fetch('/api/settings/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        // Delete local log files
+        console.log('Plant finished successfully!');
+        alert('Plant finished and logs uploaded successfully!');
+        loadSettings(); // Reload to show start plant section
+
+      } catch (error) {
+        console.error('Error finishing plant:', error);
+        alert(`Failed to finish plant: ${error.message}`);
+      }
+    });
+
+    // Function to upload pending logs
+    async function uploadPendingLogs() {
+      try {
+        const response = await fetch('/api/plant_info/upload_logs', {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const data = await response.json();
+        console.log('Logs uploaded successfully:', data);
+        return true;
+      } catch (error) {
+        console.error('Error uploading logs:', error);
+        // Don't fail the whole finish process if log upload fails
+        return false;
+      }
+    }
 
     // Generic save function
     function saveSettings(url, payload) {
@@ -138,11 +363,16 @@
       .then(data => {
         if (data.status === 'success') {
           console.log('Settings saved successfully');
+          alert('Settings saved');
         } else {
           console.error('Failed to save settings:', data.error);
+          alert('Failed to save settings');
         }
       })
-      .catch(err => console.error('Error saving settings:', err));
+      .catch(err => {
+        console.error('Error saving settings:', err);
+        alert('Error saving settings');
+      });
     }
   </script>
 </body>

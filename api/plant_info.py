@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, render_template
 from utils.settings_utils import load_settings, save_settings
 from status_namespace import emit_status_update
 from services.plant_service import get_weeks_since_start
+from services.log_service import upload_pending_logs
 import os
 
 plant_info_blueprint = Blueprint('plant_info', __name__)
@@ -48,3 +49,18 @@ def update_plant_info():
 @plant_info_blueprint.route('/plant_info')
 def plant_info_page():
     return render_template('plant_info.html')
+
+@plant_info_blueprint.route('/upload_logs', methods=['POST'])
+def upload_logs():
+    """
+    Trigger upload of pending logs to server.
+    Called when finishing a plant.
+    """
+    try:
+        success = upload_pending_logs()
+        if success:
+            return jsonify({"status": "success", "message": "Logs uploaded successfully"})
+        else:
+            return jsonify({"status": "error", "message": "Failed to upload logs"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
