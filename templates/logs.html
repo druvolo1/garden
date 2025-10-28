@@ -34,6 +34,7 @@
             </select>
             <button id="view-btn" disabled>View Log</button>
             <button id="download-btn" disabled>Download</button>
+            <button id="sync-btn" disabled style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Sync to Server</button>
             <button id="delete-btn" disabled>Delete</button>
         </div>
 
@@ -48,6 +49,7 @@
             const select = document.getElementById('log-file-select');
             const viewBtn = document.getElementById('view-btn');
             const downloadBtn = document.getElementById('download-btn');
+            const syncBtn = document.getElementById('sync-btn');
             const deleteBtn = document.getElementById('delete-btn');
             const contentContainer = document.getElementById('log-content-container');
             const contentPre = document.getElementById('log-content');
@@ -75,6 +77,7 @@
                 const selected = select.value;
                 viewBtn.disabled = !selected;
                 downloadBtn.disabled = !selected;
+                syncBtn.disabled = !selected;
                 deleteBtn.disabled = !selected;
                 contentContainer.style.display = 'none';
             });
@@ -99,6 +102,36 @@
                 const selected = select.value;
                 if (!selected) return;
                 window.location.href = `/api/logs/download/${selected}`;
+            });
+
+            // Sync to server
+            syncBtn.addEventListener('click', async () => {
+                const selected = select.value;
+                if (!selected) return;
+
+                if (!confirm('Upload all pending logs to server? This will sync all local log files.')) return;
+
+                try {
+                    syncBtn.disabled = true;
+                    syncBtn.textContent = 'Syncing...';
+
+                    const response = await fetch('/api/plant_info/upload_logs', { method: 'POST' });
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        alert('Logs synced successfully! Local log files have been uploaded and deleted.');
+                        loadLogFiles();
+                        contentContainer.style.display = 'none';
+                    } else {
+                        alert(`Failed to sync logs: ${data.message || 'Unknown error'}`);
+                    }
+                } catch (err) {
+                    console.error('Error syncing logs:', err);
+                    alert('Failed to sync logs to server. Check console for details.');
+                } finally {
+                    syncBtn.disabled = false;
+                    syncBtn.textContent = 'Sync to Server';
+                }
             });
 
             // Delete log
