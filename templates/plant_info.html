@@ -210,8 +210,8 @@
         // Remove /ws/devices path if present
         serverUrl = serverUrl.replace('/ws/devices', '');
 
-        // Create plant on server
-        const response = await fetch(`${serverUrl}/user/plants`, {
+        // Create plant on server using device API
+        const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants?api_key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -306,8 +306,8 @@
         console.log('Uploading pending logs...');
         await uploadPendingLogs();
 
-        // Finish plant on server
-        const response = await fetch(`${serverUrl}/user/plants/${plantId}/finish`, {
+        // Finish plant on server using device API
+        const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants/${plantId}/finish?api_key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
