@@ -161,6 +161,12 @@
             // Display system name
             const systemName = settings.system_name || 'Not configured';
             document.getElementById('system-name-display').textContent = systemName;
+
+            // Pre-populate plant name if there's an old name in settings (from previous plant)
+            const oldPlantName = plantInfo.name || '';
+            if (oldPlantName) {
+              document.getElementById('new-plant-name').value = oldPlantName;
+            }
           }
         })
         .catch(err => console.error('Error fetching settings:', err));

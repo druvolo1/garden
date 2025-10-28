@@ -96,14 +96,8 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
     }, category='dosing')
 
 def log_sensor_reading(sensor_name, value, additional_data=None):
-    settings = get_cached_settings()
-    system_id = settings.get("system_name", "Unknown")
-    plant_name = settings.get("plant_info", {}).get("name", "Unknown")
-    
     data = {
         'event_type': 'sensor',
-        'system_id': system_id,  # Added: Fixed system/zone
-        'plant_name': plant_name,  # Added: Rotating variety
         'sensor_name': sensor_name,
         'value': value
     }
@@ -187,11 +181,13 @@ def upload_specific_log_file(filename):
                 return False
 
         # If all batches uploaded successfully, delete the local file
-        try:
-            os.remove(log_file_path)
-            print(f"Deleted {filename} after successful upload ({total_uploaded} entries)")
-        except Exception as e:
-            print(f"Failed to delete {filename}: {e}")
+        # COMMENTED OUT FOR TESTING
+        # try:
+        #     os.remove(log_file_path)
+        #     print(f"Deleted {filename} after successful upload ({total_uploaded} entries)")
+        # except Exception as e:
+        #     print(f"Failed to delete {filename}: {e}")
+        print(f"Upload successful ({total_uploaded} entries). NOT deleting {filename} (deletion commented out for testing)")
 
         return True
 
@@ -270,11 +266,13 @@ def upload_pending_logs():
                     return False
 
             # If all batches uploaded successfully, delete the local file
-            try:
-                os.remove(log_file_path)
-                print(f"Deleted {log_filename} after successful upload")
-            except Exception as e:
-                print(f"Failed to delete {log_filename}: {e}")
+            # COMMENTED OUT FOR TESTING
+            # try:
+            #     os.remove(log_file_path)
+            #     print(f"Deleted {log_filename} after successful upload")
+            # except Exception as e:
+            #     print(f"Failed to delete {log_filename}: {e}")
+            print(f"Upload successful. NOT deleting {log_filename} (deletion commented out for testing)")
 
         print(f"Successfully uploaded {total_uploaded} log entries")
         return True
