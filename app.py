@@ -522,12 +522,48 @@ def broadcast_status():
             eventlet.sleep(0.5)
 
 def auto_dose_loop():
+    """
+    Auto-dosing loop that respects the dosing interval timer.
+    Checks every 5 minutes to see if it's time to dose based on last_dose_time.
+    """
     while True:
         settings = load_settings()
-        dosing_interval_hours = settings.get("dosing_interval", 1.0)  # Define outside the if, with a default
+        dosing_interval_hours = settings.get("dosing_interval", 1.0)
+
         if settings.get("auto_dosing_enabled", False):
-            perform_auto_dose(settings)
-        eventlet.sleep(dosing_interval_hours * 3600)  # Now always safe to use
+            # Check if enough time has passed since last dose (manual or auto)
+            last_dose_time = auto_dose_state.get("last_dose_time")
+
+            if last_dose_time is None:
+                # No previous dose recorded, perform dose now
+                print("[AutoDoseLoop] No previous dose recorded; performing auto dose.")
+                direction, dose_ml = perform_auto_dose(settings)
+                if direction != "none":
+                    # Update state with the dose we just performed
+                    auto_dose_state["last_dose_time"] = datetime.now()
+                    auto_dose_state["last_dose_type"] = direction
+                    auto_dose_state["last_dose_amount"] = dose_ml
+            else:
+                # Calculate time elapsed since last dose
+                time_elapsed = datetime.now() - last_dose_time
+                elapsed_hours = time_elapsed.total_seconds() / 3600
+
+                if elapsed_hours >= dosing_interval_hours:
+                    # Enough time has passed, perform auto dose
+                    print(f"[AutoDoseLoop] {elapsed_hours:.2f} hours elapsed since last dose; performing auto dose.")
+                    direction, dose_ml = perform_auto_dose(settings)
+                    if direction != "none":
+                        # Update state with the dose we just performed
+                        auto_dose_state["last_dose_time"] = datetime.now()
+                        auto_dose_state["last_dose_type"] = direction
+                        auto_dose_state["last_dose_amount"] = dose_ml
+                else:
+                    # Not enough time has passed yet
+                    time_remaining = dosing_interval_hours - elapsed_hours
+                    print(f"[AutoDoseLoop] Only {elapsed_hours:.2f} hours elapsed; waiting {time_remaining:.2f} more hours.")
+
+        # Check every 5 minutes instead of sleeping for the full interval
+        eventlet.sleep(300)  # 5 minutes = 300 seconds
 
 def start_threads():
     settings = load_settings()
