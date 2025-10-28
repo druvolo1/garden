@@ -64,8 +64,10 @@
           <form id="start-plant-form">
             <label for="new-plant-name">Strain Name:</label>
             <input type="text" id="new-plant-name" required>
-            <label for="system-id">System ID (optional):</label>
-            <input type="text" id="system-id" placeholder="e.g., Zone1">
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #1e293b; border-radius: 6px; border: 1px solid #334155;">
+              <div style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.25rem;">System:</div>
+              <div id="system-name-display" style="color: #e2e8f0; font-weight: 500;">Loading...</div>
+            </div>
             <div class="checkbox-group" style="margin-top: 1rem;">
               <label for="start-auto-dosing">
                 <input type="checkbox" id="start-auto-dosing">
@@ -87,6 +89,10 @@
             <input type="text" id="plant-name" readonly style="background: #1e293b; cursor: not-allowed;">
             <label for="plant-start-date">Plant Start Date:</label>
             <input type="date" id="plant-start-date" readonly style="background: #1e293b; cursor: not-allowed;">
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #1e293b; border-radius: 6px; border: 1px solid #334155;">
+              <div style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.25rem;">System:</div>
+              <div id="active-system-name-display" style="color: #e2e8f0; font-weight: 500;">N/A</div>
+            </div>
             <div>Weeks Since Start: <span id="weeks-since-start">N/A</span></div>
             <div>Plant ID: <span id="plant-id-display" style="color: #94a3b8; font-size: 0.875rem;">N/A</span></div>
             <div class="checkbox-group">
@@ -131,6 +137,7 @@
 
             document.getElementById('plant-name').value = plantInfo.name || '';
             document.getElementById('plant-start-date').value = plantInfo.start_date || '';
+            document.getElementById('active-system-name-display').textContent = plantInfo.system_id || 'N/A';
             document.getElementById('plant-id-display').textContent = plantInfo.plant_id || 'N/A';
             document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
             document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
@@ -151,9 +158,9 @@
             document.getElementById('start-plant-section').style.display = 'block';
             document.getElementById('active-plant-section').style.display = 'none';
 
-            // Pre-fill system_id if it exists
-            const systemId = settings.system_name || '';
-            document.getElementById('system-id').value = systemId;
+            // Display system name
+            const systemName = settings.system_name || 'Not configured';
+            document.getElementById('system-name-display').textContent = systemName;
           }
         })
         .catch(err => console.error('Error fetching settings:', err));
@@ -174,7 +181,6 @@
       e.preventDefault();
 
       const plantName = document.getElementById('new-plant-name').value.trim();
-      const systemId = document.getElementById('system-id').value.trim();
       const autoDosing = document.getElementById('start-auto-dosing').checked;
       const allowRemoteFeeding = document.getElementById('start-allow-remote-feeding').checked;
 
@@ -188,9 +194,10 @@
       }
 
       try {
-        // Get device_id and api_key from settings
+        // Get settings
         const deviceId = currentSettings.device_id;
         const apiKey = currentSettings.api_key;
+        const systemName = currentSettings.system_name || null;
         let serverUrl = currentSettings.server_url;
 
         if (!deviceId || !apiKey || !serverUrl) {
@@ -209,7 +216,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: plantName,
-            system_id: systemId || null,
+            system_id: systemName,
             device_id: deviceId
           })
         });
@@ -227,7 +234,7 @@
             plant_id: plantId,
             name: plantName,
             start_date: new Date().toISOString().split('T')[0],
-            system_id: systemId || null
+            system_id: systemName
           },
           auto_dosing_enabled: autoDosing,
           allow_remote_feeding: allowRemoteFeeding
