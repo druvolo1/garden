@@ -48,6 +48,11 @@ def upload_log_to_server(log_entry):
         if not all([server_url, device_id, api_key, plant_id]):
             return False
 
+        # Convert WebSocket URL to HTTP URL for API calls
+        server_url = server_url.replace('wss://', 'https://').replace('ws://', 'http://')
+        # Remove /ws/devices path if present
+        server_url = server_url.replace('/ws/devices', '')
+
         # Upload to server
         url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}&plant_id={plant_id}"
         response = requests.post(
@@ -135,6 +140,11 @@ def upload_pending_logs():
         if not all([server_url, device_id, api_key, plant_id]):
             print("Log upload skipped: server not configured or no active plant")
             return False
+
+        # Convert WebSocket URL to HTTP URL for API calls
+        server_url = server_url.replace('wss://', 'https://').replace('ws://', 'http://')
+        # Remove /ws/devices path if present
+        server_url = server_url.replace('/ws/devices', '')
 
         # Read and upload logs from each file
         log_files = ['ph_log.jsonl', 'dosing_log.jsonl']

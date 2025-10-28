@@ -191,12 +191,17 @@
         // Get device_id and api_key from settings
         const deviceId = currentSettings.device_id;
         const apiKey = currentSettings.api_key;
-        const serverUrl = currentSettings.server_url;
+        let serverUrl = currentSettings.server_url;
 
         if (!deviceId || !apiKey || !serverUrl) {
           alert('Please configure device connection in Settings first');
           return;
         }
+
+        // Convert WebSocket URL to HTTP URL for API calls
+        serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+        // Remove /ws/devices path if present
+        serverUrl = serverUrl.replace('/ws/devices', '');
 
         // Create plant on server
         const response = await fetch(`${serverUrl}/user/plants`, {
@@ -276,7 +281,7 @@
           return;
         }
 
-        const serverUrl = currentSettings.server_url;
+        let serverUrl = currentSettings.server_url;
         const deviceId = currentSettings.device_id;
         const apiKey = currentSettings.api_key;
 
@@ -284,6 +289,11 @@
           alert('Server URL not configured');
           return;
         }
+
+        // Convert WebSocket URL to HTTP URL for API calls
+        serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+        // Remove /ws/devices path if present
+        serverUrl = serverUrl.replace('/ws/devices', '');
 
         // Upload any pending logs first
         console.log('Uploading pending logs...');
