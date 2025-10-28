@@ -87,15 +87,10 @@ def log_dosing_event(ph, dose_type, dose_amount_ml):
     """
     Logs a dosing event (as a specific type of sensor event).
     """
-    settings = get_cached_settings()
-    system_id = settings.get("system_name", "Unknown")
-    plant_name = settings.get("plant_info", {}).get("name", "Unknown")
-    
     log_event({
         'event_type': 'dosing',
-        'system_id': system_id,  # Added: Fixed system/zone
-        'plant_name': plant_name,  # Added: Rotating variety
-        'ph': ph,
+        'sensor_name': 'ph',  # For consistency
+        'value': ph,  # pH reading at time of dose
         'dose_type': dose_type,
         'dose_amount_ml': dose_amount_ml
     }, category='dosing')
