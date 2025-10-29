@@ -479,7 +479,8 @@ def broadcast_ec_readings():
             ec_value = get_latest_ec_reading()
             if ec_value is not None:
                 ec_value = round(ec_value, 2)
-                if ec_value != last_emitted_value:
+                # Only emit if value changed by at least 0.01 (same threshold as ec_service.py)
+                if last_emitted_value is None or abs(ec_value - last_emitted_value) >= 0.01:
                     last_emitted_value = ec_value
                     socketio.emit('ec_update', {'ec': ec_value})
                     log_with_timestamp(f"[Broadcast] Emitting EC update: {ec_value}")

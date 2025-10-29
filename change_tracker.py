@@ -70,9 +70,10 @@ def check_ec_changed(current_ec):
     with _lock:
         if current_ec is None:
             return False
-        
+
         last_ec = _last_sent["ec"]
-        if last_ec is None or current_ec != last_ec:
+        # Use threshold comparison to avoid floating-point precision issues
+        if last_ec is None or abs(current_ec - last_ec) >= 0.01:
             _last_sent["ec"] = current_ec
             return True
         return False
