@@ -752,4 +752,32 @@ if __name__ == "__main__":
     # Added: Load config early
     load_config()
     log_with_timestamp("[WSGI] Running in local development mode...")
-    socketio.run(app, host="0.0.0.0", port=8000, debug=False)
+
+    # Check if we should use HTTPS
+    settings = load_settings()
+    use_https = settings.get("use_https", False)
+
+    if use_https:
+        import ssl
+        import os
+
+        # Path to SSL certificates
+        cert_dir = os.path.join(os.getcwd(), "certs")
+        cert_file = os.path.join(cert_dir, "cert.pem")
+        key_file = os.path.join(cert_dir, "key.pem")
+
+        # Check if certificates exist
+        if os.path.exists(cert_file) and os.path.exists(key_file):
+            log_with_timestamp(f"[HTTPS] Using SSL certificates from {cert_dir}")
+            ssl_context = (cert_file, key_file)
+            socketio.run(app, host="0.0.0.0", port=8000, debug=False, ssl_context=ssl_context)
+        else:
+            log_with_timestamp(f"[HTTPS] SSL certificates not found at {cert_dir}")
+            log_with_timestamp("[HTTPS] To generate self-signed certificates, run:")
+            log_with_timestamp(f"  mkdir -p {cert_dir}")
+            log_with_timestamp(f"  openssl req -x509 -newkey rsa:4096 -nodes -out {cert_file} -keyout {key_file} -days 365")
+            log_with_timestamp("[HTTPS] Falling back to HTTP...")
+            socketio.run(app, host="0.0.0.0", port=8000, debug=False)
+    else:
+        log_with_timestamp("[HTTP] Running on HTTP (set 'use_https': true in settings to enable HTTPS)")
+        socketio.run(app, host="0.0.0.0", port=8000, debug=False)

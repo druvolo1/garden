@@ -71,10 +71,14 @@ def upload_single_log(filename):
     Upload a specific log file to the server.
     """
     try:
+        import traceback
         success = upload_specific_log_file(filename)
         if success:
             return jsonify({"status": "success", "message": f"Log file {filename} uploaded successfully"})
         else:
+            print(f"[ERROR] Failed to upload {filename}")
             return jsonify({"status": "error", "message": "Failed to upload log file"}), 500
     except Exception as e:
+        print(f"[ERROR] Exception uploading {filename}: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
