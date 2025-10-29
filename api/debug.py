@@ -7,19 +7,32 @@ debug_blueprint = Blueprint("debug", __name__)
 DEBUG_SETTINGS_FILE = os.path.join(os.getcwd(), "data", "debug_settings.json")
 
 def load_debug_settings():
+    defaults = {
+        "websocket": False,
+        "water_level_service": False,
+        "power_control_service": False,
+        "valve_relay_service": False,
+        "notifications": False,
+        "ph": False,
+        "status_namespace": False
+    }
+
     try:
         with open(DEBUG_SETTINGS_FILE, "r") as f:
-            return json.load(f)
+            loaded = json.load(f)
+            # Merge defaults with loaded settings (loaded settings take precedence)
+            merged = defaults.copy()
+            merged.update(loaded)
+
+            # Save back if we added new defaults
+            if set(merged.keys()) != set(loaded.keys()):
+                save_debug_settings(merged)
+
+            return merged
     except FileNotFoundError:
-        return {
-            "websocket": False,
-            "water_level_service": False,
-            "power_control_service": False,
-            "valve_relay_service": False,
-            "notifications": False,
-            "ph": False,
-            "status_namespace": False
-        }
+        # Create the file with defaults
+        save_debug_settings(defaults)
+        return defaults
 
 def save_debug_settings(settings):
     with open(DEBUG_SETTINGS_FILE, "w") as f:

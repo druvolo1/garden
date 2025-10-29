@@ -44,8 +44,6 @@ def is_debug_enabled(component):
     try:
         with open(DEBUG_SETTINGS_FILE, "r") as f:
             settings = json.load(f)
-            if component not in settings:
-                print(f"[DEBUG WARNING] '{component}' not found in debug_settings.json. Defaulting to False.")
             return settings.get(component, False)
     except FileNotFoundError:
         return False
