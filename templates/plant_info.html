@@ -68,6 +68,8 @@
               <div style="color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.25rem;">System:</div>
               <div id="system-name-display" style="color: #e2e8f0; font-weight: 500;">Loading...</div>
             </div>
+            <label for="new-plant-start-date">Start Date:</label>
+            <input type="date" id="new-plant-start-date" required>
             <div class="checkbox-group" style="margin-top: 1rem;">
               <label for="start-auto-dosing">
                 <input type="checkbox" id="start-auto-dosing">
@@ -167,6 +169,10 @@
             if (oldPlantName) {
               document.getElementById('new-plant-name').value = oldPlantName;
             }
+
+            // Pre-populate start date with old start date if available, otherwise use today
+            const oldStartDate = plantInfo.start_date || new Date().toISOString().split('T')[0];
+            document.getElementById('new-plant-start-date').value = oldStartDate;
           }
         })
         .catch(err => console.error('Error fetching settings:', err));
@@ -187,11 +193,17 @@
       e.preventDefault();
 
       const plantName = document.getElementById('new-plant-name').value.trim();
+      const startDate = document.getElementById('new-plant-start-date').value;
       const autoDosing = document.getElementById('start-auto-dosing').checked;
       const allowRemoteFeeding = document.getElementById('start-allow-remote-feeding').checked;
 
       if (!plantName) {
         alert('Please enter a strain name');
+        return;
+      }
+
+      if (!startDate) {
+        alert('Please select a start date');
         return;
       }
 
@@ -239,7 +251,7 @@
           plant_info: {
             plant_id: plantId,
             name: plantName,
-            start_date: new Date().toISOString().split('T')[0],
+            start_date: startDate,
             system_id: systemName
           },
           auto_dosing_enabled: autoDosing,
