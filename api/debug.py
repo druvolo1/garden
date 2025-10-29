@@ -16,7 +16,9 @@ def load_debug_settings():
             "water_level_service": False,
             "power_control_service": False,
             "valve_relay_service": False,
-            "notifications": False
+            "notifications": False,
+            "ph": False,
+            "status_namespace": False
         }
 
 def save_debug_settings(settings):
@@ -34,13 +36,11 @@ def toggle_debug():
     new_state = data.get("enabled")
 
     settings = load_debug_settings()
-    
-    if component in settings:
-        settings[component] = new_state
-        save_debug_settings(settings)
-        return jsonify({"message": f"Debug for {component} set to {new_state}"}), 200
-    else:
-        return jsonify({"error": "Invalid component"}), 400
+
+    # Allow new components to be added dynamically
+    settings[component] = new_state
+    save_debug_settings(settings)
+    return jsonify({"message": f"Debug for {component} set to {new_state}"}), 200
     
 @debug_blueprint.route("/")
 def debug_page():
