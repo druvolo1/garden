@@ -548,6 +548,11 @@ def auto_dose_loop():
                         print(f"[DEBUG AutoDose] auto_dose_loop - Dose performed: {direction}, {dose_ml}ml")
                         print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({direction}, {dose_ml})...")
                     reset_auto_dose_timer(direction, dose_ml)
+                else:
+                    # No dose needed, but still initialize the timer so we wait for the interval
+                    if is_debug_enabled("auto_dosing"):
+                        print("[DEBUG AutoDose] auto_dose_loop - No dose needed, but initializing timer for interval")
+                    reset_auto_dose_timer(None, 0.0)
             else:
                 # Calculate time elapsed since last dose
                 time_elapsed = datetime.now() - last_dose_time
@@ -567,6 +572,11 @@ def auto_dose_loop():
                             print(f"[DEBUG AutoDose] auto_dose_loop - Dose performed: {direction}, {dose_ml}ml")
                             print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({direction}, {dose_ml})...")
                         reset_auto_dose_timer(direction, dose_ml)
+                    else:
+                        # No dose needed, but still reset the timer so we wait another interval
+                        if is_debug_enabled("auto_dosing"):
+                            print("[DEBUG AutoDose] auto_dose_loop - No dose needed, but resetting timer for next interval")
+                        reset_auto_dose_timer(None, 0.0)
                 else:
                     # Not enough time has passed yet
                     time_remaining = dosing_interval_hours - elapsed_hours
