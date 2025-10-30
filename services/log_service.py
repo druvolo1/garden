@@ -112,6 +112,15 @@ def log_ph_periodically():
             log_sensor_reading('ph', ph)
         time.sleep(6 * 3600)  # 6 hours in seconds
 
+def log_ec_periodically():
+    """Log EC readings every 6 hours, similar to pH."""
+    from services.ec_service import get_latest_ec_reading
+    while True:
+        ec = get_latest_ec_reading()
+        if ec is not None:
+            log_sensor_reading('ec', ec)
+        time.sleep(6 * 3600)  # 6 hours in seconds
+
 def upload_specific_log_file(filename):
     """
     Upload a specific log file to the server.
@@ -302,6 +311,7 @@ def sync_logs_background():
 
 # Start the periodic logging in a background thread
 threading.Thread(target=log_ph_periodically, daemon=True).start()
+threading.Thread(target=log_ec_periodically, daemon=True).start()
 
 # Start the background log sync service
 threading.Thread(target=sync_logs_background, daemon=True).start()
