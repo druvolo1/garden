@@ -688,6 +688,12 @@ def dosage_page():
         dosage_data["last_dose_time"] = "Never"
     dosage_data["last_dose_type"] = auto_dose_state.get("last_dose_type") or "N/A"
     dosage_data["last_dose_amount"] = auto_dose_state.get("last_dose_amount")
+
+    if auto_dose_state.get("next_dose_time"):
+        dosage_data["next_dose_time"] = auto_dose_state["next_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        dosage_data["next_dose_time"] = "Not Scheduled"
+
     return render_template('dosage.html', dosage_data=dosage_data)
 
 @app.route('/api/dosage/manual', methods=['POST'])
