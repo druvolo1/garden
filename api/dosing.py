@@ -76,6 +76,7 @@ def manual_dosage():
     def dispense_task():
         from app import socketio  # Import here to avoid circular import
         from services.dosage_service import update_pump_tracking  # NEW: Import the tracking function
+        from services.auto_dose_utils import reset_auto_dose_timer  # Import to update auto dose state
         try:
             print(f"[DEBUG ManualDispense] Setting active state: type={dispense_type}, amount={amount_ml}, duration={duration_sec}")
             # Emit start event
@@ -87,6 +88,8 @@ def manual_dosage():
             print(f"[Manual Dispense] Turning OFF Relay {relay_port} after {duration_sec:.2f} seconds.")
             update_pump_tracking(relay_port, duration_sec)  # NEW: Update tracking after successful dispense
             manual_dispense(dispense_type, amount_ml)
+            # Update auto-dose state with this manual dose
+            reset_auto_dose_timer(dispense_type, amount_ml)
             # Emit stopped event
             socketio.emit('dose_stopped', {'type': dispense_type, 'amount': amount_ml})
             # Clear state

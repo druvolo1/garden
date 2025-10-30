@@ -541,9 +541,7 @@ def auto_dose_loop():
                 direction, dose_ml = perform_auto_dose(settings)
                 if direction != "none":
                     # Update state with the dose we just performed
-                    auto_dose_state["last_dose_time"] = datetime.now()
-                    auto_dose_state["last_dose_type"] = direction
-                    auto_dose_state["last_dose_amount"] = dose_ml
+                    reset_auto_dose_timer(direction, dose_ml)
             else:
                 # Calculate time elapsed since last dose
                 time_elapsed = datetime.now() - last_dose_time
@@ -555,9 +553,7 @@ def auto_dose_loop():
                     direction, dose_ml = perform_auto_dose(settings)
                     if direction != "none":
                         # Update state with the dose we just performed
-                        auto_dose_state["last_dose_time"] = datetime.now()
-                        auto_dose_state["last_dose_type"] = direction
-                        auto_dose_state["last_dose_amount"] = dose_ml
+                        reset_auto_dose_timer(direction, dose_ml)
                 else:
                     # Not enough time has passed yet
                     time_remaining = dosing_interval_hours - elapsed_hours
@@ -696,16 +692,12 @@ def dosage_page():
 
 @app.route('/api/dosage/manual', methods=['POST'])
 def api_manual_dosage():
-    from datetime import datetime
     from services.dosage_service import manual_dispense
     data = request.get_json()
     dispense_type = data.get('type', 'none')
     amount = data.get('amount', 0.0)
     manual_dispense(dispense_type, amount)
-    reset_auto_dose_timer()
-    auto_dose_state["last_dose_time"] = datetime.now()
-    auto_dose_state["last_dose_type"] = dispense_type
-    auto_dose_state["last_dose_amount"] = amount
+    reset_auto_dose_timer(dispense_type, amount)
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 
 @app.route("/api/device/timezones", methods=["GET"])
