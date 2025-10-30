@@ -354,8 +354,27 @@ def assign_usb_device():
     current_settings.setdefault("usb_roles", {})[role] = device  # Safely create dict if missing
     save_settings(current_settings)
 
-    # Reinitialize the valve relay service if device changed
-    reinitialize_relay_service()
+    # Reinitialize the appropriate service based on role
+    try:
+        if role == "ph_probe":
+            from services.ph_service import restart_serial_reader
+            restart_serial_reader()
+            print(f"[USB ASSIGN] Restarted pH serial reader for device: {device}")
+        elif role == "relay":
+            reinitialize_relay_service()
+            print(f"[USB ASSIGN] Reinitialized pump relay service for device: {device}")
+        elif role == "valve_relay":
+            from services.valve_relay_service import stop_valve_thread, init_valve_thread
+            stop_valve_thread()
+            init_valve_thread()
+            print(f"[USB ASSIGN] Reinitialized valve relay service for device: {device}")
+        elif role == "ec_meter":
+            from services.ec_service import restart_ec_serial_reader
+            restart_ec_serial_reader()
+            print(f"[USB ASSIGN] Restarted EC serial reader for device: {device}")
+    except Exception as e:
+        print(f"[USB ASSIGN] Error reinitializing service for {role}: {e}")
+        return jsonify({"status": "failure", "error": f"Failed to reinitialize service: {str(e)}"}), 500
 
     emit_status_update()
     return jsonify({"status": "success", "usb_roles": current_settings["usb_roles"]})
