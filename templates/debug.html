@@ -49,7 +49,26 @@
             }
         }
 
-        window.onload = fetchDebugStates;
+        async function fetchAutoDoseState() {
+            try {
+                const response = await fetch("/debug/auto_dose_state");
+                const state = await response.json();
+
+                document.getElementById("last-dose-time-debug").textContent = state.last_dose_time || "None";
+                document.getElementById("last-dose-type-debug").textContent = state.last_dose_type || "None";
+                document.getElementById("last-dose-amount-debug").textContent = state.last_dose_amount || "0";
+                document.getElementById("next-dose-time-debug").textContent = state.next_dose_time || "None";
+            } catch (error) {
+                console.error("Error fetching auto dose state:", error);
+            }
+        }
+
+        window.onload = () => {
+            fetchDebugStates();
+            fetchAutoDoseState();
+            // Refresh auto dose state every 5 seconds
+            setInterval(fetchAutoDoseState, 5000);
+        };
     </script>
 </head>
 <body>
@@ -99,6 +118,20 @@
                 <h3>Status Namespace</h3>
                 <button id="toggle-status_namespace" class="btn-off-active" onclick="toggleDebug('status_namespace')">OFF</button>
             </div>
+
+            <div class="data-container">
+                <h3>Auto Dosing</h3>
+                <button id="toggle-auto_dosing" class="btn-off-active" onclick="toggleDebug('auto_dosing')">OFF</button>
+            </div>
+        </div>
+
+        <div class="data-container" style="margin-top: 2rem;">
+            <h2>Auto-Dose State (Live)</h2>
+            <p><strong>Last Dose Time:</strong> <span id="last-dose-time-debug">Loading...</span></p>
+            <p><strong>Last Dose Type:</strong> <span id="last-dose-type-debug">Loading...</span></p>
+            <p><strong>Last Dose Amount:</strong> <span id="last-dose-amount-debug">Loading...</span> ml</p>
+            <p><strong>Next Dose Time:</strong> <span id="next-dose-time-debug">Loading...</span></p>
+            <p class="subtitle" style="margin-top: 1rem; font-size: 0.9rem;">Updates every 5 seconds</p>
         </div>
     </main>
 </body>

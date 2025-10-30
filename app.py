@@ -538,9 +538,15 @@ def auto_dose_loop():
             if last_dose_time is None:
                 # No previous dose recorded, perform dose now
                 print("[AutoDoseLoop] No previous dose recorded; performing auto dose.")
+                if is_debug_enabled("auto_dosing"):
+                    print("[DEBUG AutoDose] auto_dose_loop - No previous dose, calling perform_auto_dose()...")
+
                 direction, dose_ml = perform_auto_dose(settings)
                 if direction != "none":
                     # Update state with the dose we just performed
+                    if is_debug_enabled("auto_dosing"):
+                        print(f"[DEBUG AutoDose] auto_dose_loop - Dose performed: {direction}, {dose_ml}ml")
+                        print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({direction}, {dose_ml})...")
                     reset_auto_dose_timer(direction, dose_ml)
             else:
                 # Calculate time elapsed since last dose
@@ -550,9 +556,16 @@ def auto_dose_loop():
                 if elapsed_hours >= dosing_interval_hours:
                     # Enough time has passed, perform auto dose
                     print(f"[AutoDoseLoop] {elapsed_hours:.2f} hours elapsed since last dose; performing auto dose.")
+                    if is_debug_enabled("auto_dosing"):
+                        print(f"[DEBUG AutoDose] auto_dose_loop - Time elapsed: {elapsed_hours:.2f}h >= {dosing_interval_hours}h")
+                        print("[DEBUG AutoDose] Calling perform_auto_dose()...")
+
                     direction, dose_ml = perform_auto_dose(settings)
                     if direction != "none":
                         # Update state with the dose we just performed
+                        if is_debug_enabled("auto_dosing"):
+                            print(f"[DEBUG AutoDose] auto_dose_loop - Dose performed: {direction}, {dose_ml}ml")
+                            print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({direction}, {dose_ml})...")
                         reset_auto_dose_timer(direction, dose_ml)
                 else:
                     # Not enough time has passed yet
@@ -682,6 +695,14 @@ def get_ph_latest():
 def dosage_page():
     from services.dosage_service import get_dosage_info
     dosage_data = get_dosage_info()
+
+    if is_debug_enabled("auto_dosing"):
+        print(f"[DEBUG AutoDose] Dosage page requested. Current auto_dose_state:")
+        print(f"  - last_dose_time: {auto_dose_state.get('last_dose_time')}")
+        print(f"  - last_dose_type: {auto_dose_state.get('last_dose_type')}")
+        print(f"  - last_dose_amount: {auto_dose_state.get('last_dose_amount')}")
+        print(f"  - next_dose_time: {auto_dose_state.get('next_dose_time')}")
+
     if auto_dose_state.get("last_dose_time"):
         dosage_data["last_dose_time"] = auto_dose_state["last_dose_time"].strftime("%Y-%m-%d %H:%M:%S")
     else:
@@ -694,6 +715,13 @@ def dosage_page():
     else:
         dosage_data["next_dose_time"] = "Not Scheduled"
 
+    if is_debug_enabled("auto_dosing"):
+        print(f"[DEBUG AutoDose] Dosage data being sent to template:")
+        print(f"  - last_dose_time: {dosage_data['last_dose_time']}")
+        print(f"  - last_dose_type: {dosage_data['last_dose_type']}")
+        print(f"  - last_dose_amount: {dosage_data['last_dose_amount']}")
+        print(f"  - next_dose_time: {dosage_data['next_dose_time']}")
+
     return render_template('dosage.html', dosage_data=dosage_data)
 
 @app.route('/api/dosage/manual', methods=['POST'])
@@ -702,7 +730,16 @@ def api_manual_dosage():
     data = request.get_json()
     dispense_type = data.get('type', 'none')
     amount = data.get('amount', 0.0)
+
+    if is_debug_enabled("auto_dosing"):
+        print(f"[DEBUG AutoDose] Manual dispense endpoint (app.py) called:")
+        print(f"  - type: {dispense_type}, amount: {amount}")
+
     manual_dispense(dispense_type, amount)
+
+    if is_debug_enabled("auto_dosing"):
+        print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({dispense_type}, {amount})...")
+
     reset_auto_dose_timer(dispense_type, amount)
     return jsonify({"status": "success", "message": f"Dispensed {amount} ml of pH {dispense_type}."})
 

@@ -15,6 +15,7 @@ def reset_auto_dose_timer(dose_type=None, dose_amount=0.0):
         dose_amount: The amount dosed in ml
     """
     from api.settings import load_settings
+    from status_namespace import is_debug_enabled
 
     now = datetime.now()
     auto_dose_state["last_dose_time"] = now
@@ -27,3 +28,12 @@ def reset_auto_dose_timer(dose_type=None, dose_amount=0.0):
     auto_dose_state["next_dose_time"] = now + timedelta(hours=dosing_interval_hours)
 
     auto_dose_state["last_interval"] = None  # Clear the last interval
+
+    if is_debug_enabled("auto_dosing"):
+        print(f"[DEBUG AutoDose] reset_auto_dose_timer called:")
+        print(f"  - dose_type: {dose_type}")
+        print(f"  - dose_amount: {dose_amount}")
+        print(f"  - last_dose_time set to: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  - dosing_interval: {dosing_interval_hours} hours")
+        print(f"  - next_dose_time set to: {auto_dose_state['next_dose_time'].strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  - Current state: {auto_dose_state}")

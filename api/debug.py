@@ -14,7 +14,8 @@ def load_debug_settings():
         "valve_relay_service": False,
         "notifications": False,
         "ph": False,
-        "status_namespace": False
+        "status_namespace": False,
+        "auto_dosing": False
     }
 
     try:
@@ -58,3 +59,20 @@ def toggle_debug():
 @debug_blueprint.route("/")
 def debug_page():
     return render_template("debug.html")
+
+@debug_blueprint.route("/auto_dose_state", methods=["GET"])
+def get_auto_dose_state():
+    """Return the current auto_dose_state for debugging"""
+    from services.auto_dose_state import auto_dose_state
+
+    state_dict = {}
+    for key, value in auto_dose_state.items():
+        if value is None:
+            state_dict[key] = "None"
+        elif hasattr(value, 'strftime'):
+            # It's a datetime object
+            state_dict[key] = value.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            state_dict[key] = value
+
+    return jsonify(state_dict)

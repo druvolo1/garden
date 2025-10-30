@@ -77,7 +77,12 @@ def manual_dosage():
         from app import socketio  # Import here to avoid circular import
         from services.dosage_service import update_pump_tracking  # NEW: Import the tracking function
         from services.auto_dose_utils import reset_auto_dose_timer  # Import to update auto dose state
+        from status_namespace import is_debug_enabled
         try:
+            if is_debug_enabled("auto_dosing"):
+                print(f"[DEBUG AutoDose] Manual dispense starting from api/dosing.py")
+                print(f"  - type: {dispense_type}, amount: {amount_ml}, duration: {duration_sec}")
+
             print(f"[DEBUG ManualDispense] Setting active state: type={dispense_type}, amount={amount_ml}, duration={duration_sec}")
             # Emit start event
             socketio.emit('dose_start', {'type': dispense_type, 'amount': amount_ml, 'duration': duration_sec})
@@ -87,8 +92,14 @@ def manual_dosage():
             turn_off_relay(relay_port)
             print(f"[Manual Dispense] Turning OFF Relay {relay_port} after {duration_sec:.2f} seconds.")
             update_pump_tracking(relay_port, duration_sec)  # NEW: Update tracking after successful dispense
+
+            if is_debug_enabled("auto_dosing"):
+                print(f"[DEBUG AutoDose] Calling manual_dispense() for logging...")
             manual_dispense(dispense_type, amount_ml)
+
             # Update auto-dose state with this manual dose
+            if is_debug_enabled("auto_dosing"):
+                print(f"[DEBUG AutoDose] Calling reset_auto_dose_timer({dispense_type}, {amount_ml})...")
             reset_auto_dose_timer(dispense_type, amount_ml)
             # Emit stopped event
             socketio.emit('dose_stopped', {'type': dispense_type, 'amount': amount_ml})
