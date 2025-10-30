@@ -582,8 +582,15 @@ def auto_dose_loop():
                     time_remaining = dosing_interval_hours - elapsed_hours
                     print(f"[AutoDoseLoop] Only {elapsed_hours:.2f} hours elapsed; waiting {time_remaining:.2f} more hours.")
 
-        # Check every 5 minutes instead of sleeping for the full interval
-        eventlet.sleep(300)  # 5 minutes = 300 seconds
+        # Sleep for a fraction of the dosing interval to check frequently enough
+        # Use minimum of: half the interval or 60 seconds (don't check more than once per minute)
+        dosing_interval_seconds = dosing_interval_hours * 3600
+        sleep_time = min(max(dosing_interval_seconds / 2, 5), 60)  # Between 5 and 60 seconds
+
+        if is_debug_enabled("auto_dosing"):
+            print(f"[DEBUG AutoDose] auto_dose_loop sleeping for {sleep_time:.1f} seconds (interval: {dosing_interval_seconds:.1f}s)")
+
+        eventlet.sleep(sleep_time)
 
 def start_threads():
     settings = load_settings()
