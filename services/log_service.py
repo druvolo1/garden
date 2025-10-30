@@ -21,9 +21,8 @@ def reset_cache():
     global _cached_settings
     _cached_settings = None
 
-# Define the log directory and file
+# Define the log directory
 LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
-SENSOR_LOG_FILE = os.path.join(LOG_DIR, 'sensor_log.jsonl')
 
 def ensure_log_dir_exists():
     """
