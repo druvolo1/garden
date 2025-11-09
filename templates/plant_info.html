@@ -137,6 +137,10 @@
             document.getElementById('start-plant-section').style.display = 'none';
             document.getElementById('active-plant-section').style.display = 'block';
 
+            // Check if server is enabled to determine if this is a server-assigned plant
+            const serverEnabled = settings.server_enabled || false;
+            const isServerAssigned = serverEnabled && plantInfo.phase;  // Phase indicates server assignment
+
             document.getElementById('plant-name').value = plantInfo.name || '';
             document.getElementById('plant-start-date').value = plantInfo.start_date || '';
             document.getElementById('active-system-name-display').textContent = plantInfo.system_id || 'N/A';
@@ -144,6 +148,28 @@
             document.getElementById('weeks-since-start').textContent = getWeeksSinceStart(plantInfo.start_date) || 'N/A';
             document.getElementById('auto-dosing').checked = settings.auto_dosing_enabled || false;
             document.getElementById('allow-remote-feeding').checked = settings.allow_remote_feeding || false;
+
+            // Add server assignment indicator if applicable
+            if (isServerAssigned) {
+              // Add indicator that this plant was assigned from server
+              const phaseDisplay = plantInfo.phase || 'flower';
+              const indicator = document.getElementById('server-assignment-indicator');
+              if (indicator) {
+                indicator.textContent = `🌐 Assigned from server (Phase: ${phaseDisplay})`;
+                indicator.style.display = 'block';
+              } else {
+                const newIndicator = document.createElement('div');
+                newIndicator.id = 'server-assignment-indicator';
+                newIndicator.style.cssText = 'padding: 0.75rem; margin-bottom: 1rem; background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; color: #10b981; border-radius: 4px;';
+                newIndicator.textContent = `🌐 Assigned from server (Phase: ${phaseDisplay})`;
+                document.getElementById('active-plant-section').insertBefore(newIndicator, document.getElementById('plant-info-form'));
+              }
+            } else {
+              const indicator = document.getElementById('server-assignment-indicator');
+              if (indicator) {
+                indicator.style.display = 'none';
+              }
+            }
 
             // Add system_id to hidden field if needed
             if (!document.getElementById('current-system-id')) {
@@ -159,6 +185,35 @@
             // Show start plant section
             document.getElementById('start-plant-section').style.display = 'block';
             document.getElementById('active-plant-section').style.display = 'none';
+
+            // Check if server is enabled
+            const serverEnabled = settings.server_enabled || false;
+
+            if (serverEnabled) {
+              // Show message about server-based plant assignment
+              const serverMessage = document.getElementById('server-mode-message');
+              if (serverMessage) {
+                serverMessage.style.display = 'block';
+              } else {
+                const newMessage = document.createElement('div');
+                newMessage.id = 'server-mode-message';
+                newMessage.style.cssText = 'padding: 0.75rem; margin-bottom: 1rem; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; color: #60a5fa; border-radius: 4px;';
+                newMessage.innerHTML = '🌐 <strong>Server Mode:</strong> Assign plants from the server dashboard. Local plant creation is disabled when server is connected.';
+                document.getElementById('start-plant-section').insertBefore(newMessage, document.getElementById('start-plant-form'));
+              }
+              // Disable the start plant form
+              document.getElementById('start-plant-form').style.opacity = '0.5';
+              document.getElementById('start-plant-form').style.pointerEvents = 'none';
+            } else {
+              // Hide server message if exists
+              const serverMessage = document.getElementById('server-mode-message');
+              if (serverMessage) {
+                serverMessage.style.display = 'none';
+              }
+              // Enable the start plant form
+              document.getElementById('start-plant-form').style.opacity = '1';
+              document.getElementById('start-plant-form').style.pointerEvents = 'auto';
+            }
 
             // Display system name
             const systemName = settings.system_name || 'Not configured';

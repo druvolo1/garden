@@ -73,6 +73,14 @@ def log_event(data_dict, category='sensor'):
     ensure_log_dir_exists()
     data_dict['timestamp'] = datetime.now().isoformat()
 
+    # Add phase from plant_info if available
+    from utils.settings_utils import load_settings
+    settings = load_settings()
+    plant_info = settings.get('plant_info', {})
+    if plant_info:
+        # Get phase from plant_info, default to 'flower' if not set
+        data_dict['phase'] = plant_info.get('phase', 'flower')
+
     # Try to upload to server
     uploaded = upload_log_to_server(data_dict)
 

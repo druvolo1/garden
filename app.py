@@ -380,6 +380,61 @@ async def ws_client():
                         except Exception as ex:
                             print(f"[WS ERROR] System reboot command failed: {ex}")
 
+                    elif payload.get('command') == 'assign_plant':
+                        # Handle plant assignment from server
+                        print("[WS] Received assign_plant command from remote server")
+                        try:
+                            plant_id = payload.get('plant_id')
+                            plant_name = payload.get('plant_name')
+                            phase = payload.get('phase')
+                            system_id = payload.get('system_id')
+
+                            print(f"[WS] Assigning plant: {plant_name} (ID: {plant_id}, Phase: {phase})")
+
+                            # Update local settings with plant info
+                            settings = load_settings()
+                            settings['plant_info'] = {
+                                'plant_id': plant_id,
+                                'name': plant_name,
+                                'start_date': datetime.datetime.now().strftime('%Y-%m-%d'),
+                                'system_id': system_id,
+                                'phase': phase
+                            }
+                            save_settings(settings)
+
+                            print(f"[WS] Plant assignment saved to local settings")
+
+                            # Emit status update to show new plant assignment
+                            payload_data = emit_status_update(force_emit=True)
+                            if payload_data:
+                                send_queue.put({'type': 'status_update', 'data': payload_data})
+
+                        except Exception as ex:
+                            print(f"[WS ERROR] Plant assignment failed: {ex}")
+
+                    elif payload.get('command') == 'unassign_plant':
+                        # Handle plant unassignment from server
+                        print("[WS] Received unassign_plant command from remote server")
+                        try:
+                            plant_id = payload.get('plant_id')
+                            print(f"[WS] Unassigning plant ID: {plant_id}")
+
+                            # Clear plant info from local settings
+                            settings = load_settings()
+                            if 'plant_info' in settings:
+                                del settings['plant_info']
+                            save_settings(settings)
+
+                            print(f"[WS] Plant unassigned from local settings")
+
+                            # Emit status update to show plant removed
+                            payload_data = emit_status_update(force_emit=True)
+                            if payload_data:
+                                send_queue.put({'type': 'status_update', 'data': payload_data})
+
+                        except Exception as ex:
+                            print(f"[WS ERROR] Plant unassignment failed: {ex}")
+
                     elif payload.get('type') == 'request_refresh':
                         print("[WS] Handling request_refresh")
                         payload_data = emit_status_update(force_emit=True)
