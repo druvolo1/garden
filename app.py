@@ -380,6 +380,26 @@ async def ws_client():
                         except Exception as ex:
                             print(f"[WS ERROR] System reboot command failed: {ex}")
 
+                    elif payload.get('command') == 'server_info':
+                        # Handle server owner info from server
+                        print("[WS] Received server_info command from remote server")
+                        try:
+                            owner_email = payload.get('owner_email')
+                            owner_name = payload.get('owner_name')
+
+                            print(f"[WS] Server owner: {owner_email}")
+
+                            # Update local settings with owner info
+                            settings = load_settings()
+                            settings['server_owner_email'] = owner_email
+                            settings['server_owner_name'] = owner_name
+                            save_settings(settings)
+
+                            print(f"[WS] Server owner info saved to local settings")
+
+                        except Exception as ex:
+                            print(f"[WS ERROR] Failed to save server owner info: {ex}")
+
                     elif payload.get('command') == 'assign_plant':
                         # Handle plant assignment from server
                         print("[WS] Received assign_plant command from remote server")

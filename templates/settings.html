@@ -490,6 +490,7 @@
       <div class="data-container">
         <h2>Server Configuration</h2>
         <p>Device ID: {{ device_id }}</p>
+        <p id="server-owner-display" style="display: none;">Registered to: <strong id="server-owner-email"></strong></p>
         <form id="server-config-form">
           <div class="checkbox-group">
             <label for="enable-server-comm">
@@ -1032,6 +1033,14 @@
         document.getElementById('server-url').value = settings.server_url || '';
         document.getElementById('enable-server-comm').checked = !!settings.server_enabled;
         document.getElementById('api-key').value = settings.api_key || '';
+
+        // Display server owner email if available
+        if (settings.server_owner_email) {
+          document.getElementById('server-owner-email').textContent = settings.server_owner_email;
+          document.getElementById('server-owner-display').style.display = 'block';
+        } else {
+          document.getElementById('server-owner-display').style.display = 'none';
+        }
       })
       .catch(err => console.error('Error scanning devices or fetching settings:', err));
     }
