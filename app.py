@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import os
 import subprocess
 import requests
+import time
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO
@@ -104,13 +105,36 @@ def load_config():
         print(f"[CONFIG ERROR] Failed to load or save config: {e}")
         return None, None, None
 
+def run_ws_client_loop():
+    """Run the websocket client with thread-level retry logic."""
+    while not ws_stop_event.is_set():
+        try:
+            asyncio.run(ws_client())
+        except Exception as e:
+            print(f"[WS] Thread-level exception: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # Check if we should retry
+        if not ws_stop_event.is_set():
+            settings = load_settings()
+            if settings.get('server_enabled', False):
+                print("[WS] Restarting websocket client in 10 seconds...")
+                time.sleep(10)
+            else:
+                print("[WS] Server disabled, exiting websocket thread")
+                break
+        else:
+            print("[WS] Stop event detected, exiting websocket thread")
+            break
+
 def start_ws_client():
     """Start the WebSocket client if server is enabled and credentials exist."""
     global ws_thread, ws_stop_event
     settings = load_settings()
     if settings.get('server_enabled', False) and api_key and server_url:
         ws_stop_event.clear()  # Clear stop event
-        ws_thread = threading.Thread(target=lambda: asyncio.run(ws_client()))
+        ws_thread = threading.Thread(target=run_ws_client_loop)
         ws_thread.daemon = True
         ws_thread.start()
         print("[WS] WebSocket client thread started")

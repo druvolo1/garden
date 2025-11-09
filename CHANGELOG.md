@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.88] - 2025-11-08
+- fixed auto dosing not working from improper water sensor interpretation
+- added Application Restart and PC Reboot on the settings page on the Application Update Card. 
+- added logic for continuous retry of server connection if configured and server is unreachable
+
 ## [1.0.87] - 2025-10-16
 - if auto fill is set it will not trigger during draining
 

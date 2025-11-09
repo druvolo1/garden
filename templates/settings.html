@@ -480,6 +480,11 @@
         <div id="check-status"></div>
         <button id="apply-update-btn" style="display: none;" disabled>Apply Update</button>
         <div id="apply-status"></div>
+        <hr>
+        <h3>System Control</h3>
+        <button id="restart-app-btn">Restart Application</button>
+        <button id="reboot-pc-btn" style="margin-left: 10px;">Reboot PC</button>
+        <div id="system-control-status" style="margin-top: 10px;"></div>
       </div>
       <!-- Server Configuration Section -->
       <div class="data-container">
@@ -1599,7 +1604,7 @@
         server_url: document.getElementById('server-url').value.trim(),
         api_key: document.getElementById('api-key').value.trim()
       };
-      
+
       // Save settings first
       fetch('/api/settings/', {
         method: 'POST',
@@ -1626,6 +1631,55 @@
       .catch(err => {
         alert("Error updating server config: " + err.message);
       });
+    });
+    // Restart Application
+    document.getElementById('restart-app-btn').addEventListener('click', () => {
+      if (!confirm("Are you sure you want to restart the application? This will disconnect all users temporarily.")) {
+        return;
+      }
+      const statusDiv = document.getElementById('system-control-status');
+      statusDiv.textContent = "Restarting application...";
+      statusDiv.style.color = "#f4c531";
+
+      fetch('/api/update_code/restart', { method: 'POST' })
+        .then(resp => resp.json())
+        .then(data => {
+          if (data.status === 'success') {
+            statusDiv.textContent = "Application is restarting. Page will reload in 5 seconds...";
+            setTimeout(() => window.location.reload(), 5000);
+          } else {
+            statusDiv.style.color = "#FF4444";
+            statusDiv.textContent = "Failed to restart: " + (data.error || 'Unknown error');
+          }
+        })
+        .catch(err => {
+          statusDiv.style.color = "#FF4444";
+          statusDiv.textContent = "Error: " + err.message;
+        });
+    });
+    // Reboot PC
+    document.getElementById('reboot-pc-btn').addEventListener('click', () => {
+      if (!confirm("Are you sure you want to reboot the PC? This will restart the entire system!")) {
+        return;
+      }
+      const statusDiv = document.getElementById('system-control-status');
+      statusDiv.textContent = "Initiating system reboot...";
+      statusDiv.style.color = "#f4c531";
+
+      fetch('/api/update_code/reboot', { method: 'POST' })
+        .then(resp => resp.json())
+        .then(data => {
+          if (data.status === 'success') {
+            statusDiv.textContent = "System is rebooting. Please wait 1-2 minutes before reconnecting.";
+          } else {
+            statusDiv.style.color = "#FF4444";
+            statusDiv.textContent = "Failed to reboot: " + (data.error || 'Unknown error');
+          }
+        })
+        .catch(err => {
+          // Expected to fail since system is rebooting
+          statusDiv.textContent = "System is rebooting. Please wait 1-2 minutes before reconnecting.";
+        });
     });
     // NEW: Add event listener for adding a new power outlet
     document.getElementById('add-outlet-btn').addEventListener('click', () => {

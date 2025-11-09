@@ -297,6 +297,26 @@ def restart_service():
         }), 500
 
 
+@update_code_blueprint.route("/reboot", methods=["POST"])
+def reboot_system():
+    """
+    Reboots the entire system
+    """
+    try:
+        print("[SYSTEM] Rebooting system...")
+        subprocess.Popen(['sudo', 'reboot'],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return jsonify({
+            "status": "success",
+            "message": "System reboot initiated"
+        })
+    except Exception as ex:
+        return jsonify({
+            "status": "failure",
+            "error": str(ex)
+        }), 500
+
+
 @update_code_blueprint.route("/garden_update", methods=["POST"])
 def run_garden_update_script():
     """

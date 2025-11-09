@@ -105,8 +105,8 @@ def perform_auto_dose(settings):
     # Added: Check water level before proceeding with dosing
     water_status = get_water_level_status()
     drain_sensor_key = settings.get("drain_sensor", "sensor3")  # Assuming this is the empty sensor
-    if drain_sensor_key in water_status and water_status[drain_sensor_key]["triggered"]:
-        print("[AutoDosing] No water present (empty sensor triggered); skipping auto-dose.")
+    if drain_sensor_key in water_status and not water_status[drain_sensor_key]["triggered"]:
+        print("[AutoDosing] No water present (empty sensor not triggered); skipping auto-dose.")
         return ("none", 0.0)
     print("[AutoDosing] Water level check passed; proceeding.")
 
