@@ -188,6 +188,21 @@ async def ws_client():
             # Reset change tracker on connect
             change_tracker.reset_tracker()
 
+            # Send device info for auto-detection (FIRST MESSAGE)
+            device_info = {
+                'type': 'device_info',
+                'device_type': 'feeding_system',
+                'capabilities': {
+                    'sensors': ['ph', 'ec'],
+                    'controls': ['ph_up_pump', 'ph_down_pump'],
+                    'features': ['auto_dosing', 'manual_dosing', 'calibration']
+                },
+                'firmware_version': '1.0',
+                'hardware': 'Raspberry Pi'
+            }
+            await ws.send(json.dumps(device_info))
+            print(f"Sent device_info: {json.dumps(device_info)}")
+
             # Send initial full status on connect
             initial_payload = get_status_payload()
             if initial_payload:
