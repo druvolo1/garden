@@ -40,11 +40,8 @@ def upload_log_to_server(log_entry):
         server_url = settings.get("server_url")
         device_id = settings.get("device_id")
         api_key = settings.get("api_key")
-        plant_info = settings.get("plant_info", {})
-        plant_id = plant_info.get("plant_id")
-
-        # Don't upload if not configured or no active plant
-        if not all([server_url, device_id, api_key, plant_id]):
+        # Don't upload if not configured
+        if not all([server_url, device_id, api_key]):
             return False
 
         # Convert WebSocket URL to HTTP URL for API calls
@@ -52,8 +49,8 @@ def upload_log_to_server(log_entry):
         # Remove /ws/devices path if present
         server_url = server_url.replace('/ws/devices', '')
 
-        # Upload to server
-        url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}&plant_id={plant_id}"
+        # Upload to server (no plant_id needed - server associates logs with all assigned plants)
+        url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}"
         response = requests.post(
             url,
             json=[log_entry],
@@ -137,12 +134,10 @@ def upload_specific_log_file(filename):
         server_url = settings.get("server_url")
         device_id = settings.get("device_id")
         api_key = settings.get("api_key")
-        plant_info = settings.get("plant_info", {})
-        plant_id = plant_info.get("plant_id")
 
-        # Don't upload if not configured or no active plant
-        if not all([server_url, device_id, api_key, plant_id]):
-            print("Log upload skipped: server not configured or no active plant")
+        # Don't upload if not configured
+        if not all([server_url, device_id, api_key]):
+            print("Log upload skipped: server not configured")
             return False
 
         # Convert WebSocket URL to HTTP URL for API calls
@@ -179,7 +174,8 @@ def upload_specific_log_file(filename):
             batch = log_entries[i:i + batch_size]
 
             try:
-                url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}&plant_id={plant_id}"
+                # No plant_id needed - server associates logs with all assigned plants
+                url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}"
                 response = requests.post(
                     url,
                     json=batch,
@@ -221,12 +217,10 @@ def upload_pending_logs():
         server_url = settings.get("server_url")
         device_id = settings.get("device_id")
         api_key = settings.get("api_key")
-        plant_info = settings.get("plant_info", {})
-        plant_id = plant_info.get("plant_id")
 
-        # Don't upload if not configured or no active plant
-        if not all([server_url, device_id, api_key, plant_id]):
-            print("Log upload skipped: server not configured or no active plant")
+        # Don't upload if not configured
+        if not all([server_url, device_id, api_key]):
+            print("Log upload skipped: server not configured")
             return False
 
         # Convert WebSocket URL to HTTP URL for API calls
@@ -264,7 +258,8 @@ def upload_pending_logs():
                 batch = log_entries[i:i + batch_size]
 
                 try:
-                    url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}&plant_id={plant_id}"
+                    # No plant_id needed - server associates logs with all assigned plants
+                    url = f"{server_url}/api/devices/{device_id}/logs?api_key={api_key}"
                     response = requests.post(
                         url,
                         json=batch,
@@ -307,10 +302,10 @@ def sync_logs_background():
 
         try:
             settings = get_cached_settings()
-            plant_info = settings.get("plant_info", {})
+            server_enabled = settings.get("server_enabled", False)
 
-            # Only sync if there's an active plant
-            if plant_info.get("plant_id"):
+            # Only sync if server is configured
+            if server_enabled:
                 print("Running background log sync...")
                 upload_pending_logs()
         except Exception as e:
