@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"fill\\\\.dr\\\\|\\\\.dr\\\\|drain\\\\.local\\\\|fill\\\\.local\" /c/Users/Dave/Documents/Programming/Garden/ph_dosing_system --include=*.py --include=*.json)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(ssh:*)",
+      "Bash(sshpass -V)",
+      "Bash(plink --version)",
+      "Bash(plink:*)",
+      "Bash(pip show:*)",
+      "Bash(for host:*)",
+      "Bash(do)",
+      "Bash(echo \"=== $host ===\")",
+      "Bash(plink -batch -pw password dave@$host \":*)",
+      "Bash(done)",
+      "Bash(plink -batch -pw password dave@$host \"python3 -c \"\":*)",
+      "Bash(xargs cat)",
+      "WebFetch(domain:www.amazon.com)",
+      "WebSearch"
+    ]
+  }
+}

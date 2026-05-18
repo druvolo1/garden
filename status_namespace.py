@@ -193,7 +193,9 @@ def connect_to_remote_if_needed(remote_ip):
     url = f"http://{resolved_ip}:8000"
     try:
         log_with_timestamp(f"[AGG] Attempting to connect to {url}")
-        sio.connect(url, socketio_path="/socket.io", transports=["websocket", "polling"])
+        sio.connect(url, socketio_path="/socket.io",
+                    transports=["websocket", "polling"],
+                    namespaces=["/status"], wait_timeout=5)
         REMOTE_CLIENTS[resolved_ip] = sio
     except Exception as e:
         log_with_timestamp(f"[AGG] Failed to connect to {resolved_ip}: {e}")
@@ -404,7 +406,7 @@ def emit_valve_update(valve_id, label, status):
         }
 
         log_with_timestamp(f"[DEBUG] Emitting granular valve_update: valve_id={valve_id}, label={label}, status={status}")
-        _socketio.emit("status_update", valve_update_payload, namespace="/status")
+        _socketio.emit("valve_update", valve_update_payload, namespace="/status")
 
     except Exception as e:
         log_with_timestamp(f"Error in emit_valve_update: {e}")

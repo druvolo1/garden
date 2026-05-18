@@ -118,6 +118,34 @@ def parse_hardware_response(response):
     if is_debug_enabled("valve_relay_service"):
         log_with_timestamp(f"[Valve] Updated valve_status: {valve_status}")
 
+def _reset_serial_connection():
+    """Close any broken handle and re-open the relay serial port. The
+    by-path symlink follows USB re-enumerations (e.g. ttyUSB1 -> ttyUSB2)
+    so a fresh open() recovers from a USB hiccup. Returns True on success."""
+    global valve_ser
+    try:
+        if valve_ser is not None:
+            try:
+                valve_ser.close()
+            except Exception:
+                pass
+            valve_ser = None
+        open_valve_serial()
+        return True
+    except Exception as e:
+        log_with_timestamp(f"[Valve] reset serial failed: {e}")
+        return False
+
+def _flush_all_pending():
+    """Drop any commands queued while the relay was offline and clear the
+    is_processing flags so future commands can be dispatched fresh."""
+    for vid in range(1, 9):
+        n = len(pending_commands[vid])
+        if n > 0:
+            log_with_timestamp(f"[Valve] Flushing {n} stale command(s) for valve {vid}")
+            pending_commands[vid].clear()
+        is_processing[vid] = False
+
 def valve_polling_loop():
     global valve_ser
     log_with_timestamp("[Valve] Polling loop started.")
@@ -157,6 +185,10 @@ def valve_polling_loop():
             except Exception as e:
                 log_with_timestamp(f"[Valve] Polling error: {e}")
                 set_error("VALVE_RELAY_OFFLINE")
+                if _reset_serial_connection():
+                    _flush_all_pending()
+                    clear_error("VALVE_RELAY_OFFLINE")
+                    log_with_timestamp("[Valve] Serial reopened; pending queues flushed.")
 
         eventlet.sleep(0.5)  # Reduced from 1s to 0.5s for faster feedback
 
@@ -218,40 +250,46 @@ def process_queue(valve_id):
     log_with_timestamp(f"[Valve] Initial cooldown for queue of valve {valve_id}: sleeping {sleep_time} seconds.")
     if sleep_time > 0:
         eventlet.sleep(sleep_time)
-    while pending_commands[valve_id]:
-        with serial_lock:
-            if pending_commands[valve_id]:  # Check again in case queue changed
-                state = pending_commands[valve_id].popleft()
-                cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
-                if is_debug_enabled("valve_relay_service"):
-                    log_with_timestamp(f"[Valve] Sending queued {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
+    try:
+        while pending_commands[valve_id]:
+            with serial_lock:
+                if pending_commands[valve_id]:  # Check again in case queue changed
+                    state = pending_commands[valve_id].popleft()
+                    cmd = VALVE_ON_COMMANDS[valve_id] if state == 'on' else VALVE_OFF_COMMANDS[valve_id]
+                    if is_debug_enabled("valve_relay_service"):
+                        log_with_timestamp(f"[Valve] Sending queued {state.upper()} command for valve {valve_id}: {cmd.hex(' ')}")
 
-                # OPTIMIZATION: Send optimistic update immediately
-                label = get_valve_label(valve_id)
-                emit_valve_update(valve_id, label, state)
+                    # OPTIMIZATION: Send optimistic update immediately
+                    label = get_valve_label(valve_id)
+                    emit_valve_update(valve_id, label, state)
 
-                last_command_time[valve_id] = time.time()  # Update before execution to account for execution time in next cooldown
-                valve_ser.write(cmd)
-                eventlet.sleep(0.2)  # Reduced from 0.5s to 0.2s
-                # Initial poll
-                valve_ser.write(b'\xFF')
-                eventlet.sleep(0.2)  # Reduced from 0.5s to 0.2s
-                response = valve_ser.read(10)
-                parse_hardware_response(response)
+                    last_command_time[valve_id] = time.time()  # Update before execution to account for execution time in next cooldown
+                    valve_ser.write(cmd)
+                    eventlet.sleep(0.2)  # Reduced from 0.5s to 0.2s
+                    # Initial poll
+                    valve_ser.write(b'\xFF')
+                    eventlet.sleep(0.2)  # Reduced from 0.5s to 0.2s
+                    response = valve_ser.read(10)
+                    parse_hardware_response(response)
 
-                # OPTIMIZATION: Emit after first successful poll
-                final_state = valve_status.get(valve_id, "unknown")
-                log_with_timestamp(f"[Valve] Valve {valve_id} polled as {final_state.upper()} (requested {state.upper()}).")
-                emit_status_update(force_emit=True)  # Emit after first poll for fast feedback
-
-                # Verify state with retries (if needed)
-                if final_state != state:
-                    poll_until_state_matches(valve_id, state)
+                    # OPTIMIZATION: Emit after first successful poll
                     final_state = valve_status.get(valve_id, "unknown")
-                    log_with_timestamp(f"[Valve] Valve {valve_id} verified as {final_state.upper()} after retries.")
-                    emit_status_update(force_emit=True)  # Update again if state changed after retries
-    log_with_timestamp(f"[Valve] Queue processing complete for valve {valve_id}.")
-    is_processing[valve_id] = False
+                    log_with_timestamp(f"[Valve] Valve {valve_id} polled as {final_state.upper()} (requested {state.upper()}).")
+                    emit_status_update(force_emit=True)  # Emit after first poll for fast feedback
+
+                    # Verify state with retries (if needed)
+                    if final_state != state:
+                        poll_until_state_matches(valve_id, state)
+                        final_state = valve_status.get(valve_id, "unknown")
+                        log_with_timestamp(f"[Valve] Valve {valve_id} verified as {final_state.upper()} after retries.")
+                        emit_status_update(force_emit=True)  # Update again if state changed after retries
+    except Exception as e:
+        log_with_timestamp(f"[Valve] process_queue({valve_id}) error: {e}; flushing pending commands")
+        pending_commands[valve_id].clear()
+        set_error("VALVE_RELAY_OFFLINE")
+    finally:
+        log_with_timestamp(f"[Valve] Queue processing complete for valve {valve_id}.")
+        is_processing[valve_id] = False
 
 def set_valve_state(valve_id, state):
     global valve_ser

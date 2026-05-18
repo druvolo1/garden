@@ -31,7 +31,7 @@ from status_namespace import is_debug_enabled, get_status_payload  # Added get_s
 # Services
 from services.auto_dose_state import auto_dose_state
 from services.auto_dose_utils import reset_auto_dose_timer
-from services.ph_service import get_latest_ph_reading, serial_reader
+from services.ph_service import get_latest_ph_reading, serial_reader, get_ph_calibration_mode
 from services.ec_service import get_latest_ec_reading, ec_serial_reader
 from services.dosage_service import get_dosage_info, perform_auto_dose, manual_dispense  # Added manual_dispense
 from services.error_service import check_for_hardware_errors
@@ -572,7 +572,12 @@ def broadcast_ph_readings():
             ph_value = get_latest_ph_reading()
             if ph_value is not None:
                 ph_value = round(ph_value, 2)
-                if ph_value != last_emitted_value:
+                # During calibration the user is actively watching the probe
+                # stabilise in a buffer solution — emit every reading so the
+                # calibration log shows live activity. Outside calibration the
+                # change-dedupe keeps traffic quiet.
+                in_cal = get_ph_calibration_mode()
+                if ph_value != last_emitted_value or in_cal:
                     last_emitted_value = ph_value
                     socketio.emit('ph_update', {'ph': ph_value})
                     log_with_timestamp(f"[Broadcast] Emitting pH update: {ph_value}")

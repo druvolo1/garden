@@ -1,0 +1,296 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Valve Control</title>
+  <!-- Link to your external CSS (optional if you prefer inline styles) -->
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+
+  <!-- You can place these styles in style.css if you like -->
+  <style>
+    /* Make the table container scrollable for small screens */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    /* Let the table occupy full width but collapse borders for a cleaner look */
+    #valve-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+
+    #valve-table th,
+    #valve-table td {
+      border: 1px solid #444;
+      padding: 8px;
+      text-align: center;
+    }
+
+    /* Place input + Save button side by side */
+    .valve-rename-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px; /* horizontal space between input & button */
+    }
+
+    /* A narrower, smaller “Save” button so it’s not easy to click by accident */
+    .small-btn {
+      width: auto !important;   /* override any global width:100% */
+      margin-top: 0 !important; /* remove extra top margin if any */
+      padding: 6px 12px;        /* smaller click area */
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/plant_info">Plant Info</a></li>
+      <li><a href="/dosage">Dosage</a></li>
+      <li><a href="/calibration">Calibration</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <li><a href="/valves" class="active" >Valves</a></li>
+      <li><a href="/logs">Logs</a></li>
+      <li><a href="/changelog">Changelog</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Valve Control</h1>
+    <p>This page allows you to name each valve and turn them on/off.</p>
+
+    <div id="no-valve-msg" style="display:none;">
+      <p>No Valve assigned in <a href="/settings">Settings</a>.</p>
+    </div>
+
+    <!-- Table container for responsiveness -->
+    <div class="table-responsive">
+      <table id="valve-table">
+        <thead>
+          <tr>
+            <th>Valve ID</th>
+            <th>Rename (Label)</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JS will populate these rows -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    // We'll store label => valveId so we can map server label updates to the correct row
+    const labelToValveId = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Fetch & populate the table initially
+      fetchValveStatus();
+
+      // Connect to Socket.IO namespace /status
+      const socket = io("/status", {
+        transports: ["websocket"],
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000
+      });
+
+      socket.on("connect", () => {
+        console.log("[valves.html] Connected to /status via Socket.IO");
+      });
+
+      socket.on("disconnect", () => {
+        console.log("[valves.html] Disconnected from /status");
+      });
+
+      // On each "status_update", if valve_relays is present, update row by label
+      socket.on("status_update", (data) => {
+        console.log("[valves.html] Received status_update:", data);
+        if (data.valve_info?.valve_relays) {
+          const relays = data.valve_info.valve_relays;
+          Object.keys(relays).forEach(label => {
+            const relay   = relays[label];
+            const newStat = relay.status || "off";
+            const valveId = labelToValveId[label];
+            if (!valveId) return; // No local row for this label
+
+            const statusCell = document.getElementById(`valve-status-${valveId}`);
+            if (statusCell) {
+              statusCell.textContent = newStat;
+            }
+            updateValveDisplay(valveId, newStat.toLowerCase());
+          });
+        }
+      });
+    });
+
+    // Fetch current statuses from /api/valve_relay/all_status
+    function fetchValveStatus() {
+      fetch("/api/valve_relay/all_status")
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            populateTable(data.valves);
+          } else {
+            console.warn("Failed to fetch valve status:", data.error || data);
+            showNoValveAssigned();
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching valve status:", err);
+          showNoValveAssigned();
+        });
+    }
+
+    function showNoValveAssigned() {
+      // Hide the table, show the "no valve" message
+      document.getElementById("valve-table").style.display = "none";
+      document.getElementById("no-valve-msg").style.display = "block";
+    }
+
+    function populateTable(valves) {
+      // Clear labelToValveId each time
+      for (const key in labelToValveId) {
+        delete labelToValveId[key];
+      }
+
+      document.getElementById("no-valve-msg").style.display = "none";
+      const tableEl = document.getElementById("valve-table");
+      tableEl.style.display = "table";
+
+      const tbody = tableEl.querySelector("tbody");
+      tbody.innerHTML = "";
+
+      // The 'valves' object looks like { "1": { label: "Drain 4", status: "off" }, etc. }
+      Object.keys(valves).forEach(valveId => {
+        const info   = valves[valveId];
+        const label  = info.label  || `Valve ${valveId}`;
+        const status = info.status || "unknown";
+
+        // Map label => valveId
+        labelToValveId[label] = valveId;
+
+        const tr = document.createElement('tr');
+
+        // (A) Valve ID cell
+        const idCell = document.createElement('td');
+        idCell.textContent = valveId;
+        tr.appendChild(idCell);
+
+        // (B) Rename cell with input + Save button
+        const renameCell = document.createElement('td');
+        renameCell.classList.add('valve-rename-cell'); // let CSS handle the flex layout
+
+        const renameInput = document.createElement('input');
+        renameInput.type = "text";
+        renameInput.value = label;
+        renameInput.id = `valve-rename-${valveId}`;
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = "Save";
+        saveBtn.classList.add('small-btn'); // narrower
+        saveBtn.addEventListener('click', () => saveLabel(valveId));
+
+        renameCell.appendChild(renameInput);
+        renameCell.appendChild(saveBtn);
+        tr.appendChild(renameCell);
+
+        // (C) Status cell
+        const statusCell = document.createElement('td');
+        statusCell.id = `valve-status-${valveId}`;
+        statusCell.textContent = status;
+        tr.appendChild(statusCell);
+
+        // (D) Actions cell with ON/OFF
+        const actionsCell = document.createElement('td');
+        const onBtn  = document.createElement('button');
+        onBtn.textContent = "ON";
+        onBtn.id = `valve-${valveId}-on`;
+        onBtn.addEventListener('click', () => turnValve(valveId, "on"));
+
+        const offBtn = document.createElement('button');
+        offBtn.textContent = "OFF";
+        offBtn.id = `valve-${valveId}-off`;
+        offBtn.addEventListener('click', () => turnValve(valveId, "off"));
+
+        actionsCell.appendChild(onBtn);
+        actionsCell.appendChild(offBtn);
+        tr.appendChild(actionsCell);
+
+        // Add row to tbody
+        tbody.appendChild(tr);
+
+        // Update button styles
+        updateValveDisplay(valveId, status.toLowerCase());
+      });
+    }
+
+    function saveLabel(valveId) {
+      const newLabel = document.getElementById(`valve-rename-${valveId}`).value.trim();
+      if (!newLabel) {
+        alert("Please enter a label.");
+        return;
+      }
+      fetch(`/api/valve_relay/label/${encodeURIComponent(valveId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: newLabel })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+          // Re-fetch or wait for status_update
+          fetchValveStatus();
+        } else {
+          console.error("Failed to rename valve:", data.error);
+        }
+      })
+      .catch(err => console.error("Error renaming valve:", err));
+    }
+
+    function turnValve(valveId, action) {
+      fetch(`/api/valve_relay/${encodeURIComponent(valveId)}/${action}`, { method: "POST" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.status === "success") {
+            document.getElementById(`valve-status-${valveId}`).textContent = action;
+            updateValveDisplay(valveId, action);
+          } else {
+            console.error(`Failed to turn valve ${action}:`, data.error);
+          }
+        })
+        .catch(err => console.error(`Error turning valve ${action}:`, err));
+    }
+
+    // Highlight which button is on/off
+    function updateValveDisplay(valveId, newStatus) {
+      const onBtn  = document.getElementById(`valve-${valveId}-on`);
+      const offBtn = document.getElementById(`valve-${valveId}-off`);
+      if (!onBtn || !offBtn) return;
+
+      onBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+      offBtn.classList.remove("btn-on-active","btn-off-active","btn-inactive");
+
+      if (newStatus === "on") {
+        onBtn.classList.add("btn-on-active");
+        offBtn.classList.add("btn-inactive");
+      } else {
+        onBtn.classList.add("btn-inactive");
+        offBtn.classList.add("btn-off-active");
+      }
+    }
+  </script>
+</body>
+</html>

@@ -12,7 +12,7 @@ from queue import Queue
 from datetime import datetime, timedelta
 from eventlet import tpool
 from eventlet import semaphore, event
-from collections import deque
+from collections import deque, Counter
 
 from services.error_service import set_error, clear_error
 from services.notification_service import set_status, clear_status, report_condition_error
@@ -45,13 +45,40 @@ ser = None  # Global variable to track the serial connection
 # Optional median filter
 ph_median_window = deque(maxlen=5)
 
+# Stuck-reading detector (ported from Herb Nerdz ESP firmware).
+# Tracks the last 30 accepted readings at 3-decimal precision. If 25+ are
+# exactly identical the probe is likely stuck (clogged junction, air bubble,
+# physical lock). We flag a status but keep accepting readings.
+PH_STUCK_WINDOW_SIZE = 30
+PH_STUCK_THRESHOLD = 25
+ph_stuck_window = deque(maxlen=PH_STUCK_WINDOW_SIZE)
+_stuck_status_active = False
+
+# Dedupes the "reading ok"/"reading error" status so we don't fire a fresh
+# notification on every single accepted reading or every 30s polling tick.
+# None = unknown, otherwise the last value we pushed to set_status.
+_reading_status = None
+
 # NEW: Global flag for calibration mode (bypasses rogue reading checks)
 calibration_mode = False
 
+def _reset_ph_filter_state():
+    """Clear all filter/stability state. Called when entering or leaving
+    calibration mode so post-calibration readings start fresh and stale
+    'stuck' or jump state can't carry over."""
+    global old_ph_value, _stuck_status_active
+    ph_median_window.clear()
+    ph_stuck_window.clear()
+    old_ph_value = None
+    if _stuck_status_active:
+        clear_status("ph_probe", "stuck_reading")
+        _stuck_status_active = False
+
 def set_ph_calibration_mode(enabled):
     global calibration_mode
+    _reset_ph_filter_state()
     calibration_mode = bool(enabled)
-    log_with_timestamp(f"[DEBUG] pH calibration mode set to {calibration_mode}")
+    log_with_timestamp(f"[DEBUG] pH calibration mode set to {calibration_mode}; filter state reset")
 
 def get_ph_calibration_mode():
     global calibration_mode
@@ -83,9 +110,6 @@ def send_command_to_probe(ser, command):
     except Exception as e:
         log_with_timestamp(f"Error sending command '{command}': {e}")
 
-# Track how many times in the past minute we've had a "jump > 1 pH"
-ph_jumps = []  # list of datetime objects when a big jump occurred
-
 # Track last time we successfully parsed a reading
 last_read_time = None
 
@@ -109,12 +133,12 @@ def parse_buffer(ser):
       * Else mark the reading "ok"
     """
     global buffer, latest_ph_value, last_sent_command
-    global old_ph_value, last_read_time, ph_jumps
+    global old_ph_value, last_read_time
     global slope_data, slope_event
     global ph_recent_values
+    global _reading_status, _stuck_status_active
 
     settings = load_settings()  # Load once per parse cycle for configs
-    jump_threshold = settings.get("ph_jump_threshold", 1.0)
     median_window_size = settings.get("ph_median_window", 5)
     stability_threshold = settings.get("ph_stability_threshold", 0.2)
 
@@ -203,7 +227,10 @@ def parse_buffer(ser):
 
         try:
             ph_value = round(float(line), 3)
-            set_status("ph_probe", "reading", "ok", "Receiving readings.")
+            # Dedupe: only fire "reading ok" on transition (not every tick).
+            if _reading_status != 'ok':
+                set_status("ph_probe", "reading", "ok", "Receiving readings.")
+                _reading_status = 'ok'
             log_with_timestamp(f"[DEBUG] parse_buffer: recognized numeric pH => {ph_value}")
 
             if ph_value == 0 or ph_value == 14:
@@ -229,26 +256,26 @@ def parse_buffer(ser):
                         log_with_timestamp(f"[DEBUG] Discarded unstable reading (var {variance:.2f} > {stability_threshold}): {recent_3}")
                         continue
 
-            if old_ph_value is None:
-                delta = 0.0
-            else:
-                delta = abs(filtered_ph - old_ph_value)
-
-            log_with_timestamp(f"[DEBUG] parse_buffer: old_ph_value={old_ph_value}, delta={delta:.2f}")
-
-            # NEW: Skip jump check if in calibration mode
-            if not calibration_mode:
-                if old_ph_value is not None and delta > jump_threshold:
-                    now = datetime.now()
-                    ph_jumps.append(now)
-                    cutoff = now - timedelta(seconds=60)
-                    ph_jumps = [t for t in ph_jumps if t >= cutoff]
-
-                    if len(ph_jumps) > 5:
-                        report_condition_error("ph_probe", "persistent_unstable_readings", f"{len(ph_jumps)} big jumps (> {jump_threshold}) in last 60s.")
-
-                    log_with_timestamp(f"[DEBUG] Ignored jump (delta {delta:.2f} > {jump_threshold})")
-                    continue
+            # Stuck-reading detector (replaces previous jump-detection logic).
+            # The jump check was hostile to legitimate big swings — moving the
+            # probe during feeding produced bursts of "jumps" that latched the
+            # probe in an unstable state until calibration mode was entered.
+            # Per the Herb Nerdz ESP firmware (ph_sensor.h), we instead watch
+            # for the probe getting STUCK at a single value (no variation at
+            # all over a sustained window).
+            ph_stuck_window.append(filtered_ph)
+            if not calibration_mode and len(ph_stuck_window) >= PH_STUCK_WINDOW_SIZE:
+                most_common_count = Counter(ph_stuck_window).most_common(1)[0][1]
+                if most_common_count >= PH_STUCK_THRESHOLD:
+                    if not _stuck_status_active:
+                        set_status("ph_probe", "stuck_reading", "warning",
+                                   f"pH stuck near {filtered_ph:.3f} "
+                                   f"({most_common_count}/{PH_STUCK_WINDOW_SIZE} identical readings).")
+                        _stuck_status_active = True
+                else:
+                    if _stuck_status_active:
+                        clear_status("ph_probe", "stuck_reading")
+                        _stuck_status_active = False
 
             old_ph_value = filtered_ph
 
@@ -292,6 +319,7 @@ def parse_buffer(ser):
 
 def serial_reader():
     global ser, buffer, latest_ph_value, old_ph_value, last_read_time
+    global _reading_status
 
     print("DEBUG: Entered serial_reader() at all...")
     consecutive_fails = 0
@@ -344,10 +372,14 @@ def serial_reader():
                 if last_read_time:
                     elapsed = (datetime.now() - last_read_time).total_seconds()
                     if elapsed > 30:
-                        if not last_no_reading_error_time or \
-                           (datetime.now() - last_no_reading_error_time).total_seconds() > 30:
+                        # Only fire the "no reading" alert on transition into
+                        # the error state (once), not every 30s while readings
+                        # are still absent. parse_buffer flips _reading_status
+                        # back to 'ok' on the next successful reading.
+                        if _reading_status != 'error':
                             set_status("ph_probe", "reading", "error",
                                        "No pH reading available for 30+ seconds.")
+                            _reading_status = 'error'
                             last_no_reading_error_time = datetime.now()
 
                 try:

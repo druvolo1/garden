@@ -13,13 +13,29 @@ from status_namespace import emit_status_update
 
 def get_dosage_info():
     current_ph = get_latest_ph_reading()
-    if current_ph is None:
-        current_ph = 0.0
 
     settings = load_settings()
     system_volume = settings.get("system_volume", 0)
     auto_dosing_enabled = settings.get("auto_dosing_enabled", False)
     ph_target = settings.get("ph_target", 5.8)
+
+    # When no pH reading is available, bail out with zeroed doses instead of
+    # substituting current_ph = 0.0. The previous behaviour made the function
+    # calculate a pH-up dose as if pH were 0, producing misleading values for
+    # any caller that hit this endpoint (perform_auto_dose has its own None
+    # guard, but the API endpoint did not).
+    if current_ph is None:
+        return {
+            "current_ph": None,
+            "system_volume": system_volume,
+            "auto_dosing_enabled": auto_dosing_enabled,
+            "ph_target": ph_target,
+            "ph_up_amount": 0.0,
+            "ph_down_amount": 0.0,
+            "feedback_up": "",
+            "feedback_down": "No pH reading available; dosing calculation skipped.",
+            "no_reading": True,
+        }
 
     dosage_strength = settings.get("dosage_strength", {})
     ph_up_strength = dosage_strength.get("ph_up", 1.0)
@@ -43,9 +59,6 @@ def get_dosage_info():
                 f"Clamping to {max_dosing_amount:.2f} ml."
             )
             ph_up_amount = max_dosing_amount
-            feedback_up = (
-                f""
-            )
         else:
             ph_up_amount = calculated_up
 
@@ -78,9 +91,10 @@ def get_dosage_info():
     }
 
 def manual_dispense(dispense_type, amount_ml):
-    current_ph = get_latest_ph_reading() or 'N/A'
-    print(f"[Dispense] Dispensed {amount_ml} ml of pH {dispense_type.capitalize()}. Current pH: {current_ph}.")
-    log_dosing_event(current_ph, dispense_type, amount_ml)
+    current_ph = get_latest_ph_reading()  # Returns None if no reading available
+    ph_display = current_ph if current_ph is not None else 'N/A'
+    print(f"[Dispense] Dispensed {amount_ml} ml of pH {dispense_type.capitalize()}. Current pH: {ph_display}.")
+    log_dosing_event(current_ph, dispense_type, amount_ml)  # Pass None instead of 'N/A'
     return True
 
 # -----------------------------

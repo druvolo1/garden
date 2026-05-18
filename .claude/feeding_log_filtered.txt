@@ -1,0 +1,212 @@
+﻿plink.exe : /tmp/efl.sh: line 1: ﻿#!/bin/bash: No such file or directory
+At line:1 char:227
++ ... ; $script | & $plink -ssh -batch -pw password dave@fill.dr "cat > /tm ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (/tmp/efl.sh: li...le or directory:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+=== feeding_log line count: 57591 ===
+=== first ts: 2025-10-19T18:04:14.687501 ===
+=== last ts:  2026-05-17T15:13:55.271073 ===
+=== Interesting entries: 1265 ===
+  2026-04-19T16:35:00  Zone1.dr            Target feed volume 0.50 Gal reached for Zone1.dr (actual: 0.52 Gal), turned off feed pump and relays
+  2026-04-19T16:35:57  Zone1.dr            Fill complete for plant Zone1.dr. Fill valve confirmed off.
+  2026-04-19T16:35:57  Zone1.dr            Flow readings for plant Zone1.dr: Fresh: 4.19 Gal, Feed: 0.53 Gal, Drain: 1.15 Gal
+  2026-04-19T16:35:57  Zone2.dr            Reset all total volumes for plant Zone2.dr
+  2026-04-19T16:35:57  Zone3.dr            Reset all total volumes for plant Zone3.dr
+  2026-04-19T16:35:57  Zone5.dr            Reset all total volumes for plant Zone5.dr
+  2026-04-19T16:35:59  Zone5.dr            Starting drain for plant Zone5.dr
+  2026-04-19T16:36:38  Zone5.dr            Drain complete for plant Zone5.dr. Reason: sensor_triggered
+  2026-04-19T16:36:38  Zone5.dr            Drain complete for plant Zone5.dr. Drain valve confirmed off.
+  2026-04-19T16:36:38  Zone5.dr            Starting feed mixing for Zone5.dr, target feed volume: 0.50 Gal
+  2026-04-19T16:36:55  Zone5.dr            Target feed volume 0.50 Gal reached for Zone5.dr (actual: 0.52 Gal), turned off feed pump and relays
+  2026-04-19T16:37:56  Zone5.dr            Fill complete for plant Zone5.dr. Fill valve confirmed off.
+  2026-04-19T16:37:56  Zone5.dr            Flow readings for plant Zone5.dr: Fresh: 4.61 Gal, Feed: 0.53 Gal, Drain: 0.95 Gal
+  2026-04-19T16:37:56  Zone6.dr            Reset all total volumes for plant Zone6.dr
+  2026-04-19T16:37:57  Zone6.dr            Starting drain for plant Zone6.dr
+  2026-04-19T16:38:34  Zone6.dr            Drain complete for plant Zone6.dr. Reason: sensor_triggered
+  2026-04-19T16:38:34  Zone6.dr            Drain complete for plant Zone6.dr. Drain valve confirmed off.
+  2026-04-19T16:38:34  Zone6.dr            Starting feed mixing for Zone6.dr, target feed volume: 0.50 Gal
+  2026-04-19T16:38:52  Zone6.dr            Target feed volume 0.50 Gal reached for Zone6.dr (actual: 0.50 Gal), turned off feed pump and relays
+  2026-04-19T16:39:56  Zone6.dr            Fill complete for plant Zone6.dr. Fill valve confirmed off.
+  2026-04-19T16:39:56  Zone6.dr            Flow readings for plant Zone6.dr: Fresh: 4.61 Gal, Feed: 0.51 Gal, Drain: 0.90 Gal
+  2026-04-19T16:39:56  Zone7.dr            Reset all total volumes for plant Zone7.dr
+  2026-05-05T17:22:37  Zone1.dr            Failed to connect to Zone1.dr at Zone1.dr:8000: HTTPConnectionPool(host='zone1.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:22:37  Zone2.dr            Failed to connect to Zone2.dr at Zone2.dr:8000: HTTPConnectionPool(host='zone2.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:22:37  Zone3.dr            Failed to connect to Zone3.dr at Zone3.dr:8000: HTTPConnectionPool(host='zone3.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:22:37  Zone5.dr            Failed to connect to Zone5.dr at Zone5.dr:8000: HTTPConnectionPool(host='zone5.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:22:37  Zone6.dr            Failed to connect to Zone6.dr at Zone6.dr:8000: HTTPConnectionPool(host='zone6.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:22:37  Zone7.dr            Failed to connect to Zone7.dr at Zone7.dr:8000: HTTPConnectionPool(host='zone7.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:29  Zone1.dr            Failed to connect to Zone1.dr at Zone1.dr:8000: HTTPConnectionPool(host='zone1.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:29  Zone2.dr            Failed to connect to Zone2.dr at Zone2.dr:8000: HTTPConnectionPool(host='zone2.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:29  Zone3.dr            Failed to connect to Zone3.dr at Zone3.dr:8000: HTTPConnectionPool(host='zone3.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:29  Zone5.dr            Failed to connect to Zone5.dr at Zone5.dr:8000: HTTPConnectionPool(host='zone5.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:29  Zone6.dr            Failed to connect to Zone6.dr at Zone6.dr:8000: HTTPConnectionPool(host='zone6.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:23:30  Zone7.dr            Failed to connect to Zone7.dr at Zone7.dr:8000: HTTPConnectionPool(host='zone7.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:55  Zone1.dr            Failed to connect to Zone1.dr at Zone1.dr:8000: HTTPConnectionPool(host='zone1.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:55  Zone2.dr            Failed to connect to Zone2.dr at Zone2.dr:8000: HTTPConnectionPool(host='zone2.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:55  Zone3.dr            Failed to connect to Zone3.dr at Zone3.dr:8000: HTTPConnectionPool(host='zone3.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:56  Zone5.dr            Failed to connect to Zone5.dr at Zone5.dr:8000: HTTPConnectionPool(host='zone5.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:56  Zone6.dr            Failed to connect to Zone6.dr at Zone6.dr:8000: HTTPConnectionPool(host='zone6.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T17:25:56  Zone7.dr            Failed to connect to Zone7.dr at Zone7.dr:8000: HTTPConnectionPool(host='zone7.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone1.dr            Failed to connect to Zone1.dr at Zone1.dr:8000: HTTPConnectionPool(host='zone1.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone2.dr            Failed to connect to Zone2.dr at Zone2.dr:8000: HTTPConnectionPool(host='zone2.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone3.dr            Failed to connect to Zone3.dr at Zone3.dr:8000: HTTPConnectionPool(host='zone3.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone5.dr            Failed to connect to Zone5.dr at Zone5.dr:8000: HTTPConnectionPool(host='zone5.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone6.dr            Failed to connect to Zone6.dr at Zone6.dr:8000: HTTPConnectionPool(host='zone6.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-05T21:29:33  Zone7.dr            Failed to connect to Zone7.dr at Zone7.dr:8000: HTTPConnectionPool(host='zone7.dr', port=8000): Max retries exceeded with url: /socket.io/?transport=polling&EIO
+  2026-05-10T14:08:56                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.dr', 'Zone2.dr', 'Zone3.dr', 'Zone5.dr', 'Zone6.dr', 'Zone7.dr']
+  2026-05-10T14:08:56  Zone1.dr            Reset all total volumes for plant Zone1.dr
+  2026-05-10T14:08:57  Zone1.dr            Starting drain for plant Zone1.dr
+  2026-05-10T14:09:09                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-10T14:09:17  Zone1.dr            Drain complete for plant Zone1.dr. Reason: low_initial_flow
+  2026-05-10T14:09:17  Zone1.dr            Failed to confirm drain valve Zone 1 Drain off for Zone1.dr
+  2026-05-10T14:09:18  Zone2.dr            Reset all total volumes for plant Zone2.dr
+  2026-05-10T14:20:14                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.dr', 'Zone2.dr', 'Zone3.dr', 'Zone5.dr', 'Zone6.dr', 'Zone7.dr']
+  2026-05-10T14:20:14  Zone1.dr            Reset all total volumes for plant Zone1.dr
+  2026-05-10T14:20:16  Zone1.dr            Starting drain for plant Zone1.dr
+  2026-05-10T14:23:01  Zone2.dr            Reset all total volumes for plant Zone2.dr
+  2026-05-10T14:23:04                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-10T14:23:08                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.dr', 'Zone2.dr', 'Zone3.dr', 'Zone5.dr', 'Zone6.dr', 'Zone7.dr']
+  2026-05-10T14:23:08  Zone1.dr            Reset all total volumes for plant Zone1.dr
+  2026-05-10T14:23:10  Zone1.dr            Starting drain for plant Zone1.dr
+  2026-05-10T14:23:30  Zone1.dr            Drain complete for plant Zone1.dr. Reason: low_initial_flow
+  2026-05-10T14:23:30  Zone1.dr            Drain complete for plant Zone1.dr. Drain valve confirmed off.
+  2026-05-10T14:23:30  Zone1.dr            Starting feed mixing for Zone1.dr, target feed volume: 0.50 Gal
+  2026-05-10T14:23:44  Zone1.dr            Target feed volume 0.50 Gal reached for Zone1.dr (actual: 0.52 Gal), turned off feed pump and relays
+  2026-05-10T14:25:40  Zone1.dr            Fill complete for plant Zone1.dr. Fill valve confirmed off.
+  2026-05-10T14:25:40  Zone1.dr            Flow readings for plant Zone1.dr: Fresh: 7.18 Gal, Feed: 0.53 Gal, Drain: 0.63 Gal
+  2026-05-10T14:25:40  Zone2.dr            Reset all total volumes for plant Zone2.dr
+  2026-05-10T14:25:42  Zone2.dr            Starting drain for plant Zone2.dr
+  2026-05-10T14:28:49  Zone2.dr            Drain complete for plant Zone2.dr. Reason: low_flow
+  2026-05-10T14:28:49  Zone2.dr            Drain complete for plant Zone2.dr. Drain valve confirmed off.
+  2026-05-10T14:28:49  Zone2.dr            Starting feed mixing for Zone2.dr, target feed volume: 0.50 Gal
+  2026-05-10T14:29:06  Zone2.dr            Target feed volume 0.50 Gal reached for Zone2.dr (actual: 0.54 Gal), turned off feed pump and relays
+  2026-05-10T14:29:53  Zone2.dr            Fill complete for plant Zone2.dr. Fill valve confirmed off.
+  2026-05-10T14:29:53  Zone2.dr            Flow readings for plant Zone2.dr: Fresh: 2.80 Gal, Feed: 0.55 Gal, Drain: 4.87 Gal
+  2026-05-10T14:29:53  Zone3.dr            Reset all total volumes for plant Zone3.dr
+  2026-05-10T14:29:54  Zone3.dr            Starting drain for plant Zone3.dr
+  2026-05-10T14:30:16  Zone3.dr            Drain complete for plant Zone3.dr. Reason: low_initial_flow
+  2026-05-10T14:30:16  Zone3.dr            Drain complete for plant Zone3.dr. Drain valve confirmed off.
+  2026-05-10T14:30:16  Zone3.dr            Starting feed mixing for Zone3.dr, target feed volume: 0.50 Gal
+  2026-05-10T14:30:28  Zone5.dr            Reset all total volumes for plant Zone5.dr
+  2026-05-10T14:30:29                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-10T14:36:37                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.dr', 'Zone2.dr', 'Zone3.dr', 'Zone5.dr', 'Zone6.dr', 'Zone7.dr']
+  2026-05-10T14:36:37  Zone1.dr            Reset all total volumes for plant Zone1.dr
+  2026-05-10T14:36:37  Zone2.dr            Reset all total volumes for plant Zone2.dr
+  2026-05-10T14:36:37  Zone3.dr            Reset all total volumes for plant Zone3.dr
+  2026-05-10T14:36:40  Zone3.dr            Starting drain for plant Zone3.dr
+  2026-05-10T14:37:00  Zone3.dr            Drain complete for plant Zone3.dr. Reason: low_initial_flow
+  2026-05-10T14:37:00  Zone3.dr            Drain complete for plant Zone3.dr. Drain valve confirmed off.
+  2026-05-10T14:37:00  Zone3.dr            Starting feed mixing for Zone3.dr, target feed volume: 0.50 Gal
+  2026-05-10T14:37:13  Zone5.dr            Reset all total volumes for plant Zone5.dr
+  2026-05-10T14:37:14  Zone5.dr            Starting drain for plant Zone5.dr
+  2026-05-10T14:37:27                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-10T14:37:36  Zone5.dr            Drain complete for plant Zone5.dr. Reason: low_initial_flow
+  2026-05-10T14:37:36  Zone5.dr            Failed to confirm drain valve Zone 5 Drain off for Zone5.dr
+  2026-05-10T14:37:36  Zone6.dr            Reset all total volumes for plant Zone6.dr
+  2026-05-17T12:35:50                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T12:35:50  Zone1.local         Reset all total volumes for plant Zone1.local
+  2026-05-17T12:35:50  Zone2.local         Reset all total volumes for plant Zone2.local
+  2026-05-17T12:35:52  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T12:36:14  Zone2.local         Drain complete for plant Zone2.local. Reason: low_initial_flow
+  2026-05-17T12:36:15  Zone2.local         Drain complete for plant Zone2.local. Drain valve confirmed off.
+  2026-05-17T12:36:15  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 0.50 Gal
+  2026-05-17T12:36:23                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-17T12:36:26  Zone3.local         Reset all total volumes for plant Zone3.local
+  2026-05-17T12:37:39                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T12:37:39  Zone1.local         Reset all total volumes for plant Zone1.local
+  2026-05-17T12:37:39  Zone2.local         Reset all total volumes for plant Zone2.local
+  2026-05-17T12:37:42  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T12:38:15  Zone2.local         Drain complete for plant Zone2.local. Reason: low_initial_flow
+  2026-05-17T12:38:16  Zone2.local         Drain complete for plant Zone2.local. Drain valve confirmed off.
+  2026-05-17T12:38:16  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 0.50 Gal
+  2026-05-17T12:38:20  Zone3.local         Reset all total volumes for plant Zone3.local
+  2026-05-17T12:38:20                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-17T12:46:21                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T12:46:21  Zone1.local         Reset all total volumes for plant Zone1.local
+  2026-05-17T12:46:21  Zone2.local         Reset all total volumes for plant Zone2.local
+  2026-05-17T12:46:23  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T12:46:55  Zone2.local         Drain complete for plant Zone2.local. Reason: low_initial_flow
+  2026-05-17T12:46:56  Zone2.local         Drain complete for plant Zone2.local. Drain valve confirmed off.
+  2026-05-17T12:46:56  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 2.75 Gal
+  2026-05-17T12:47:17  Zone2.local         Fill complete for plant Zone2.local. Fill valve confirmed off.
+  2026-05-17T12:47:17  Zone2.local         Flow readings for plant Zone2.local: Fresh: 0.56 Gal, Feed: 0.74 Gal, Drain: 0.51 Gal
+  2026-05-17T12:47:17  Zone3.local         Reset all total volumes for plant Zone3.local
+  2026-05-17T12:47:20  Zone3.local         Starting drain for plant Zone3.local
+  2026-05-17T12:51:52  Zone3.local         Drain complete for plant Zone3.local. Reason: timeout
+  2026-05-17T12:51:53  Zone3.local         Drain complete for plant Zone3.local. Drain valve confirmed off.
+  2026-05-17T12:51:53  Zone3.local         Starting feed mixing for Zone3.local, target feed volume: 2.75 Gal
+  2026-05-17T12:52:32  Zone3.local         Fill complete for plant Zone3.local. Fill valve confirmed off.
+  2026-05-17T12:52:32  Zone3.local         Flow readings for plant Zone3.local: Fresh: 1.05 Gal, Feed: 1.38 Gal, Drain: 3.77 Gal
+  2026-05-17T12:52:32  Zone5.local         Reset all total volumes for plant Zone5.local
+  2026-05-17T12:52:34  Zone5.local         Starting drain for plant Zone5.local
+  2026-05-17T12:53:05  Zone5.local         Drain complete for plant Zone5.local. Reason: low_initial_flow
+  2026-05-17T12:53:06  Zone5.local         Drain complete for plant Zone5.local. Drain valve confirmed off.
+  2026-05-17T12:53:06  Zone5.local         Starting feed mixing for Zone5.local, target feed volume: 2.75 Gal
+  2026-05-17T12:54:05  Zone5.local         Fill complete for plant Zone5.local. Fill valve confirmed off.
+  2026-05-17T12:54:05  Zone5.local         Flow readings for plant Zone5.local: Fresh: 1.67 Gal, Feed: 2.18 Gal, Drain: 0.33 Gal
+  2026-05-17T12:54:05  Zone6.local         Reset all total volumes for plant Zone6.local
+  2026-05-17T12:54:08  Zone6.local         Starting drain for plant Zone6.local
+  2026-05-17T12:54:39  Zone6.local         Drain complete for plant Zone6.local. Reason: low_initial_flow
+  2026-05-17T12:54:40  Zone6.local         Drain complete for plant Zone6.local. Drain valve confirmed off.
+  2026-05-17T12:54:40  Zone6.local         Starting feed mixing for Zone6.local, target feed volume: 2.75 Gal
+  2026-05-17T12:55:43  Zone6.local         Fill complete for plant Zone6.local. Fill valve confirmed off.
+  2026-05-17T12:55:43  Zone6.local         Flow readings for plant Zone6.local: Fresh: 1.74 Gal, Feed: 2.37 Gal, Drain: 0.36 Gal
+  2026-05-17T12:55:43  Zone7.local         Reset all total volumes for plant Zone7.local
+  2026-05-17T13:29:51                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T13:29:51  Zone1.local         Reset all total volumes for plant Zone1.local
+  2026-05-17T13:29:51  Zone2.local         Reset all total volumes for plant Zone2.local
+  2026-05-17T13:29:52  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T13:37:56  Zone2.local         Drain complete for plant Zone2.local. Reason: sensor_triggered
+  2026-05-17T13:37:57  Zone2.local         Drain complete for plant Zone2.local. Drain valve confirmed off.
+  2026-05-17T13:37:57  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 2.75 Gal
+  2026-05-17T13:39:02  Zone2.local         Fill complete for plant Zone2.local. Fill valve confirmed off.
+  2026-05-17T13:39:02  Zone2.local         Flow readings for plant Zone2.local: Fresh: 1.80 Gal, Feed: 2.42 Gal, Drain: 5.86 Gal
+  2026-05-17T13:39:02  Zone3.local         Reset all total volumes for plant Zone3.local
+  2026-05-17T13:39:04  Zone3.local         Starting drain for plant Zone3.local
+  2026-05-17T13:46:49  Zone3.local         Drain complete for plant Zone3.local. Reason: sensor_triggered
+  2026-05-17T13:46:50  Zone3.local         Drain complete for plant Zone3.local. Drain valve confirmed off.
+  2026-05-17T13:46:50  Zone3.local         Starting feed mixing for Zone3.local, target feed volume: 2.75 Gal
+  2026-05-17T13:47:03  Zone5.local         Reset all total volumes for plant Zone5.local
+  2026-05-17T13:47:05  Zone5.local         Starting drain for plant Zone5.local
+  2026-05-17T13:57:26  Zone5.local         Drain complete for plant Zone5.local. Reason: low_flow
+  2026-05-17T13:57:27  Zone5.local         Drain complete for plant Zone5.local. Drain valve confirmed off.
+  2026-05-17T13:57:27  Zone5.local         Starting feed mixing for Zone5.local, target feed volume: 2.75 Gal
+  2026-05-17T13:57:40  Zone6.local         Reset all total volumes for plant Zone6.local
+  2026-05-17T13:57:40  Zone7.local         Reset all total volumes for plant Zone7.local
+  2026-05-17T14:10:31                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T14:10:33  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T14:20:16  Zone2.local         Drain complete for plant Zone2.local. Reason: low_flow
+  2026-05-17T14:20:17  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 0.50 Gal
+  2026-05-17T14:22:00  Zone2.local         Fill complete for plant Zone2.local. Fill valve confirmed off.
+  2026-05-17T14:22:00  Zone2.local         Flow readings for plant Zone2.local: Fresh: 4.79 Gal, Feed: 0.15 Gal, Drain: 5.80 Gal
+  2026-05-17T14:22:02  Zone3.local         Starting drain for plant Zone3.local
+  2026-05-17T14:29:32  Zone3.local         Drain complete for plant Zone3.local. Reason: sensor_triggered
+  2026-05-17T14:29:34  Zone3.local         Starting feed mixing for Zone3.local, target feed volume: 0.50 Gal
+  2026-05-17T14:31:14  Zone3.local         Fill complete for plant Zone3.local. Fill valve confirmed off.
+  2026-05-17T14:31:14  Zone3.local         Flow readings for plant Zone3.local: Fresh: 4.82 Gal, Feed: 0.00 Gal, Drain: 5.53 Gal
+  2026-05-17T14:31:16  Zone5.local         Starting drain for plant Zone5.local
+  2026-05-17T14:36:51                      Failed to stop feeding sequence: Feed pump IO number not configured
+  2026-05-17T14:37:09                      Starting feeding sequence with use_fresh=True, use_feed=True. Plants: ['Zone1.local', 'Zone2.local', 'Zone3.local', 'Zone5.local', 'Zone6.local', 'Zone7.local']
+  2026-05-17T14:37:12  Zone2.local         Starting drain for plant Zone2.local
+  2026-05-17T14:45:05  Zone2.local         Drain complete for plant Zone2.local. Reason: sensor_triggered
+  2026-05-17T14:45:06  Zone2.local         Starting feed mixing for Zone2.local, target feed volume: 2.75 Gal
+  2026-05-17T14:46:48  Zone2.local         Fill complete for plant Zone2.local. Fill valve confirmed off.
+  2026-05-17T14:46:48  Zone2.local         Flow readings for plant Zone2.local: Fresh: 4.84 Gal, Feed: 0.00 Gal, Drain: 5.69 Gal
+  2026-05-17T14:46:51  Zone3.local         Starting drain for plant Zone3.local
+  2026-05-17T14:54:23  Zone3.local         Drain complete for plant Zone3.local. Reason: sensor_triggered
+  2026-05-17T14:54:25  Zone3.local         Starting feed mixing for Zone3.local, target feed volume: 2.75 Gal
+  2026-05-17T14:56:01  Zone3.local         Fill complete for plant Zone3.local. Fill valve confirmed off.
+  2026-05-17T14:56:01  Zone3.local         Flow readings for plant Zone3.local: Fresh: 4.69 Gal, Feed: 0.00 Gal, Drain: 5.48 Gal
+  2026-05-17T14:56:04  Zone5.local         Starting drain for plant Zone5.local
+  2026-05-17T15:00:55  Zone5.local         Drain complete for plant Zone5.local. Reason: low_flow
+  2026-05-17T15:00:56  Zone5.local         Starting feed mixing for Zone5.local, target feed volume: 2.75 Gal
+  2026-05-17T15:02:39  Zone5.local         Fill complete for plant Zone5.local. Fill valve confirmed off.
+  2026-05-17T15:02:39  Zone5.local         Flow readings for plant Zone5.local: Fresh: 5.50 Gal, Feed: 0.00 Gal, Drain: 1.71 Gal
+  2026-05-17T15:02:42  Zone6.local         Starting drain for plant Zone6.local
+  2026-05-17T15:12:07  Zone6.local         Drain complete for plant Zone6.local. Reason: low_flow
+  2026-05-17T15:12:08  Zone6.local         Starting feed mixing for Zone6.local, target feed volume: 2.75 Gal
+  2026-05-17T15:13:55  Zone6.local         Fill complete for plant Zone6.local. Fill valve confirmed off.
+  2026-05-17T15:13:55  Zone6.local         Flow readings for plant Zone6.local: Fresh: 5.10 Gal, Feed: 0.00 Gal, Drain: 6.01 Gal
+/tmp/efl.sh: line 39: $'\r': command not found

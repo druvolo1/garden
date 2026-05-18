@@ -57,6 +57,8 @@ def upload_log_to_server(log_entry):
             timeout=5
         )
 
+        if response.status_code != 200:
+            print(f"Failed to upload log: {response.status_code} - {response.text}")
         return response.status_code == 200
 
     except Exception as e:
@@ -186,6 +188,7 @@ def upload_specific_log_file(filename):
                     total_uploaded += len(batch)
                 else:
                     print(f"Failed to upload batch from {filename}: {response.status_code}")
+                    print(f"Response body: {response.text}")
                     return False
 
             except Exception as e:
@@ -270,6 +273,7 @@ def upload_pending_logs():
                         total_uploaded += len(batch)
                     else:
                         print(f"Failed to upload batch: {response.status_code}")
+                        print(f"Response body: {response.text}")
                         return False  # Stop on first failure
 
                 except Exception as e:
@@ -295,11 +299,12 @@ def upload_pending_logs():
 def sync_logs_background():
     """
     Background thread that periodically checks for and uploads pending logs.
-    Runs every hour.
+    Syncs on boot, then every hour.
     """
-    while True:
-        time.sleep(3600)  # Sleep for 1 hour
+    # Brief delay on startup to let services initialize
+    time.sleep(30)
 
+    while True:
         try:
             settings = get_cached_settings()
             server_enabled = settings.get("server_enabled", False)
@@ -310,6 +315,8 @@ def sync_logs_background():
                 upload_pending_logs()
         except Exception as e:
             print(f"Error in background log sync: {e}")
+
+        time.sleep(3600)  # Sleep for 1 hour before next sync
 
 # Start the periodic logging in a background thread
 threading.Thread(target=log_ph_periodically, daemon=True).start()
