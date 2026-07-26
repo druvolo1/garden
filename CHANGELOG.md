@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.91] - 2026-07-26
+- settings page "Apply Update" now works on devices whose working tree has local modifications; it delegates to the same reset-then-pull used by /api/system/apply_update instead of running a bare git pull that git refuses
+- the update modal now waits for the real result, shows the actual error on failure, and only reloads on success (it previously ran a fake progress bar to 100% and reloaded regardless, so a failed update looked identical to a successful one)
+- local JSONL logs are trimmed to the last 14 days, checked on boot and once a day
+- added git update and apply-dry-run diagnostic scripts
+
+## [1.0.90] - 2026-05-18
+- version bump only, no functional change
+
+## [1.0.89] - 2026-05-18
+- granular valve changes now emit as `valve_update` instead of being sent under the `status_update` event name with a truncated payload, which could be misread by clients expecting a full status
+- aggregator socket.io client now connects with an explicit `/status` namespace and a 5 second wait timeout
+
 ## [1.0.88] - 2025-11-08
 - fixed auto dosing not working from improper water sensor interpretation
 - added Application Restart and PC Reboot on the settings page on the Application Update Card. 
