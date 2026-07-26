@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.92] - 2026-07-26
+- starting a plant no longer requires the server: if the server is not in use, or is unreachable, the plant is saved to this device with a locally generated id and the dialog says so. Previously the form was only offered when server_enabled was false, yet the handler demanded credentials and a successful cloud POST, so it could never succeed in the one case it was shown
+- the local save is now checked rather than assumed, so a failure to write settings is reported instead of being silently swallowed
+
 ## [1.0.91] - 2026-07-26
 - settings page "Apply Update" now works on devices whose working tree has local modifications; it delegates to the same reset-then-pull used by /api/system/apply_update instead of running a bare git pull that git refuses
 - the update modal now waits for the real result, shows the actual error on failure, and only reloads on success (it previously ran a fake progress bar to 100% and reloaded regardless, so a failed update looked identical to a successful one)

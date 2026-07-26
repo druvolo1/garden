@@ -271,35 +271,55 @@
         const deviceId = currentSettings.device_id;
         const apiKey = currentSettings.api_key;
         const systemName = currentSettings.system_name || null;
+        const serverEnabled = currentSettings.server_enabled || false;
         let serverUrl = currentSettings.server_url;
 
-        if (!deviceId || !apiKey || !serverUrl) {
-          alert('Please configure device connection in Settings first');
-          return;
+        // The plant name lives in this device's own settings.json, so naming a
+        // plant must not depend on the server being up. This form is only shown
+        // when server_enabled is false (see loadSettings), yet it used to demand
+        // credentials and a successful cloud POST - so it could never succeed in
+        // the one case it was offered in.
+        const canUseServer = Boolean(serverEnabled && deviceId && apiKey && serverUrl);
+        let plantId = null;
+        let note = '';
+
+        if (canUseServer) {
+          try {
+            // Convert WebSocket URL to HTTP URL for API calls
+            serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+            // Remove /ws/devices path if present
+            serverUrl = serverUrl.replace('/ws/devices', '');
+
+            // Create plant on server using device API
+            const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants?api_key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: plantName,
+                system_id: systemName,
+                device_id: deviceId
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error(`server returned HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            plantId = data.plant_id;
+          } catch (serverError) {
+            // Server unreachable or refusing: keep going locally rather than
+            // leaving the operator unable to name a plant at all.
+            console.warn('Server plant creation failed, saving locally:', serverError);
+            note = `\n\nNot registered on the server (${serverError.message}). Saved on this device only.`;
+          }
+        } else {
+          note = '\n\nSaved on this device only (server not in use).';
         }
 
-        // Convert WebSocket URL to HTTP URL for API calls
-        serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-        // Remove /ws/devices path if present
-        serverUrl = serverUrl.replace('/ws/devices', '');
-
-        // Create plant on server using device API
-        const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants?api_key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: plantName,
-            system_id: systemName,
-            device_id: deviceId
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
+        if (!plantId) {
+          // Local id in the same shape as server-issued ones (ms timestamp + 3 digits)
+          plantId = `${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
         }
-
-        const data = await response.json();
-        const plantId = data.plant_id;
 
         // Save plant info and settings to local settings
         const payload = {
@@ -313,13 +333,19 @@
           allow_remote_feeding: allowRemoteFeeding
         };
 
-        await fetch('/api/settings/', {
+        const localSave = await fetch('/api/settings/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        alert(`Plant "${plantName}" started successfully!`);
+        // The local save is the part that actually matters, so unlike before it
+        // is checked rather than assumed.
+        if (!localSave.ok) {
+          throw new Error(`could not save to this device (HTTP ${localSave.status})`);
+        }
+
+        alert(`Plant "${plantName}" started successfully!${note}`);
         loadSettings(); // Reload to show active plant section
 
       } catch (error) {
