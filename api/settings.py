@@ -154,32 +154,23 @@ def check_update():
 
 @settings_blueprint.route('/apply_update', methods=['POST'])
 def apply_update():
-    try:
-        project_root = os.getcwd()
-        venv_pip = os.path.join(project_root, 'venv', 'bin', 'pip')
-        requirements_file = os.path.join(project_root, 'requirements.txt')
+    """
+    Apply an update. Delegates to the single implementation in api/update_code.py.
 
-        # Git pull
-        git_proc = subprocess.run(['git', 'pull'], cwd=project_root, capture_output=True, text=True, timeout=60)
-        if git_proc.returncode != 0:
-            return jsonify({"status": "failure", "error": "Failed to apply updates"}), 500
+    This used to be a second, divergent copy that ran a bare `git pull` with no
+    `git reset --hard`. Devices whose working tree is dirty - which is every
+    device that ever had a file copied onto it by hand, since those arrive with
+    CRLF line endings and so differ on every line - made that pull fail, and the
+    old code swallowed git's error and returned a bare 500. The settings page
+    button therefore appeared to do nothing at all, while the /api/system
+    version of the same button worked.
+    """
+    from api.update_code import _apply_update
 
-        # Pip install if requirements exist
-        if os.path.exists(requirements_file):
-            pip_proc = subprocess.run([venv_pip, 'install', '-r', requirements_file],
-                                      cwd=project_root, capture_output=True, text=True, timeout=120)
-            if pip_proc.returncode != 0:
-                return jsonify({"status": "failure", "error": "Failed to install dependencies"}), 500
-
-        # Restart the service
-        subprocess.Popen(['sudo', 'systemctl', 'restart', 'garden.service'],
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=project_root)
-
-        return jsonify({"status": "success", "message": "Update complete"})
-    except subprocess.TimeoutExpired:
-        return jsonify({"status": "failure", "error": "Update timed out"}), 500
-    except Exception as e:
-        return jsonify({"status": "failure", "error": f"Unexpected error: {str(e)}"}), 500
+    success, output, error = _apply_update()
+    if error:
+        return jsonify({"status": "failure", "error": error, "output": output}), 500
+    return jsonify({"status": "success", "message": "Update complete", "output": output})
 
 @settings_blueprint.route('/update', methods=['POST'])
 def update_application():

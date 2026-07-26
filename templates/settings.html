@@ -1330,26 +1330,45 @@
       let progress = 0;
       const progressBar = document.getElementById('progressBar');
       progressBar.textContent = '0%';
+      // Creep towards 90% while the request is in flight; the real result
+      // decides what happens next. This used to march to 100% and reload after
+      // one second no matter what, so a failed update looked identical to a
+      // successful one and the error was never shown.
       const interval = setInterval(() => {
-        progress += 10;
-        progressBar.style.width = progress + '%';
-        progressBar.textContent = progress + '%';
-        if (progress >= 100) {
-          clearInterval(interval);
-          // After update, reload page
-          setTimeout(() => window.location.reload(), 1000);
+        if (progress < 90) {
+          progress += 10;
+          progressBar.style.width = progress + '%';
+          progressBar.textContent = progress + '%';
         }
-      }, 500); // Adjust speed as needed
+      }, 500);
       // Actual update logic
       fetch('/api/settings/apply_update', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'success') {
-            console.log('Update applied successfully');
-            // Reload or show success
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+          clearInterval(interval);
+          if (ok && data.status === 'success') {
+            progress = 100;
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100%';
+            console.log('Update applied successfully', data.output || '');
+            // The service is restarting; give it a moment before reloading.
+            setTimeout(() => window.location.reload(), 5000);
           } else {
-            console.error('Update failed');
+            progressBar.style.width = '100%';
+            progressBar.style.background = '#c62828';
+            progressBar.textContent = 'Failed';
+            const detail = (data && (data.error || data.output)) || 'Unknown error';
+            console.error('Update failed:', detail);
+            alert('Update failed:\n\n' + detail);
           }
+        })
+        .catch(err => {
+          clearInterval(interval);
+          progressBar.style.width = '100%';
+          progressBar.style.background = '#c62828';
+          progressBar.textContent = 'Failed';
+          console.error('Update request failed:', err);
+          alert('Update request failed:\n\n' + err);
         });
     });
     // Close modal function
