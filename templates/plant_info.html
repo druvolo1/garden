@@ -390,32 +390,48 @@
         let serverUrl = currentSettings.server_url;
         const deviceId = currentSettings.device_id;
         const apiKey = currentSettings.api_key;
+        const serverEnabled = currentSettings.server_enabled || false;
 
-        if (!serverUrl) {
-          alert('Server URL not configured');
-          return;
-        }
+        // Finishing a plant is a local operation: it clears plant_info in this
+        // device's settings.json. The server round-trip and the log upload are
+        // both best-effort, so neither can leave the operator stuck with a plant
+        // they cannot finish.
+        const canUseServer = Boolean(serverEnabled && deviceId && apiKey && serverUrl);
+        const notes = [];
 
-        // Convert WebSocket URL to HTTP URL for API calls
-        serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-        // Remove /ws/devices path if present
-        serverUrl = serverUrl.replace('/ws/devices', '');
+        if (canUseServer) {
+          // Convert WebSocket URL to HTTP URL for API calls
+          serverUrl = serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+          // Remove /ws/devices path if present
+          serverUrl = serverUrl.replace('/ws/devices', '');
 
-        // Upload any pending logs first
-        console.log('Uploading pending logs...');
-        await uploadPendingLogs();
+          // Upload any pending logs first - best effort
+          console.log('Uploading pending logs...');
+          try {
+            await uploadPendingLogs();
+          } catch (uploadError) {
+            console.warn('Log upload failed, continuing:', uploadError);
+            notes.push(`logs were not uploaded (${uploadError.message}); they remain on this device`);
+          }
 
-        // Finish plant on server using device API
-        const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants/${plantId}/finish?api_key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            end_date: endDateStr || new Date().toISOString()
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
+          // Finish plant on server using device API - best effort
+          try {
+            const response = await fetch(`${serverUrl}/api/devices/${deviceId}/plants/${plantId}/finish?api_key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                end_date: endDateStr || new Date().toISOString()
+              })
+            });
+            if (!response.ok) {
+              throw new Error(`server returned HTTP ${response.status}`);
+            }
+          } catch (serverError) {
+            console.warn('Server finish failed, finishing locally:', serverError);
+            notes.push(`the server was not updated (${serverError.message})`);
+          }
+        } else {
+          notes.push('server not in use; finished on this device only, logs kept locally');
         }
 
         // Clear plant info from local settings and disable auto-dosing and remote feeding
@@ -430,15 +446,19 @@
           allow_remote_feeding: false
         };
 
-        await fetch('/api/settings/', {
+        const localSave = await fetch('/api/settings/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        // Delete local log files
+        // This is the part that actually finishes the plant, so it is checked.
+        if (!localSave.ok) {
+          throw new Error(`could not clear plant info on this device (HTTP ${localSave.status})`);
+        }
+
         console.log('Plant finished successfully!');
-        alert('Plant finished and logs uploaded successfully!');
+        alert(`Plant finished.${notes.length ? '\n\nNote: ' + notes.join('; ') + '.' : ' Logs uploaded successfully!'}`);
         loadSettings(); // Reload to show start plant section
 
       } catch (error) {

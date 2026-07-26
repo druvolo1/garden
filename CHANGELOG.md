@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.93] - 2026-07-26
+- finishing a plant no longer requires the server. The log upload and the server finish call are both best-effort now; if either fails, or the server is not in use, the plant is still finished on this device and the dialog says exactly what did not happen. Previously uploadPendingLogs() threw on a failed upload and aborted the whole operation before the finish call was even made, so with the server down a plant could be started but never finished
+- clearing plant info locally is now checked rather than assumed
+
 ## [1.0.92] - 2026-07-26
 - starting a plant no longer requires the server: if the server is not in use, or is unreachable, the plant is saved to this device with a locally generated id and the dialog says so. Previously the form was only offered when server_enabled was false, yet the handler demanded credentials and a successful cloud POST, so it could never succeed in the one case it was shown
 - the local save is now checked rather than assumed, so a failure to write settings is reported instead of being silently swallowed
